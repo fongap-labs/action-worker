@@ -3,10 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
-import {
-  ensureSourceImportAvailable,
-  resolveSourceImportBase,
-} from "./source-import-baselines.ts";
+import { ensureSourceImportAvailable, resolveSourceImportBase } from "./source-import-baselines.ts";
 
 export type ChangedFile = { status: "A" | "M" | "T" | "D"; path: string; sha?: string };
 // A single, verified package-identity migration from the exact accepted plugin baseline.

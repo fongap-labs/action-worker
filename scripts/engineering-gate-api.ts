@@ -15,12 +15,12 @@ import {
   parseOwnershipPolicy,
 } from "./central-engineering-gate.ts";
 import { isDeltaCleanRootTarget, verifyDeltaCleanRootCommit } from "./delta-clean-root.ts";
+import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
+import { CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
 import {
   resolveSourceImportBase,
   sourceImportBaselineForSource,
 } from "./source-import-baselines.ts";
-import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
-import { CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
 
 export { filterVerifiedPluginNameOnlyChanges };
 
@@ -167,8 +167,16 @@ export async function fetchPublicGitInventory(
       await runCommand(
         "git",
         [
-          "-C", root, "fetch", "--quiet", "--no-tags", "--no-recurse-submodules",
-          "--filter=blob:none", "--depth=1", source.sourceRepository, base,
+          "-C",
+          root,
+          "fetch",
+          "--quiet",
+          "--no-tags",
+          "--no-recurse-submodules",
+          "--filter=blob:none",
+          "--depth=1",
+          source.sourceRepository,
+          base,
         ],
         {
           env: {
@@ -183,8 +191,15 @@ export async function fetchPublicGitInventory(
       await runCommand(
         "git",
         [
-          "-C", root, "fetch", "--quiet", "--no-tags", "--filter=blob:none", "--depth=1",
-          "https://github.com/" + repository + ".git", head,
+          "-C",
+          root,
+          "fetch",
+          "--quiet",
+          "--no-tags",
+          "--filter=blob:none",
+          "--depth=1",
+          "https://github.com/" + repository + ".git",
+          head,
         ],
         {
           env: {

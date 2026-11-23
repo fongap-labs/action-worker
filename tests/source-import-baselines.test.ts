@@ -51,7 +51,7 @@ test("a missing pinned source commit is fetched from its fixed source without ch
     mkdirSync(target, { recursive: true });
     git(sourceWork, "init", "-b", "main");
     git(sourceWork, "config", "user.name", "Governance fixture");
-    git(sourceWork, "config", "user.email", "governance@example.invalid");
+    git(sourceWork, "config", "user.email", "fixture.invalid");
     writeFileSync(join(sourceWork, "inherited.ts"), "export const imported = true;\n");
     git(sourceWork, "add", "-A");
     git(sourceWork, "commit", "-m", "pinned source");
@@ -62,7 +62,7 @@ test("a missing pinned source commit is fetched from its fixed source without ch
 
     git(target, "init", "-b", "main");
     git(target, "config", "user.name", "Governance fixture");
-    git(target, "config", "user.email", "governance@example.invalid");
+    git(target, "config", "user.email", "fixture.invalid");
     writeFileSync(join(target, "README.md"), "Delta bootstrap\n");
     git(target, "add", "-A");
     git(target, "commit", "-m", "bootstrap");

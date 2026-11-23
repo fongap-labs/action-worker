@@ -7,8 +7,8 @@ import {
   runTextLines,
 } from "./runtime-command.ts";
 import {
-  SOURCE_IMPORT_BASELINES,
   ensurePinnedImportSourceAvailable,
+  SOURCE_IMPORT_BASELINES,
   type SourceImportBaseline,
 } from "./source-import-baselines.ts";
 
@@ -211,7 +211,7 @@ export async function resolveEngineeringDiffBase(
   trusted: TrustedImportBaseline | readonly TrustedImportBaseline[] = SOURCE_IMPORT_BASELINES
 ): Promise<string> {
   const baselines: readonly TrustedImportBaseline[] = Array.isArray(trusted)
-    ? trusted as readonly TrustedImportBaseline[]
+    ? (trusted as readonly TrustedImportBaseline[])
     : [trusted as TrustedImportBaseline];
   const selected = baselines.find((entry) => base === entry.bootstrapSha);
   if (!selected) return base;
