@@ -30,11 +30,7 @@
       "legacy_repository": "fongap-labs/dsh-plugin",
       "sha": "d57194f2bef6ed7eb5e6da7a2851a2d55f527132",
       "valid_before": "2026-11-23T05:00:00Z",
-      "contexts": [
-        "PR Governance",
-        "CI Evidence",
-        "validate-merge"
-      ]
+      "contexts": ["PR Governance", "CI Evidence", "validate-merge"]
     }
   ]
 }
