@@ -80,7 +80,7 @@ test("root provenance is recorded as bootstrap, not a fictitious merged PR", asy
   const reader = {
     async get(path: string): Promise<unknown> {
       requests.push(path);
-      if (path === "repos/" + repository) return { default_branch: "main" };
+      if (path === "repos/" + repository) return { default_branch: "main", private: false };
       if (path === "repos/" + repository + "/commits/" + deltaCleanRootSha) {
         return restRoot;
       }
@@ -99,7 +99,15 @@ test("root provenance is recorded as bootstrap, not a fictitious merged PR", asy
 
   await assert.rejects(
     validateMainWriteProvenance(reader, repository, deltaCleanRootSha, true, {
-      repositoryValue: { default_branch: "main" },
+      repositoryValue: { default_branch: "main", private: true },
+      mainCommit: restRoot,
+    }),
+    /requires a verified public repository/
+  );
+
+  await assert.rejects(
+    validateMainWriteProvenance(reader, repository, deltaCleanRootSha, true, {
+      repositoryValue: { default_branch: "main", private: false },
       mainCommit: { ...restRoot, parents: [{ sha: "a".repeat(40) }] },
     }),
     /identity, parents or tree/
