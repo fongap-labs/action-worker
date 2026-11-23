@@ -1,8 +1,4 @@
-import {
-  latestCiStatus,
-  trustedControlRunId,
-  type JsonReader,
-} from "./ci-evidence.ts";
+import { type JsonReader, latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
 import { getJsonArray, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { verifyMaintainerResolution } from "./historical-main-review.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
@@ -113,10 +109,9 @@ export async function needsReviewedDeltaCi(
     getJsonString(run, "head_branch") === "main" &&
     getJsonString(run, "head_sha") !== currentControlSha &&
     getJsonString(isJsonRecord(run) ? run.repository : null, "full_name") === control &&
-    [
-      ".github/workflows/central-ci-dispatch.yml",
-      ".github/workflows/intake.yml",
-    ].includes(getJsonString(run, "path"))
+    [".github/workflows/central-ci-dispatch.yml", ".github/workflows/intake.yml"].includes(
+      getJsonString(run, "path")
+    )
   );
 }
 
@@ -124,7 +119,8 @@ async function main(): Promise<void> {
   const [target = "", sha = "", current = ""] = process.argv.slice(2);
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const statusToken = process.env.AW_STATUS_API_TOKEN ?? "";
-  if (!controlToken || !statusToken) throw new CliError("Scoped CI verification tokens missing.", 77);
+  if (!controlToken || !statusToken)
+    throw new CliError("Scoped CI verification tokens missing.", 77);
   const reader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
     controlToken,
