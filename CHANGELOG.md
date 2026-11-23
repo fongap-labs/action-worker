@@ -2,13 +2,9 @@
 
 ## [Unreleased]
 
-- 新增: 将 Delta LiveShare Relay、只读会话投影与并发分享回归检查加入中央测试包，避免在产品仓库新增本地测试。
+- 新增: 将 Delta 的 CUA、浏览器、Forge、Worktree 和 LiveShare 回归检查加入中央测试包，避免在产品仓库新增本地测试。
 
-- 新增: 为一次性源码导入增加中央固定基线策略，并让差异门禁只对精确固定提交比较；Windows x64 中央验收改为检查 Delta 真实 `App/Data/Other` 便携目录及校验和。
-
-- 维护: 将 Delta Code 的 Modern Web Guidance 安全性、固定来源索引与按需调用回归移入统一插件中央测试包，不再新增插件仓库本地测试。
-
-- 维护: 为 BrowserBuild 免费 Windows 发布补充原生 PowerShell 脚本语法、固定上游运行时版本与标准免费 Runner 合同检查，避免先前重复/损坏脚本通过仅 Rust 编译的 CI。
+- 维护: 为一次性源码导入增加中央固定基线策略，并让差异门禁只对精确固定提交比较；Windows x64 中央验收改为检查 Delta 真实 `App/Data/Other` 便携目录及校验和。
 
 - 修复: 发布准备阶段在等待可能长达数分钟的中央 CI Evidence 之前，先校验已固定的产品发布清单和 Runner Profile；未启用的 BrowserBuild 大型 Windows Runner 立即失败并明确报告，不再白等约 11 分钟，仍禁止无资源时绕过发布门禁。
 

@@ -1,4 +1,4 @@
-"""Run trusted LiveShare regression tests against the pinned Delta checkout."""
+"""Run Delta capability regression tests against the pinned source checkout."""
 
 from __future__ import annotations
 
@@ -12,12 +12,13 @@ from kit_target import target_root
 PACK_ROOT = Path(__file__).resolve().parent
 
 
-def test_liveshare_relay_contract() -> None:
+def test_delta_capability_contract() -> None:
     target = target_root()
     environment = os.environ.copy()
     environment["CENTRAL_TEST_TARGET_ROOT"] = str(target)
+    tests = sorted(PACK_ROOT.glob("*-test.mjs"))
     result = subprocess.run(
-        ["node", "--experimental-strip-types", "--test", str(PACK_ROOT / "liveshare-relay-test.mjs")],
+        ["node", "--experimental-strip-types", "--test", *(str(path) for path in tests)],
         cwd=target,
         env=environment,
         check=False,
