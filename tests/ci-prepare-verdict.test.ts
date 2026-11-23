@@ -10,7 +10,7 @@ const flow = parse(central) as {
     { if?: string; steps: Array<{ name?: string; id?: string; if?: string; run?: string }> }
   >;
 };
-const prepare = flow.jobs["prepare-failure"];
+const prepare = flow.jobs["prepare-failure"]!;
 assert.ok(prepare);
 
 function getStep(name: string) {
