@@ -390,314 +390,107 @@ test('official CAS conflict and invalid Host acknowledgement fail without retry'
   assert.deepEqual(missingRemote.calls, [])
 })
 
+// P0-2: Host Gateway discovery is deliberately inert until a documented
+// credential-free Host request proxy exists. Pure mapping and CAS functions
+// above remain tested independently; no HTTP, credential or route is allowed.
 function hostGatewayFixture(options = {}) {
-  const routes = new Map()
-  const calls = []
-  const network = []
-  let rebind
-  let currentDisposer
-  let credential = 'INTERNAL_TEST_KEY_NEVER_EXPOSE'
-  let revision = 4
-  let value = { providers: { 'my-gateway': {
-    baseURL: 'https://gateway.example/v1',
-    api: 'openai-completions',
-    apiKeyEnv: 'MY_GATEWAY_API_KEY',
-    models: [{ id: 'Max', name: 'Keep name', reasoningEfforts: { low: 'low' } },
-      { id: 'General', input: ['text'] }],
-  } } }
+  const effects = { injected: 0, credentials: 0, settings: 0, routes: 0, network: 0 }
+  const settings = { writable: true, describe: () => [],
+    mutate: async () => { effects.settings++ },
+  }
   const services = {
-    settings: {
-      writable: true,
-      describe: () => [{ ns: 'llm-pi-ai', revision, value: structuredClone(value) }],
-      mutate: async (ns, ops, expected) => {
-        calls.push({ ns, ops, expected })
-        assert.equal(ns, 'llm-pi-ai')
-        if (expected !== revision) throw Object.assign(Error('stale'), { code: 'SETTINGS_CONFLICT' })
-        assert.equal(ops.length, 1)
-        const [provider, index] = [ops[0].path[1], Number(ops[0].path[3])]
-        value.providers[provider].models[index].reasoningEfforts = structuredClone(ops[0].value)
-        revision++
-      },
-    },
-    credentials: {
-      resolve: async ref => ref === 'MY_GATEWAY_API_KEY' ? { value: credential } : undefined,
-    },
-    llm: {
-      listConfigurableProviders: () => [{
-        provider: 'my-gateway', settingsNs: 'llm-pi-ai',
-        settingsPath: ['providers', 'my-gateway'],
-      }],
-    },
-    connection: {
-      fetch: { register(spec) { routes.set(spec.path, spec); return () => routes.delete(spec.path) } },
-    },
+    settings,
+    credentials: { resolve: async () => {
+      effects.credentials++
+      return { value: 'UNSAFE_INTERNAL_TEST_KEY' }
+    } },
+    llm: { listConfigurableProviders: () => [] },
+    connection: { fetch: { register: () => {
+      effects.routes++
+      return () => {}
+    } } },
   }
-  const fetcher = options.fetch ?? (async (url, init) => {
-    network.push({ url, redirect: init.redirect, cache: init.cache, method: init.method,
-      auth: init.headers.authorization })
-    return new Response(JSON.stringify(gateway), { status: 200, headers: {
-      'content-type': 'application/json',
-    } })
+  const context = { inject: (_deps, callback) => {
+    effects.injected++
+    callback(services)
+    return () => {}
+  } }
+  const stop = installHostGatewayEffortSync(context, {
+    fetch: async () => {
+      effects.network++
+      throw Error('no Host Gateway request allowed')
+    }, ...options,
   })
-  const stop = installHostGatewayEffortSync({
-    inject(deps, callback) {
-      assert.deepEqual(deps, ['settings', 'credentials', 'llm', 'connection'])
-      rebind = callback
-      currentDisposer = callback(services)
-      return () => { currentDisposer?.() }
-    },
-  }, { fetch: fetcher, ...options })
-  const send = async (path, body, headers = {}) => {
-    const route = routes.get(path)
-    assert.ok(route, 'the declared Host fetch route must exist')
-    assert.deepEqual(route.methods, ['POST'])
-    const request = new Request('http://127.0.0.1' + path, {
-      method: 'POST', headers: { 'content-type': 'application/json', ...headers },
-      body: JSON.stringify(body),
-    })
-    const response = await route.fetch(request)
-    return { code: response.status, data: await response.json() }
-  }
-  const preview = () => send(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, {
-    namespace: 'llm-pi-ai', providerId: 'my-gateway', modelId: 'Max',
-    selectedEffort: 'low',
-  })
-  const apply = previewId => send(DELTA_GATEWAY_EFFORT_APPLY_PATH, {
-    previewId, approved: true,
-  })
-  return {
-    routes, calls, network, services, stop, send, preview, apply,
-    remount() { currentDisposer?.(); currentDisposer = rebind(services) },
-    setCredential: next => { credential = next },
-    setRevision: next => { revision = next },
-    setProvider: change => { const next = structuredClone(value); change(next.providers['my-gateway']); value = next },
-    get value() { return value },
-  }
+  return { effects, settings, services, context, stop }
+}
+function assertFailClosed(f) {
+  assert.equal(typeof f.stop, 'function')
+  assert.deepEqual(f.effects, {
+    injected: 0, credentials: 0, settings: 0, routes: 0, network: 0,
+  }, 'unverified Host integration must have no side effects')
 }
 
-test('Gateway Host preview discovers ONLY on user action and commits via official Settings CAS', async () => {
+test('Gateway Host does not register preview or apply routes without a public request proxy', () => {
   const f = hostGatewayFixture()
-  assert.equal(f.network.length, 0, 'mounting a plugin must not probe an endpoint')
-  const p = await f.preview()
-  assert.equal(p.code, 200)
-  assert.equal(p.data.status, 'review')
-  assert.equal(p.data.preview.modelId, 'Max')
-  assert.deepEqual(p.data.preview.added, ['medium', 'high', 'max'])
-  assert.deepEqual(p.data.preview.removed, [])
-  assert.equal(p.data.previewId.length, 48)
-  assert.deepEqual(f.network.map(({ url, redirect, cache, method }) =>
-    ({ url, redirect, cache, method })), [{
-      url: 'https://gateway.example/v1/models', redirect: 'error',
-      cache: 'no-store', method: 'GET',
-    }])
-  assert.equal(f.network[0].auth, 'Bearer INTERNAL_TEST_KEY_NEVER_EXPOSE')
-  assert.equal(JSON.stringify(p.data).includes('INTERNAL_TEST_KEY_NEVER_EXPOSE'), false)
-  assert.equal(JSON.stringify(p.data).includes('MY_GATEWAY_API_KEY'), false)
-  const written = await f.apply(p.data.previewId)
-  assert.equal(written.code, 200)
-  assert.deepEqual(written.data, { ok: true, status: 'applied', revision: 5 })
-  assert.deepEqual(f.calls, [{
-    ns: 'llm-pi-ai', expected: 4, ops: [{
-      op: 'set', path: ['providers', 'my-gateway', 'models', '0', 'reasoningEfforts'],
-      value: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
-    }],
-  }])
-  assert.equal(f.value.providers['my-gateway'].models[0].name, 'Keep name')
-  assert.deepEqual(f.value.providers['my-gateway'].models[1], { id: 'General', input: ['text'] })
-  assert.equal(f.network.length, 1, 'approval never repeats a Gateway network request')
-  const replay = await f.apply(p.data.previewId)
-  assert.equal(replay.code, 409)
-  assert.equal(replay.data.reason, 'expired-preview')
-  assert.equal(f.calls.length, 1)
+  assert.equal(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, '/api/delta-suite/gateway-effort/preview')
+  assert.equal(DELTA_GATEWAY_EFFORT_APPLY_PATH, '/api/delta-suite/gateway-effort/apply')
+  assertFailClosed(f)
   f.stop()
-  assert.equal(f.routes.size, 0)
+  assertFailClosed(f)
 })
 
-test('Gateway Host prevents stale, rotated and unapproved writes', async () => {
-  for (const mutate of [
-    f => f.setCredential('ROTATED_KEY'),
-    f => f.setRevision(5),
-    f => f.setProvider(p => { p.models[0].id = 'Different' }),
-    f => f.setProvider(p => { p.apiKeyEnv = 'OTHER_REFERENCE' }),
-  ]) {
-    const f = hostGatewayFixture()
-    const p = await f.preview()
-    assert.equal(p.code, 200)
-    mutate(f)
-    const result = await f.apply(p.data.previewId)
-    assert.equal(result.code, 409)
-    assert.equal(f.calls.length, 0)
-    f.stop()
+test('Gateway Host cannot resolve bearer credentials or mutate settings while disabled', () => {
+  const f = hostGatewayFixture()
+  assertFailClosed(f)
+  f.stop()
+  assert.equal(f.effects.credentials, 0)
+  assert.equal(f.effects.settings, 0)
+})
+
+test('Gateway Host declines unavailable contexts rather than inventing a route', () => {
+  for (const context of [null, undefined, {}, { inject() {
+    throw Error('unverified injection')
+  } }]) {
+    const stop = installHostGatewayEffortSync(context)
+    assert.equal(typeof stop, 'function')
+    assert.doesNotThrow(() => { stop(); stop() })
   }
+})
+
+test('Gateway Host never performs HTTP discovery even when transport is supplied', () => {
+  let calls = 0
+  const f = hostGatewayFixture({ fetch: async () => { calls++; throw Error('unexpected HTTP') } })
+  assertFailClosed(f)
+  assert.equal(calls, 0)
+  f.stop()
+})
+
+test('Gateway Host cannot manufacture preview grants for unsafe models or Off', () => {
   const f = hostGatewayFixture()
-  const p = await f.preview()
-  const notApproved = await f.send(DELTA_GATEWAY_EFFORT_APPLY_PATH, {
-    previewId: p.data.previewId, approved: false,
-  })
-  assert.equal(notApproved.code, 400)
-  assert.equal(f.calls.length, 0)
+  assertFailClosed(f)
+  const hostSource = readTargetText('packages', 'delta-suite', 'src', 'host-gateway-effort.ts')
+  assert.equal(hostSource.includes('registry.register('), false)
+  assert.equal(hostSource.includes('drafts.set('), false)
+  assert.equal(hostSource.includes('authorization: '), false)
   f.stop()
 })
 
-test('Gateway Host refuses unsafe routes, unknown models, cross-site calls and Off', async () => {
+test('Gateway Host unmount and repeated mounts never restore an unapproved service', () => {
+  const first = hostGatewayFixture()
+  assert.doesNotThrow(() => { first.stop(); first.stop() })
+  assertFailClosed(first)
+  const second = hostGatewayFixture()
+  assertFailClosed(second)
+  second.stop()
+})
+
+test('Gateway Host leaves native settings and service capabilities unchanged', () => {
   const f = hostGatewayFixture()
-  const foreign = await f.send(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, {
-    namespace: 'llm-pi-ai', providerId: 'my-gateway', modelId: 'Max',
-    selectedEffort: 'low',
-  }, { origin: 'https://foreign.example' })
-  assert.equal(foreign.code, 400)
-  assert.equal(f.network.length, 0)
-  const off = await f.send(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, {
-    namespace: 'llm-pi-ai', providerId: 'my-gateway', modelId: 'Max',
-    selectedEffort: 'off',
-  })
-  assert.equal(off.code, 409)
-  assert.equal(off.data.reason, 'native-off-unsafe')
-  const wrong = await f.send(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, {
-    namespace: 'llm-pi-ai', providerId: '__proto__', modelId: 'Max',
-    selectedEffort: 'low',
-  })
-  assert.equal(wrong.code, 400)
-  for (const baseURL of [
-    'http://gateway.example/v1', 'https://127.0.0.1/v1',
-    'https://localhost/v1', 'https://user:pass' + String.fromCharCode(64) + 'gateway.example/v1',
-    'https://gateway.example:8443/v1',
-  ]) {
-    f.setProvider(p => { p.baseURL = baseURL })
-    const result = await f.preview()
-    assert.equal(result.code, 400)
-    assert.equal(result.data.reason, 'unsafe-endpoint')
-  }
-  assert.equal(f.calls.length, 0)
+  const settings = f.services.settings
+  const credentials = f.services.credentials
+  assertFailClosed(f)
+  assert.strictEqual(f.services.settings, settings)
+  assert.strictEqual(f.services.credentials, credentials)
   f.stop()
-})
-
-test('Gateway Host detects credential replacement during discovery and never stores secret tokens', async () => {
-  let fixture
-  fixture = hostGatewayFixture({ fetch: async () => {
-    fixture.setCredential('NEW_KEY_AFTER_FETCH')
-    return new Response(JSON.stringify(gateway), { status: 200 })
-  } })
-  const p = await fixture.preview()
-  assert.equal(p.code, 409)
-  assert.equal(p.data.reason, 'credential-changed')
-  assert.equal(fixture.calls.length, 0)
-  fixture.stop()
-
-  let currentTime = 1_000
-  const expiring = hostGatewayFixture({ now: () => currentTime })
-  const allowed = await expiring.preview()
-  currentTime += 120_001
-  const denied = await expiring.apply(allowed.data.previewId)
-  assert.equal(denied.code, 409)
-  assert.equal(denied.data.reason, 'expired-preview')
-  assert.equal(expiring.calls.length, 0)
-  expiring.stop()
-})
-
-test('Gateway Host bounds duplicate discovery and total concurrent authenticated requests', async () => {
-  let networkRequests = 0
-  const held = []
-  let bothReady
-  const both = new Promise(resolve => { bothReady = resolve })
-  const f = hostGatewayFixture({
-    fetch: async () => {
-      networkRequests++
-      if (networkRequests <= 2) {
-        return await new Promise(resolve => {
-          held.push(resolve)
-          if (held.length === 2) bothReady()
-        })
-      }
-      return new Response(JSON.stringify(gateway), { status: 200 })
-    },
-  })
-  f.setProvider(provider => {
-    provider.models.push(
-      { id: 'Other-1', reasoningEfforts: { low: 'low' } },
-      { id: 'Other-2', reasoningEfforts: { low: 'low' } },
-    )
-  })
-  const one = f.preview()
-  const two = f.send(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, {
-    namespace: 'llm-pi-ai', providerId: 'my-gateway', modelId: 'Other-1',
-    selectedEffort: 'low',
-  })
-  await both
-  const duplicate = await f.preview()
-  assert.deepEqual(duplicate, { code: 429, data: {
-    ok: false, reason: 'discovery-in-progress',
-  } })
-  const overflow = await f.send(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, {
-    namespace: 'llm-pi-ai', providerId: 'my-gateway', modelId: 'Other-2',
-    selectedEffort: 'low',
-  })
-  assert.deepEqual(overflow, { code: 429, data: {
-    ok: false, reason: 'discovery-busy',
-  } })
-  assert.equal(networkRequests, 2, 'no third credential-bearing network call')
-  for (const finish of held) finish(new Response(JSON.stringify(gateway), { status: 200 }))
-  assert.equal((await one).code, 200)
-  assert.equal((await two).data.reason, 'gateway-model-unavailable')
-  assert.equal((await f.preview()).code, 200,
-    'settled requests free their capacity for another explicit user action')
-  assert.equal(networkRequests, 3)
-  f.stop()
-})
-
-test('Gateway Host remount cancels old discovery and invalidates old approval grants', async () => {
-  let fetches = 0
-  let releaseOld
-  let startedOld
-  const oldStarted = new Promise(resolve => { startedOld = resolve })
-  const f = hostGatewayFixture({
-    fetch: async () => {
-      fetches++
-      if (fetches === 1) {
-        startedOld()
-        return await new Promise(resolve => { releaseOld = resolve })
-      }
-      return new Response(JSON.stringify(gateway), { status: 200 })
-    },
-  })
-  const obsolete = f.preview()
-  await oldStarted
-  f.remount()
-  // Simulate a transport that returns even after its AbortSignal was cancelled.
-  releaseOld(new Response(JSON.stringify(gateway), { status: 200 }))
-  const old = await obsolete
-  assert.equal(old.code, 503)
-  assert.equal(old.data.reason, 'host-unavailable')
-  assert.equal(old.data.previewId, undefined)
-  const fresh = await f.preview()
-  assert.equal(fresh.code, 200)
-  assert.equal(fresh.data.status, 'review')
-  f.remount()
-  const stale = await f.apply(fresh.data.previewId)
-  assert.equal(stale.code, 409)
-  assert.equal(stale.data.reason, 'expired-preview')
-  assert.equal(f.calls.length, 0)
-  f.stop()
-  assert.equal(f.routes.size, 0)
-})
-
-test('Gateway Host teardown during delayed credential resolution never writes a model', async () => {
-  const f = hostGatewayFixture()
-  const ready = await f.preview()
-  assert.equal(ready.code, 200)
-  let releaseResolution
-  let resolutionStarted
-  const started = new Promise(resolve => { resolutionStarted = resolve })
-  f.services.credentials.resolve = async () => {
-    resolutionStarted()
-    return await new Promise(resolve => { releaseResolution = resolve })
-  }
-  const applying = f.apply(ready.data.previewId)
-  await started
-  f.stop()
-  releaseResolution({ value: 'INTERNAL_TEST_KEY_NEVER_EXPOSE' })
-  const blocked = await applying
-  assert.equal(blocked.code, 503)
-  assert.equal(blocked.data.reason, 'host-unavailable')
-  assert.equal(f.calls.length, 0)
+  assertFailClosed(f)
 })
