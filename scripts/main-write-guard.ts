@@ -11,6 +11,7 @@ import {
   verificationRecorder,
 } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
+import { isDeltaCleanRootTarget, verifyDeltaCleanRootCommit } from "./delta-clean-root.ts";
 import {
   isDeltaHistoryMigrationTarget,
   verifyDeltaHistoryMigration,
@@ -44,7 +45,7 @@ export type MainWriteProvenance = {
   main_sha: string;
   pr_number: number;
   pr_head_sha: string;
-  source?: "delta-history-migration";
+  source?: "delta-history-migration" | "delta-clean-root";
 };
 
 /**
@@ -304,6 +305,19 @@ export async function validateMainWriteProvenance(
     throw new CliError("::error::Main write commit could not be resolved exactly.", 65);
   }
 
+  // Exactly this deliberately recreated two-file root is a reviewed initialization,
+  // not a merged PR or a general direct-write exception. Any other SHA still fails.
+  if (isDeltaCleanRootTarget(repository, mainSha)) {
+    verifyDeltaCleanRootCommit(repository, mainSha, commit);
+    return {
+      repository,
+      main_sha: mainSha,
+      pr_number: 0,
+      pr_head_sha: mainSha,
+      source: "delta-clean-root",
+    };
+  }
+
   // A single code-reviewed, SHA-pinned Delta history repair is exceptional: it
   // preserves every original source tree but necessarily lacks a target-repository
   // squash PR at the rewritten SHA. No other branch write receives this path.
@@ -560,9 +574,11 @@ async function main(): Promise<void> {
       request,
       statusToken,
       "success",
-      provenance.source === "delta-history-migration"
-        ? "Trusted Delta one-time history migration (original PR #10)"
-        : `Trusted main write via PR #${provenance.pr_number}`
+      provenance.source === "delta-clean-root"
+        ? "Verified Delta initialization baseline (no PR; two-file root)"
+        : provenance.source === "delta-history-migration"
+          ? "Trusted Delta one-time history migration (original PR #10)"
+          : `Trusted main write via PR #${provenance.pr_number}`
     );
     await appendLines(process.env.GITHUB_OUTPUT, [
       `repository=${provenance.repository}`,
@@ -575,7 +591,7 @@ async function main(): Promise<void> {
       "",
       `- Repository: ${provenance.repository}`,
       `- Main SHA: ${provenance.main_sha}`,
-      `- Original pull request: #${provenance.pr_number}`,
+      `- Original pull request: ${provenance.pr_number === 0 ? "not applicable (reviewed root)" : `#${provenance.pr_number}`}`,
       `- Provenance: ${provenance.source ?? "squash PR"}`,
       `- PR head SHA: ${provenance.pr_head_sha}`,
       `- merge authority: ${process.env.MAIN_WRITE_REQUIRE_CENTRAL_STATUSES !== "false" ? "Action Worker validate-merge status" : "local validate-merge check"}`,
