@@ -326,3 +326,12 @@ test("Skill promotion reads the renamed Delta Code compiled entrypoints", () => 
   assert.ok(source.includes("packages/delta-code/lib/delta-code-adapter/contracts/github.js"));
   assert.ok(!source.includes("packages/dsh-delta-code/"));
 });
+
+test("central Skill admission policy matches renamed plugins source paths", () => {
+  const policy = JSON.parse(
+    readFileSync(new URL("../policies/skill-admission.json", import.meta.url), "utf8")
+  ) as unknown;
+  assert.deepEqual(parseSkillAdmissionPolicy(policy), [target]);
+  assert.equal(target.repository, "fongap-labs/plugins");
+  assert.ok(!JSON.stringify(policy).includes("dsh-delta-code"));
+});
