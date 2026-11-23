@@ -12,13 +12,12 @@ export function isDeltaCleanRootTarget(repository: string, sha: string): boolean
 }
 
 /** GitHub REST commits have a nested commit.tree; Git commit objects have tree at top level. */
-export function verifyDeltaCleanRootCommit(
-  repository: string,
-  sha: string,
-  commit: unknown
-): void {
+export function verifyDeltaCleanRootCommit(repository: string, sha: string, commit: unknown): void {
   if (!isDeltaCleanRootTarget(repository, sha) || !isJsonRecord(commit)) {
-    throw new CliError("Delta clean-root approval is restricted to the pinned repository and SHA.", 65);
+    throw new CliError(
+      "Delta clean-root approval is restricted to the pinned repository and SHA.",
+      65
+    );
   }
   const object = isJsonRecord(commit.commit) ? commit.commit : commit;
   if (
@@ -28,7 +27,10 @@ export function verifyDeltaCleanRootCommit(
     !isJsonRecord(object.tree) ||
     getJsonString(object.tree, "sha") !== deltaCleanRootTreeSha
   ) {
-    throw new CliError("Delta clean-root commit identity, parents or tree does not match the reviewed initialization.", 65);
+    throw new CliError(
+      "Delta clean-root commit identity, parents or tree does not match the reviewed initialization.",
+      65
+    );
   }
 }
 
@@ -51,9 +53,14 @@ export async function verifyDeltaCleanRootCheckout(
     tree.trim() !== deltaCleanRootTreeSha ||
     files.trim() !== "LICENSE\nREADME.md"
   ) {
-    throw new CliError("Delta clean-root checkout differs from the approved two-file baseline.", 65);
+    throw new CliError(
+      "Delta clean-root checkout differs from the approved two-file baseline.",
+      65
+    );
   }
-  console.log("Delta initial root verified: immutable tree with LICENSE and README.md; no application tests exist.");
+  console.log(
+    "Delta initial root verified: immutable tree with LICENSE and README.md; no application tests exist."
+  );
 }
 
 if (isMain(import.meta.url)) {
