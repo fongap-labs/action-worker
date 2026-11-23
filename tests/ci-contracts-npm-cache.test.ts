@@ -22,6 +22,6 @@ test("npm cache does not replace any contract verification or install", () => {
   assert.match(contract, /run: python3 tests\/test-source-naming\.py/);
   assert.doesNotMatch(contract, /cache-hit/);
   const aggregate = workflow.slice(workflow.indexOf("  validate-merge:"));
-  assert.match(aggregate, /needs: \[/);
-  assert.match(aggregate, /contracts/);
+  assert.match(aggregate, /needs:\s+- change-governance/);
+  assert.match(aggregate, /\s+- contracts\s+/);
 });
