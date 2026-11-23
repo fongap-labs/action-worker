@@ -151,7 +151,10 @@ export async function executeManifestLinuxCi(
           );
         }
         await verifyBridgeBootstrap(
-          targetRoot, base, head, resolve(dirname(fileURLToPath(import.meta.url)), "..")
+          targetRoot,
+          base,
+          head,
+          resolve(dirname(fileURLToPath(import.meta.url)), "..")
         );
         console.log("Trusted Delta notification bridge bootstrap verified.");
       } else {
