@@ -500,11 +500,19 @@ test("pinned plugin rename permits only byte-exact legacy-prefix substitutions",
   });
   assert.deepEqual(observed, [tests[1], tests[4]]);
   // Nothing except a canonical filename or the two fixed CI paths is eligible.
-  assert.deepEqual(filterVerifiedPluginNameOnlyChanges([
-    { status: "A", path: "tests/random.test.mjs" },
-    { status: "M", path: "scripts/build-release.mjs" },
-  ], () => { throw new Error("No Git read allowed"); }), [
-    { status: "A", path: "tests/random.test.mjs" },
-    { status: "M", path: "scripts/build-release.mjs" },
-  ]);
+  assert.deepEqual(
+    filterVerifiedPluginNameOnlyChanges(
+      [
+        { status: "A", path: "tests/random.test.mjs" },
+        { status: "M", path: "scripts/build-release.mjs" },
+      ],
+      () => {
+        throw new Error("No Git read allowed");
+      }
+    ),
+    [
+      { status: "A", path: "tests/random.test.mjs" },
+      { status: "M", path: "scripts/build-release.mjs" },
+    ]
+  );
 });
