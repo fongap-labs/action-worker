@@ -1,4 +1,4 @@
-import { hasVerifiedCiEvidence, latestCiStatus, type JsonReader } from "./ci-evidence.ts";
+import { hasVerifiedCiEvidence, type JsonReader, latestCiStatus } from "./ci-evidence.ts";
 import {
   decideCiFailureRetry,
   hasActiveCiEvidenceReservation,
