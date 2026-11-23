@@ -13,7 +13,8 @@
       "delta-code-host-lifecycle-contract-test.mjs",
       "delta-code-experience-evidence-test.mjs",
       "delta-code-skill-auto-stage-test.mjs",
-      "delta-code-skill-auto-advance-test.mjs"
+      "delta-code-skill-auto-advance-test.mjs",
+      "delta-code-modern-web-guidance-test.mjs"
     ]
   }
 }
