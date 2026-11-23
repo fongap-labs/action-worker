@@ -86,6 +86,15 @@ try {
   # DELTA_PORTABLE_OFFLINE alone must not silently bypass release dotenv policy.
   $stage = 'unsigned-directory-pack-and-host-smoke'
   Invoke-Checked 'pnpm.cmd' @('--filter', '@deepseek-ai/dsh-desktop', 'run', 'package:win:x64:dir', '--', '--unsigned')
+  # Optional, read-only performance diagnostics. Never turn target metadata
+  # into a gate result, and never print paths, commands or raw target logs.
+  try {
+    $timingScript = Join-Path $env:CENTRAL_CI_AW_ROOT 'scripts/delta-package-timings.ts'
+    & node.exe $timingScript $root 2>$null
+  }
+  catch {
+    # Missing or malformed target timing metadata cannot alter the CI verdict.
+  }
   Write-Host 'Delta Windows CI unsigned directory packaging and Host smoke completed.'
   $stage = 'package-output-check'
   $unpacked = Join-Path $root 'apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/win-unpacked'
