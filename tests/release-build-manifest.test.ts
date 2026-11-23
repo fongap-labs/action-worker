@@ -212,3 +212,36 @@ test("product acceptance script is optional and must stay within the product roo
     );
   }
 });
+
+test("Chromium release builds fail closed until an isolated self-hosted builder is enabled", async () => {
+  const policy = parseRunnerPolicy(JSON.parse(await readFile("policies/runner.json", "utf8")));
+  const chromium = policy.profiles["windows-chromium-build"];
+  assert.ok(chromium);
+  assert.equal(chromium.enabled, false);
+  assert.equal(chromium.backend, "self-hosted");
+  assert.equal(chromium.trust_domain, "sandbox");
+  assert.deepEqual(chromium.fallback_profiles, []);
+  assert.ok(chromium.labels.includes("aw-chromium-build"));
+  assert.throws(
+    () => resolveRunnerProfile(policy, "windows-chromium-build"),
+    /no enabled backend/
+  );
+
+  const ready = parseRunnerPolicy({
+    ...policy,
+    profiles: {
+      ...policy.profiles,
+      "windows-chromium-build": { ...chromium, enabled: true },
+    },
+  });
+  const resolved = resolveRunnerProfile(ready, "windows-chromium-build");
+  assert.equal(resolved.profile.backend, "self-hosted");
+  assert.equal(resolved.profile.trust_domain, "sandbox");
+  assert.deepEqual(resolved.profile.labels, chromium.labels);
+
+  const workflow = await readFile(".github/workflows/release-app.yml", "utf8");
+  assert.match(workflow, /matrix\.runner_profile == 'windows-chromium-build' && 720 \|\| 90/);
+  assert.match(workflow, /BROWSER_BUILD_SOURCE_BUILD_ENABLED:/);
+  assert.match(workflow, /vars\.AW_BROWSER_BUILD_WORKSPACE_ROOT/);
+  assert.match(workflow, /vars\.AW_BROWSER_BUILD_NOTICES_PATH/);
+});
