@@ -537,6 +537,66 @@ test("main CI retries a signed old failure only after trusted control revision c
   assert.equal(missingTrustedVersion.already_processed, 1);
 });
 
+test("new trusted controller rechecks a signed nonretryable main failure exactly once", async () => {
+  const repository = "fongap-labs/delta";
+  const path = `repos/${repository}/commits/${shaA}/status`;
+  const controlRunPath = `repos/${controlRepository}/actions/runs/777`;
+  const oldController = "1".repeat(40);
+  const newController = "2".repeat(40);
+  const status = attestFixtureResponseForPath(path, {
+    statuses: [
+      {
+        context: "CI Evidence",
+        state: "failure",
+        description: `N:${"f".repeat(62)}`,
+        target_url: `https://github.com/${controlRepository}/actions/runs/777`,
+        updated_at: new Date().toISOString(),
+      },
+    ],
+  });
+  const reader = (runPath = ".github/workflows/central-ci-dispatch.yml") => ({
+    async get(request: string): Promise<unknown> {
+      if (request === `repos/${repository}/commits?per_page=1`) return [{ sha: shaA }];
+      if (request === path) return status;
+      if (request === controlRunPath) {
+        return {
+          repository: { full_name: controlRepository },
+          path: runPath,
+          event: "repository_dispatch",
+          head_branch: "main",
+          head_sha: oldController,
+          status: "completed",
+          conclusion: "failure",
+        };
+      }
+      throw new Error(`Unexpected API request: ${request}`);
+    },
+  });
+  const dispatched: string[] = [];
+  const scan = (controlSha: string, runPath?: string) =>
+    scanMainCi(
+      { [repository]: ["pr"] },
+      reader(runPath),
+      async (target) => {
+        dispatched.push(target);
+      },
+      controlRepository,
+      undefined,
+      "",
+      controlSha
+    );
+  const repaired = await scan(newController);
+  assert.equal(repaired.dispatched, 1);
+  assert.deepEqual(dispatched, [repository]);
+  dispatched.length = 0;
+  const unchanged = await scan(oldController);
+  assert.equal(unchanged.already_processed, 1);
+  assert.deepEqual(dispatched, []);
+  const untrusted = await scan(newController, ".github/workflows/handle-task-dispatch.yml");
+  assert.equal(untrusted.already_processed, 1);
+  assert.deepEqual(dispatched, []);
+});
+
 test("main CI will not retry a signed failure from an untrusted or unfinished run", async () => {
   const repository = "fongap-labs/example";
   const controlRepository = "fongap-labs/action-worker";
