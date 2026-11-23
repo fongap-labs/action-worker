@@ -103,7 +103,7 @@ test("code-minimality is registered in the skills table and the agent execution 
     "extra model call",
     "A skill must not weaken deterministic gates or override project-specific mandatory policy.",
   ]);
-  const guide = await text("CLAUDE.md");
+  const guide = await text("AGENTS.md");
   requireText(guide, ["skills/agent-execution/SKILL.md", "skills/*/SKILL.md"]);
 });
 
