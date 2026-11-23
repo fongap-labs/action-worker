@@ -30,7 +30,7 @@ const DELTA_IDENTICAL_ROOT = "a199379ac6cdf3ad3bddc8c1f2874cbd1b818f25";
 const PLUGIN_RENAME_BASE = "f6f265ae211cfa99830d214c3fba3319e5a5ce1c";
 const PLUGIN_RENAME_REPOSITORY = "fongap-labs/dsh-plugin";
 const LEGACY_PLUGIN_PREFIX = ["dsh", "delta"].join("-") + "-";
-const NEW_PLUGIN_TEST = new RegExp("^tests/delta-(?:code|desktop|suite)(?:-[a-z0-9-]+)?[.]test[.]mjs$");
+const NEW_PLUGIN_TEST = /^tests\/delta-(?:code|desktop|suite)(?:-[a-z0-9-]+)?[.]test[.]mjs$/;
 const EXISTING_PLUGIN_CI = new Set([
   ".github/scripts/central-ci.sh",
   "scripts/central-ci-windows.mjs",
@@ -44,9 +44,7 @@ export function filterVerifiedPluginNameOnlyChanges(
     const renamedTest = file.status === "A" && NEW_PLUGIN_TEST.test(file.path);
     const existingCi = file.status === "M" && EXISTING_PLUGIN_CI.has(file.path);
     if (!renamedTest && !existingCi) return true;
-    const oldPath = renamedTest
-      ? "tests/dsh-" + file.path.slice("tests/".length)
-      : file.path;
+    const oldPath = renamedTest ? "tests/dsh-" + file.path.slice("tests/".length) : file.path;
     const previous = readAtRevision("base", oldPath);
     const updated = readAtRevision("head", file.path);
     const decoded = previous.toString("utf8");
@@ -63,23 +61,48 @@ async function inspectPinnedPluginNameOnlyChanges(
   files: ChangedFile[],
   isTargetPublic: boolean
 ): Promise<ChangedFile[]> {
-  if (repository !== PLUGIN_RENAME_REPOSITORY || base !== PLUGIN_RENAME_BASE ||
-      !isTargetPublic || !files.some((file) =>
+  if (
+    repository !== PLUGIN_RENAME_REPOSITORY ||
+    base !== PLUGIN_RENAME_BASE ||
+    !isTargetPublic ||
+    !files.some(
+      (file) =>
         (file.status === "A" && NEW_PLUGIN_TEST.test(file.path)) ||
-        (file.status === "M" && EXISTING_PLUGIN_CI.has(file.path)))) {
+        (file.status === "M" && EXISTING_PLUGIN_CI.has(file.path))
+    )
+  ) {
     return files;
   }
   // Bare public Git object store: no checkout, hooks or project-controlled scripts.
   const root = mkdtempSync(join(tmpdir(), "aw-plugin-rename-"));
   try {
     await runCommand("git", ["init", "--bare", "-q", root], { timeoutMs: 30_000 });
-    await runCommand("git", ["-C", root, "fetch", "--quiet", "--no-tags",
-      "--depth=1", "https://github.com/" + repository + ".git", base, head], {
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-      timeoutMs: 180_000,
-    });
+    await runCommand(
+      "git",
+      [
+        "-C",
+        root,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/" + repository + ".git",
+        base,
+        head,
+      ],
+      {
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        timeoutMs: 180_000,
+      }
+    );
     for (const sha of [base, head]) {
-      const actual = await runText("git", ["-C", root, "rev-parse", "--verify", sha + "^{commit}"]);
+      const actual = await runText("git", [
+        "-C",
+        root,
+        "rev-parse",
+        "--verify",
+        sha + "^{commit}",
+      ]);
       if (actual !== sha) throw new CliError("Plugin migration Git revision mismatch.", 65);
     }
     const readAtRevision = (revision: "base" | "head", path: string): Buffer =>
