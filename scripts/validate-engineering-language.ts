@@ -6,6 +6,11 @@ import {
   runText,
   runTextLines,
 } from "./runtime-command.ts";
+import {
+  SOURCE_IMPORT_BASELINES,
+  ensurePinnedImportSourceAvailable,
+  type SourceImportBaseline,
+} from "./source-import-baselines.ts";
 
 const HAN = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u;
 const MARKDOWN = /\.md$/i;
@@ -193,15 +198,7 @@ export function diffHeaderPath(header: string): string | null {
  * Only the initial bootstrap base commit opts into comparing against the
  * immutable upstream snapshot; later PRs retain the ordinary base-to-head gate.
  */
-export interface TrustedImportBaseline {
-  readonly bootstrapSha: string;
-  readonly upstreamSha: string;
-}
-
-const DELTA_BOOTSTRAP_IMPORT: TrustedImportBaseline = {
-  bootstrapSha: "7556dc8dfede03053e35359f2b55dd299da1f3ee",
-  upstreamSha: "2e39e70496aa02986ca6a820c5d497e816b69d7e",
-};
+export type TrustedImportBaseline = SourceImportBaseline;
 
 /**
  * Select a trusted source baseline only for Delta's initial import. Every
@@ -211,21 +208,26 @@ const DELTA_BOOTSTRAP_IMPORT: TrustedImportBaseline = {
 export async function resolveEngineeringDiffBase(
   base: string,
   root: string,
-  trusted: TrustedImportBaseline = DELTA_BOOTSTRAP_IMPORT
+  trusted: TrustedImportBaseline | readonly TrustedImportBaseline[] = SOURCE_IMPORT_BASELINES
 ): Promise<string> {
-  if (base !== trusted.bootstrapSha) return base;
-  const type = await runText("git", ["cat-file", "-t", trusted.upstreamSha], { cwd: root });
-  if (type !== "commit") {
-    throw new CliError("Pinned upstream baseline must be a Git commit.", 65);
+  const baselines: readonly TrustedImportBaseline[] = Array.isArray(trusted)
+    ? trusted as readonly TrustedImportBaseline[]
+    : [trusted as TrustedImportBaseline];
+  const selected = baselines.find((entry) => base === entry.bootstrapSha);
+  if (!selected) return base;
+  if (selected.sourceRepository) {
+    return ensurePinnedImportSourceAvailable(root, selected);
   }
-  return trusted.upstreamSha;
+  const type = await runText("git", ["cat-file", "-t", selected.upstreamSha], { cwd: root });
+  if (type !== "commit") throw new CliError("Pinned upstream baseline must be a Git commit.", 65);
+  return selected.upstreamSha;
 }
 
 export async function validateEngineeringDiff(
   base: string,
   head: string,
   root: string,
-  trusted: TrustedImportBaseline = DELTA_BOOTSTRAP_IMPORT
+  trusted: TrustedImportBaseline | readonly TrustedImportBaseline[] = SOURCE_IMPORT_BASELINES
 ): Promise<{ files: number; additions: number; failures: number }> {
   let path = "";
   let templateCommentState: HtmlCommentState = NO_HTML_COMMENT;

@@ -252,7 +252,7 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv): Prom
     const work = await mkdtemp(join(environment.RUNNER_TEMP || tmpdir(), "gitleaks-"));
     const bin = environment.GITLEAKS_BIN || (await download(work));
     const report = join(work, "report.json");
-    const comparisonBase = engineeringOwnershipDiffBase(environment.TARGET_REPOSITORY ?? "", base);
+    const comparisonBase = engineeringOwnershipDiffBase(base);
     const scanHead =
       comparisonBase === base ? head : syntheticImportScanCommit(target, comparisonBase, head);
     const args = [

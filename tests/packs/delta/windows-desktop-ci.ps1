@@ -53,8 +53,8 @@ Push-Location -LiteralPath $root
 $stage = 'toolchain-preflight'
 try {
   $version = (& node.exe -p 'process.versions.node').Trim()
-  if ($LASTEXITCODE -ne 0 -or $version -notmatch '^24\.9\.') {
-    throw "Delta Windows CI requires Node 24.9.x."
+  if ($LASTEXITCODE -ne 0 -or $version -cne '26.13.1') {
+    throw 'Delta Windows CI requires Node 26.13.1.'
   }
   $pnpmVersion = (& pnpm.cmd --version).Trim()
   if ($LASTEXITCODE -ne 0 -or $pnpmVersion -ne '11.28.5') {
@@ -95,33 +95,127 @@ try {
   catch {
     # Missing or malformed target timing metadata cannot alter the CI verdict.
   }
-  Write-Host 'Delta Windows CI unsigned directory packaging and Host smoke completed.'
-  $stage = 'package-output-check'
   $unpacked = Join-Path $root 'apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/win-unpacked'
   $binary = Join-Path $unpacked 'Delta.exe'
   if (-not (Test-Path -LiteralPath $binary -PathType Leaf) -or
       (Get-Item -LiteralPath $binary).Length -le 0) {
-    throw 'Delta Windows CI did not produce an executable portable directory.'
+    throw 'Delta Windows CI did not produce an executable Electron directory.'
   }
+
+  # The product packager reuses only the unsigned output just built above.
+  # It expects its stable private staging path; validate it before creating it.
+  $buildRoot = [System.IO.Path]::GetFullPath((Join-Path $root 'apps/desktop/.desktop-build/targets/win-x64'))
+  $buildPrefix = $root.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+  if (-not $buildRoot.StartsWith($buildPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Delta Windows CI Electron staging path escaped the checked-out build root.'
+  }
+  $reuseRoot = Join-Path $buildRoot 'delta-electron-builder'
+  $reuseOutput = Join-Path $reuseRoot 'win-unpacked'
+  if (Test-Path -LiteralPath $reuseRoot) {
+    throw 'Delta Windows CI found unexpected pre-existing Electron staging output.'
+  }
+  $stage = 'electron-output-reuse'
+  New-Item -ItemType Directory -Force -Path $reuseOutput | Out-Null
+  Get-ChildItem -LiteralPath $unpacked -Force | ForEach-Object {
+    Copy-Item -LiteralPath $_.FullName -Destination $reuseOutput -Recurse -Force
+  }
+
+  # Stage and validate the actual user-facing App/Data/Other portable layout.
+  # The target-controlled packager may only replace this fixed runner-owned path.
+  $runnerWorkRoot = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent (Split-Path -Parent $root)) 'outputs'))
+  $portableOutput = [System.IO.Path]::GetFullPath((Join-Path $runnerWorkRoot 'Delta-v1-windows-ci'))
+  $outputPrefix = $runnerWorkRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+  if (-not $portableOutput.StartsWith($outputPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Delta Windows CI output path escaped the runner-owned outputs directory.'
+  }
+  $stage = 'portable-directory-stage'
+  $env:DELTA_SKIP_BUILD = '1'
+  $env:DELTA_REUSE_ELECTRON_OUTPUT = '1'
+  $env:DELTA_REPLACE_OUTPUT = '1'
+  $env:DELTA_OUTPUT_DIR = $portableOutput
+  try {
+    Invoke-Checked 'pnpm.cmd' @('--filter', '@deepseek-ai/dsh-desktop', 'run', 'package:delta-portable')
+  }
+  finally {
+    Remove-Item Env:DELTA_SKIP_BUILD -ErrorAction SilentlyContinue
+    Remove-Item Env:DELTA_REUSE_ELECTRON_OUTPUT -ErrorAction SilentlyContinue
+    Remove-Item Env:DELTA_REPLACE_OUTPUT -ErrorAction SilentlyContinue
+    Remove-Item Env:DELTA_OUTPUT_DIR -ErrorAction SilentlyContinue
+  }
+
+  $stage = 'portable-output-layout'
+  $children = @(Get-ChildItem -LiteralPath $portableOutput -Force | Select-Object -ExpandProperty Name | Sort-Object -CaseSensitive)
+  if (($children -join ',') -cne 'App,Data,Other') {
+    throw 'Delta portable output must contain exactly App, Data and Other directories.'
+  }
+  foreach ($relative in @(
+    'App/Delta.exe', 'App/delta.cmd', 'App/resources/app.asar',
+    'Data/UserData', 'Data/Session', 'Data/Logs', 'Data/Temp', 'Data/Home',
+    'Other/README.md', 'Other/VERSION.json', 'Other/LICENSE',
+    'Other/DEEPSEEK-HARNESS-MIT.txt', 'Other/THIRD_PARTY_NOTICES.md', 'Other/SHA256SUMS.txt'
+  )) {
+    $path = Join-Path $portableOutput ($relative -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+    if (-not (Test-Path -LiteralPath $path)) { throw "Delta portable output is missing a required path: $relative" }
+  }
+  $versionRecord = Get-Content -Raw -LiteralPath (Join-Path $portableOutput 'Other/VERSION.json') | ConvertFrom-Json
+  if ($versionRecord.product -cne 'Delta' -or $versionRecord.platform -cne 'win32-x64' -or
+      $versionRecord.harnessSource -cne '4b399c39a6d1479cd84ca591b4d7c88e24d38a96') {
+    throw 'Delta portable version record does not match the approved Windows x64 source.'
+  }
+
+  $stage = 'portable-checksum-verification'
+  $sumPath = Join-Path $portableOutput 'Other/SHA256SUMS.txt'
+  $sumLines = @(Get-Content -LiteralPath $sumPath)
+  if ($sumLines.Count -lt 10) { throw 'Delta portable checksum manifest is unexpectedly small.' }
+  $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+  foreach ($line in $sumLines) {
+    if ($line -cnotmatch '^([0-9a-f]{64})  (App|Other)[\\/](.+)$') {
+      throw 'Delta portable checksum manifest contains an invalid entry.'
+    }
+    $expected = $Matches[1]
+    $relative = $Matches[2] + [System.IO.Path]::DirectorySeparatorChar + ($Matches[3] -replace '[\\/]', [System.IO.Path]::DirectorySeparatorChar)
+    if (-not $seen.Add($relative)) { throw 'Delta portable checksum manifest contains a duplicate path.' }
+    $path = [System.IO.Path]::GetFullPath((Join-Path $portableOutput $relative))
+    $portablePrefix = $portableOutput.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $path.StartsWith($portablePrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not (Test-Path -LiteralPath $path -PathType Leaf)) {
+      throw 'Delta portable checksum entry escapes the package or names a missing file.'
+    }
+    if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expected) {
+      throw 'Delta portable checksum verification failed.'
+    }
+  }
+  if (-not $seen.Contains(('App' + [System.IO.Path]::DirectorySeparatorChar + 'Delta.exe')) -or
+      -not $seen.Contains(('Other' + [System.IO.Path]::DirectorySeparatorChar + 'THIRD_PARTY_NOTICES.md'))) {
+    throw 'Delta portable checksum manifest omits required product files.'
+  }
+  Write-Host 'Delta Windows CI unsigned build and App/Data/Other staging completed.'
 
   # Copy the packaged directory to prove it is not bound to its build path.
   # Redirect application data for the brief --version launch; do not inspect,
   # migrate, or delete the runner account's normal profile.
   $stage = 'portable-relocation'
-  $isolated = Join-Path $env:RUNNER_TEMP 'delta-windows-portable'
+  $runnerTemp = [System.IO.Path]::GetFullPath($env:RUNNER_TEMP)
+  $isolated = [System.IO.Path]::GetFullPath((Join-Path $runnerTemp 'delta-windows-portable'))
+  $runnerTempPrefix = $runnerTemp.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+  if (-not $isolated.StartsWith($runnerTempPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Delta Windows CI relocation path escaped the runner temporary directory.'
+  }
   $relocated = Join-Path $isolated 'relocated'
   $appdata = Join-Path $isolated 'appdata'
   $localdata = Join-Path $isolated 'localdata'
-  New-Item -ItemType Directory -Force -Path $appdata, $localdata | Out-Null
+  New-Item -ItemType Directory -Force -Path $relocated, $appdata, $localdata | Out-Null
   $relocationWatch = [System.Diagnostics.Stopwatch]::StartNew()
   try {
-    Copy-Item -LiteralPath $unpacked -Destination $relocated -Recurse -Force
+    Get-ChildItem -LiteralPath $portableOutput -Force | ForEach-Object {
+      Copy-Item -LiteralPath $_.FullName -Destination $relocated -Recurse -Force
+    }
   }
   finally {
     $relocationWatch.Stop()
     Write-Host ("Delta Windows CI timing stage=portable-relocation duration_ms={0}" -f $relocationWatch.ElapsedMilliseconds)
   }
-  $exe = Join-Path $relocated 'Delta.exe'
+  $exe = Join-Path $relocated 'App/Delta.exe'
   if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
     throw 'Portable relocation lost Delta.exe.'
   }
@@ -131,6 +225,9 @@ try {
   try {
     $env:APPDATA = $appdata
     $env:LOCALAPPDATA = $localdata
+    $env:DELTA_PORTABLE_ROOT = $relocated
+    $env:DSH_HOME = Join-Path $relocated 'Data/Home'
+    $env:DSH_DESKTOP_USER_DATA_DIR = Join-Path $relocated 'Data/UserData'
     $stage = 'relocated-executable-startup'
     $startupWatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
@@ -151,6 +248,9 @@ try {
   finally {
     $env:APPDATA = $priorAppData
     $env:LOCALAPPDATA = $priorLocalData
+    Remove-Item Env:DELTA_PORTABLE_ROOT -ErrorAction SilentlyContinue
+    Remove-Item Env:DSH_HOME -ErrorAction SilentlyContinue
+    Remove-Item Env:DSH_DESKTOP_USER_DATA_DIR -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $isolated -Recurse -Force -ErrorAction SilentlyContinue
   }
   Write-Host 'Delta Windows unsigned portable build and isolated runtime smoke passed.'

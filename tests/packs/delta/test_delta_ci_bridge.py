@@ -76,6 +76,23 @@ def test_delta_ci_execution_manifest_keeps_one_product_verifier() -> None:
     assert (ROOT / "scripts" / "delta-verify.mjs").is_file()
 
 
+def test_windows_ci_builds_and_relocates_the_actual_portable_layout() -> None:
+    source = (ROOT / "tests" / "packs" / "delta" / "windows-desktop-ci.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "26.13.1" in source
+    assert "package:delta-portable" in source
+    assert "App,Data,Other" in source
+    assert "portable-checksum-verification" in source
+    assert "Other/THIRD_PARTY_NOTICES.md" in source
+    assert "App/Delta.exe" in source
+    assert "Data/UserData" in source
+    assert "Data/Home" in source
+    assert "electron-output-reuse" in source
+    assert "Get-ChildItem -LiteralPath $portableOutput" in source
+    assert "relocated-executable-startup" in source
+
+
 def test_pinned_bubblewrap_archive_requires_verified_digest() -> None:
     script = (ROOT / "scripts" / "prepare-ci-bubblewrap.sh").read_text(
         encoding="utf-8"

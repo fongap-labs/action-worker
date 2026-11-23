@@ -43,6 +43,17 @@ tests/
 - 该文件是 **CI 控制路径**（与 `execution-manifest.json`、`central-ci.sh` 相同）：修改它需要来自同一仓库、可信维护者的 PR，并且该 PR 会针对其自身的 head 进行验证。
 - 行为变更（`breaking` / `api` / `migration`）采用成对流程：先在 Action Worker 中合并测试包的变更，再把业务 PR 固定到该提交。
 
+## Delta 首次源码导入基线
+
+The central gates recognize only these exact bootstrap commits as source imports. Each record pins the public source repository and immutable source commit:
+
+| Bootstrap commit | Source repository | Source commit |
+|---|---|---|
+| `7556dc8dfede03053e35359f2b55dd299da1f3ee` | `deepseek-ai/deepseek-harness` | `2e39e70496aa02986ca6a820c5d497e816b69d7e` |
+| `3effeb139e9af5198bfa5d380b1d3457caea4fcb` | `deepseek-ai/deepseek-harness` | `4b399c39a6d1479cd84ca591b4d7c88e24d38a96` |
+
+Only the exact bootstrap commits above compare against their pinned source tree. The central runner fetches the exact source commit from the fixed public repository into Git object storage, verifies its SHA, and reads its tree without checking out or executing source-controlled code. Ordinary pull requests continue to compare against their exact target-branch base. This one-time source import does not bypass ownership, language, naming, privacy, workflow-template, or test-pack checks.
+
 ## 5. 测试清单
 
 `tests/inventory/<pack>.baseline.json` 是在迁移之前，通过在业务仓库的原始位置运行测试套件而收集到的测试用例清单。

@@ -265,9 +265,13 @@ test("central preparation gate covers Linux and native-private CI before dispatc
 test("only the pinned Delta import uses the trusted upstream tree", () => {
   const bootstrap = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
   const upstream = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
-  assert.equal(engineeringOwnershipDiffBase("fongap-labs/delta", bootstrap), upstream);
-  assert.equal(engineeringOwnershipDiffBase("fongap-labs/delta", head), head);
-  assert.equal(engineeringOwnershipDiffBase("fongap-labs/mcp-hub", bootstrap), bootstrap);
+  assert.equal(engineeringOwnershipDiffBase(bootstrap), upstream);
+  assert.equal(
+    engineeringOwnershipDiffBase("3effeb139e9af5198bfa5d380b1d3457caea4fcb"),
+    "4b399c39a6d1479cd84ca591b4d7c88e24d38a96"
+  );
+  assert.equal(engineeringOwnershipDiffBase(head), head);
+  assert.equal(engineeringOwnershipDiffBase("0".repeat(40)), "0".repeat(40));
 });
 
 test("full Git inventory detects changes and also unchanged active workflows", async () => {
@@ -456,7 +460,7 @@ test("Delta desktop host tests remain package-local and build runner is central"
 test("Delta first import executes central product CI after safety gates with pinned tooling", () => {
   const workflow = readFileSync(".github/workflows/central-ci-sandbox.yml", "utf8");
   const builder = readFileSync("tests/packs/delta/desktop-build-ci.sh", "utf8");
-  assert.match(workflow, /node-version:.*fongap-labs\/delta.*24\.11\.1/);
+  assert.match(workflow, /node-version:.*fongap-labs\/delta.*26\.13\.1/);
   assert.match(workflow, /pnpm@11\.28\.5/);
   const scan = workflow.indexOf("- name: Scan the change for secrets");
   const gate = workflow.indexOf("- name: Enforce central engineering ownership");
@@ -464,7 +468,7 @@ test("Delta first import executes central product CI after safety gates with pin
   assert.ok(scan >= 0 && scan < gate && gate < build);
   const step = workflow.slice(build);
   assert.match(step, /TARGET_REPOSITORY.*fongap-labs\/delta/);
-  assert.match(step, /7556dc8dfede03053e35359f2b55dd299da1f3ee/);
+  assert.match(step, /3effeb139e9af5198bfa5d380b1d3457caea4fcb/);
   assert.match(step, /TARGET_PRIVATE.*false/);
   assert.match(step, /CENTRAL_CI_SHARD.*all/);
   assert.match(step, /tests\/packs\/delta\/desktop-build-ci\.sh/);

@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
+import {
+  ensureSourceImportAvailable,
+  resolveSourceImportBase,
+} from "./source-import-baselines.ts";
 
 export type ChangedFile = { status: "A" | "M" | "T" | "D"; path: string; sha?: string };
 // A single, verified package-identity migration from the exact accepted plugin baseline.
@@ -251,13 +255,11 @@ function git(cwd: string, args: string[]): string {
   });
 }
 
-// The one-time public Delta import replaces a bootstrap shell with a pinned
+// A one-time public source import replaces a bootstrap shell with a pinned
 // upstream product tree. Historical upstream tests are not newly authored tests.
-// Never use this comparison for an ordinary Delta PR or any other repository.
-export function centralOwnershipComparisonBase(repository: string, base: string): string {
-  return repository === "fongap-labs/delta" && base === "7556dc8dfede03053e35359f2b55dd299da1f3ee"
-    ? "2e39e70496aa02986ca6a820c5d497e816b69d7e"
-    : base;
+// Never use this comparison for an ordinary pull request.
+export function centralOwnershipComparisonBase(base: string): string {
+  return resolveSourceImportBase(base);
 }
 
 export function runOwnershipGate(
@@ -276,9 +278,18 @@ export function runOwnershipGate(
       readFileSync(join(controlRoot, "policies", "engineering-ownership.json"), "utf8")
     ) as unknown
   );
-  const comparisonBase = centralOwnershipComparisonBase(repository, base);
-  // Retain the verified bootstrap identity and fail closed if the pinned
-  // upstream commit is unavailable from the checked-out target.
+  const comparisonBase = centralOwnershipComparisonBase(base);
+  if (comparisonBase !== base) {
+    const source = ensureSourceImportAvailable(root, base);
+    if (source !== comparisonBase) {
+      throw new CliError(
+        "Pinned source-import baseline is unavailable for ownership comparison.",
+        65
+      );
+    }
+  }
+  // Retain the verified bootstrap identity and fail closed if any pinned
+  // commit or target revision is unavailable.
   for (const sha of new Set([base, comparisonBase, head])) {
     git(root, ["cat-file", "-e", sha + "^{commit}"]);
   }

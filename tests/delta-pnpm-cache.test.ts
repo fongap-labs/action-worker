@@ -18,7 +18,7 @@ test("only public Delta may restore a pinned cache for its exact Windows depende
   assert.match(windows, /path: \$\{\{ runner\.temp \}\}\/delta-pnpm-store/);
   assert.match(
     windows,
-    /key: delta-win-x64-node24\.9\.0-pnpm11\.28\.5-\$\{\{ hashFiles\('target\/pnpm-lock\.yaml', 'target\/pnpm-workspace\.yaml'\) \}\}/
+    /key: delta-win-x64-node26\.13\.1-pnpm11\.28\.5-\$\{\{ hashFiles\('target\/pnpm-lock\.yaml', 'target\/pnpm-workspace\.yaml'\) \}\}/
   );
   assert.match(
     suite,
@@ -59,11 +59,13 @@ test("cache never replaces frozen install, full Windows packaging, or executable
     "local-diagnostics-smoke.mjs",
     "package:win:x64:dir",
     "--unsigned",
-    "Copy-Item -LiteralPath $unpacked",
+    "package:delta-portable",
+    "portable-checksum-verification",
+    "Copy-Item -LiteralPath $_.FullName -Destination $reuseOutput",
     "Start-Process -FilePath $exe",
   ];
   for (const phrase of required) {
-    assert.ok(suite.includes(phrase), "Windows contract missing: " + phrase);
+    assert.ok(suite.includes(phrase), `Windows contract missing: ${phrase}`);
   }
   assert.doesNotMatch(windows, /node_modules\s*$/m);
 });
