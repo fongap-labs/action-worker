@@ -558,12 +558,16 @@ jobs:
               'product-policy', 'frozen-install', 'host-build',
               'shared-plugin-build', 'delta-code-build', 'desktop-build',
               'local-diagnostics-smoke', 'unsigned-directory-pack-and-host-smoke',
-              'portable-relocation', 'relocated-executable-startup'
+              'portable-relocation', 'relocated-executable-startup',
+              'package-rebuild', 'package-dsh-pack', 'package-host-pack',
+              'package-vendor-pack', 'package-native-build', 'package-native-pack',
+              'package-runtime-prepare', 'package-assets-prepare',
+              'package-dsh-prepare', 'package-electron-builder', 'package-runtime-smoke'
             )
             $metricsPattern = '^Delta Windows CI timing stage=([a-z-]+) duration_ms=([0-9]{1,12})$'
             Get-Content -LiteralPath $log |
               Where-Object { $_ -cmatch $metricsPattern -and $allowlistedStages -ccontains $Matches[1] } |
-              Select-Object -First 10 |
+              Select-Object -First 24 |
               ForEach-Object { Write-Host $_ }
           }
 

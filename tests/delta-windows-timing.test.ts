@@ -26,6 +26,7 @@ test("Delta Windows full verification retains all mandatory stages with timing",
   assert.match(windows, /Delta Windows CI timing stage=portable-relocation duration_ms=/);
   assert.match(windows, /Delta Windows CI timing stage=relocated-executable-startup duration_ms=/);
   assert.match(windows, /if \(\$LASTEXITCODE -ne 0\) \{/);
+  assert.match(windows, /scripts\/delta-package-timings\.ts/);
   assert.match(windows, /throw "Delta Windows CI child process exited with code \$LASTEXITCODE/);
   assert.match(windows, /throw 'Relocated Delta\.exe did not exit/);
   assert.match(windows, /throw "Relocated Delta\.exe failed its startup probe/);
@@ -39,7 +40,7 @@ test("public success prints only bounded numeric timings and never private logs"
   assert.match(step, /\$env:TARGET_PRIVATE -eq "false"/);
   assert.match(step, /\$relative -eq 'tests\/packs\/delta\/windows-desktop-ci\.ps1'/);
   assert.match(step, /duration_ms=\(\[0-9\]\{1,12\}\)/);
-  assert.match(step, /Select-Object -First 10/);
+  assert.match(step, /Select-Object -First 24/);
   assert.match(step, /Where-Object \{ \$_ -cmatch/);
   assert.match(step, /Write-Error "Central Windows CI failed/);
   assert.match(step, /exit 1/);
