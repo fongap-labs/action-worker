@@ -1,5 +1,9 @@
 import { isCiNotRunVerdict, trustedControlRunId } from "./ci-evidence.ts";
-import { decideCiFailureRetry, hasUnresolvedCiEvidenceFailure } from "./ci-failure-budget.ts";
+import {
+  decideCiFailureRetry,
+  hasStaleCiEvidenceFailure,
+  hasUnresolvedCiEvidenceFailure,
+} from "./ci-failure-budget.ts";
 import { parseCiFailureMarker } from "./ci-failure-fingerprint.ts";
 import {
   GithubHttpError,
@@ -93,6 +97,20 @@ async function ciState(
     const marker = parseCiFailureMarker(fact.description);
     if (fact.state === "failure" && marker) {
       if (!controlRepository) return "processed";
+      // A previously nonretryable failure may be reverified once by a newer,
+      // authenticated control revision; never retry the same failed controller.
+      if (
+        await hasStaleCiEvidenceFailure(
+          value,
+          reader,
+          controlRepository,
+          repository,
+          sha,
+          currentControlHeadSha
+        )
+      ) {
+        return "dispatch";
+      }
       const decision = await decideCiFailureRetry(
         value,
         reader,
