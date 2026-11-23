@@ -9,6 +9,7 @@ import {
   checkGithubEngineeringOwnership,
   engineeringOwnershipDiffBase,
   filterInheritedWorkflowDeletions,
+  filterVerifiedPluginNameOnlyChanges,
   inventoryImmutableGitTrees,
   parseCompareFiles,
 } from "../scripts/engineering-gate-api.ts";
@@ -470,4 +471,40 @@ test("Delta first import executes central product CI after safety gates with pin
   assert.match(builder, /node scripts\/delta-verify\.mjs/);
   assert.match(builder, /pnpm install --frozen-lockfile/);
   assert.match(builder, /pnpm run build:desktop/);
+});
+
+test("pinned plugin rename permits only byte-exact legacy-prefix substitutions", () => {
+  const tests = [
+    { status: "A" as const, path: "tests/delta-code-routing.test.mjs" },
+    { status: "A" as const, path: "tests/delta-code-unrelated.test.mjs" },
+    { status: "M" as const, path: ".github/scripts/central-ci.sh" },
+    { status: "M" as const, path: "scripts/central-ci-windows.mjs" },
+    { status: "A" as const, path: "tests/new-unrelated.test.mjs" },
+  ];
+  const old = new Map([
+    ["tests/dsh-delta-code-routing.test.mjs", 'import "@fongap-labs/dsh-delta-code";\\n'],
+    ["tests/dsh-delta-code-unrelated.test.mjs", "test('baseline', () => {});\\n"],
+    [".github/scripts/central-ci.sh", "pnpm --filter dsh-delta-code test\\n"],
+    ["scripts/central-ci-windows.mjs", 'const name = "dsh-delta-suite"\\n'],
+  ]);
+  const changed = new Map([
+    ["tests/delta-code-routing.test.mjs", 'import "@fongap-labs/delta-code";\\n'],
+    ["tests/delta-code-unrelated.test.mjs", "test('unexpected', () => {});\\n"],
+    [".github/scripts/central-ci.sh", "pnpm --filter delta-code test\\n"],
+    ["scripts/central-ci-windows.mjs", 'const name = "delta-suite"\\n'],
+  ]);
+  const observed = filterVerifiedPluginNameOnlyChanges(tests, (rev, path) => {
+    const found = (rev === "base" ? old : changed).get(path);
+    if (!found) throw new Error("Unknown immutable Git object: " + path);
+    return Buffer.from(found);
+  });
+  assert.deepEqual(observed, [tests[1], tests[4]]);
+  // Nothing except a canonical filename or the two fixed CI paths is eligible.
+  assert.deepEqual(filterVerifiedPluginNameOnlyChanges([
+    { status: "A", path: "tests/random.test.mjs" },
+    { status: "M", path: "scripts/build-release.mjs" },
+  ], () => { throw new Error("No Git read allowed"); }), [
+    { status: "A", path: "tests/random.test.mjs" },
+    { status: "M", path: "scripts/build-release.mjs" },
+  ]);
 });
