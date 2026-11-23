@@ -10,8 +10,8 @@ import {
 
 const valid = {
   correlation_id: "12345-1-54321",
-  source_repository: "fongap-labs/dsh-plugin",
-  target_repository: "fongap-labs/dsh-plugin",
+  source_repository: "fongap-labs/plugins",
+  target_repository: "fongap-labs/plugins",
   release_id: "54321",
   release_key: "dsh-delta-code",
   version: "1.2.3",
@@ -20,7 +20,7 @@ const valid = {
   sha256: "a".repeat(64),
 };
 
-test("standalone npm dispatch accepts only a verified stable dsh-plugin request", () => {
+test("standalone npm dispatch accepts only a verified stable plugins request", () => {
   assert.deepEqual(validateNpmDispatch(valid), valid);
   for (const invalid of [
     { version: "1.2.3-beta.1", tag: "dsh-delta-code-v1.2.3-beta.1" },
@@ -69,7 +69,7 @@ test("Draft write access is confined to a separate preparatory step", async () =
   const prepare = steps.find((step) => step.name === "Validate and download Draft Release package");
   const publish = steps.find((step) => step.name === "Publish and verify npm package");
   assert.equal(draftToken?.with?.["permission-contents"], "write");
-  assert.equal(draftToken?.with?.repositories, "dsh-plugin");
+  assert.equal(draftToken?.with?.repositories, "plugins");
   assert.equal(prepare?.env?.AW_CONTROL_TOKEN, "${{ steps.npm_read_app.outputs.token }}");
   assert.equal(prepare?.env?.AW_NPM_TOKEN, undefined);
   assert.equal(prepare?.run, "node scripts/release-npm-dispatch.ts prepare");

@@ -129,8 +129,8 @@ async function main(): Promise<void> {
     `repository_name=${target.repository_name}`,
     `target_repository=${target.target_repository}`,
     `npm_required=${
-      source === "fongap-labs/dsh-plugin" &&
-      target.target_repository === "fongap-labs/dsh-plugin" &&
+      source === "fongap-labs/plugins" &&
+      target.target_repository === "fongap-labs/plugins" &&
       isStableNpmRelease(
         isJsonRecord(manifest) ? getJsonString(manifest, "version") : "",
         isJsonRecord(manifest) && manifest.prerelease === true

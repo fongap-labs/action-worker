@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { parse } from "yaml";
 import { publishNpmBeforeTag, selectPreTagNpmAsset } from "../scripts/release-npm-gate.ts";
 
-const plugin = "fongap-labs/dsh-plugin";
+const plugin = "fongap-labs/plugins";
 const asset = { name: "fongap-labs-dsh-delta-code.tgz", sha256: "a".repeat(64) };
 
 test("stable DSH plugin releases require the exact npm package", () => {

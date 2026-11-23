@@ -18,8 +18,8 @@ jobs:
     name: Verified stable npm publication
     if: >-
       github.event.sender.login == 'fongap-bot[bot]' &&
-      github.event.client_payload.source_repository == 'fongap-labs/dsh-plugin' &&
-      github.event.client_payload.target_repository == 'fongap-labs/dsh-plugin'
+      github.event.client_payload.source_repository == 'fongap-labs/plugins' &&
+      github.event.client_payload.target_repository == 'fongap-labs/plugins'
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
@@ -40,7 +40,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: dsh-plugin
+          repositories: plugins
           # GitHub drafts require push access, unlike published releases.
           permission-contents: write
 

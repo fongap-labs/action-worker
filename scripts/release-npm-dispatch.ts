@@ -11,7 +11,7 @@ import {
 import { publishNpmBeforeTag } from "./release-npm-gate.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
-const sourceRepository = "fongap-labs/dsh-plugin";
+const sourceRepository = "fongap-labs/plugins";
 const controlRepository = "fongap-labs/action-worker";
 const workflowFile = "release-npm-auto.yml";
 const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
@@ -56,7 +56,7 @@ export function validateNpmDispatch(value: unknown): NpmDispatchRequest {
     request.asset_name !== `fongap-labs-${request.release_key}.tgz` ||
     !/^[0-9a-f]{64}$/.test(request.sha256)
   ) {
-    throw new CliError("::error::Only verified stable dsh-plugin npm releases are allowed.", 66);
+    throw new CliError("::error::Only verified stable plugins npm releases are allowed.", 66);
   }
   return request;
 }
@@ -210,7 +210,7 @@ export async function prepareNpmDispatch(requestValue: unknown, token: string): 
   }
   const body = getJsonString(release, "body");
   if (
-    !/^Source: https:\/\/github\.com\/fongap-labs\/dsh-plugin\/commit\/[0-9a-f]{40}$/m.test(body) ||
+    !/^Source: https:\/\/github\.com\/fongap-labs\/plugins\/commit\/[0-9a-f]{40}$/m.test(body) ||
     !/^Central CI Evidence: success$/m.test(body) ||
     !/^Main Write Guard: success via PR #[1-9][0-9]*$/m.test(body)
   ) {

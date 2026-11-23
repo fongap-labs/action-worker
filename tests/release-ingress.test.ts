@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { GithubHttpError } from "../scripts/github-api.ts";
 import {
-  enforceDshPluginManualVersion,
+  enforcePluginsManualVersion,
   resolveManualReleaseBuild,
   sourceRepositoryVisibility,
 } from "../scripts/resolve-release-build-ingress.ts";
@@ -347,8 +347,8 @@ test("manual release ingress passes the product only when one is entered", async
   );
 });
 
-test("dsh-plugin refuses automatic release versions and non-manual dispatches", async () => {
-  const repo = "fongap-labs/dsh-plugin";
+test("plugins repository refuses automatic release versions and non-manual dispatches", async () => {
+  const repo = "fongap-labs/plugins";
   const calls: string[] = [];
   const reader = {
     async get(path: string): Promise<unknown> {
@@ -363,13 +363,13 @@ test("dsh-plugin refuses automatic release versions and non-manual dispatches", 
   );
   assert.deepEqual(calls, [], "no source or release tag should be read for an absent version");
   assert.throws(
-    () => enforceDshPluginManualVersion(repo, "1.2.3", "repository_dispatch"),
+    () => enforcePluginsManualVersion(repo, "1.2.3", "repository_dispatch"),
     /require manual workflow_dispatch/
   );
   assert.doesNotThrow(() =>
-    enforceDshPluginManualVersion(repo, "1.2.3-beta.2", "workflow_dispatch")
+    enforcePluginsManualVersion(repo, "1.2.3-beta.2", "workflow_dispatch")
   );
   assert.doesNotThrow(() =>
-    enforceDshPluginManualVersion("fongap-labs/example", "", "repository_dispatch")
+    enforcePluginsManualVersion("fongap-labs/example", "", "repository_dispatch")
   );
 });

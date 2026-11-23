@@ -72,7 +72,7 @@ test("central ownership policy rejects malformed, duplicate and insufficiently j
 });
 
 test("new project-local tests are rejected, while unchanged historical suites can be modified", () => {
-  const findings = inspect("fongap-labs/dsh-plugin", [
+  const findings = inspect("fongap-labs/plugins", [
     { status: "A", path: "tests/new-feature.test.mjs" },
     { status: "A", path: "packages/dsh-delta-code/src/new.spec.ts" },
     { status: "A", path: "tests/helpers/fixture.js" },
@@ -105,7 +105,7 @@ test("central exceptions apply only to the specified repository and subtree", ()
     []
   );
   assert.deepEqual(
-    inspect("fongap-labs/dsh-plugin", [
+    inspect("fongap-labs/plugins", [
       { status: "A", path: "projects/SecurePigeon/crates/core/tests/check.rs" },
     ]).map((x) => x.code),
     ["new-local-test"]
@@ -244,7 +244,7 @@ test("adding a separate CI runner is blocked, project-specific configs remain pe
 
 test("changes to legacy CI control and deletion of mandatory workflow cannot bypass the gate", () => {
   assert.deepEqual(
-    inspect("fongap-labs/dsh-plugin", [
+    inspect("fongap-labs/plugins", [
       { status: "M", path: ".github/scripts/central-ci.sh" },
       { status: "D", path: ciPath },
       { status: "D", path: notifyPath },
