@@ -2,6 +2,11 @@ import { isCiNotRunVerdict, trustedControlRunId } from "./ci-evidence.ts";
 import { decideCiFailureRetry, hasUnresolvedCiEvidenceFailure } from "./ci-failure-budget.ts";
 import { parseCiFailureMarker } from "./ci-failure-fingerprint.ts";
 import {
+  needsReviewedDeltaCi,
+  reviewedDeltaCiCases,
+  verifyReviewedDeltaCiTarget,
+} from "./delta-historical-ci.ts";
+import {
   GithubHttpError,
   getJsonString,
   githubEnvironment,
@@ -222,6 +227,37 @@ export async function scanMainCi(
               ? error.name
               : "unknown error";
       console.error(`::error::Main CI reconciliation failed for ${repository}: ${detail}.`);
+    }
+  }
+
+  // One-time, SHA-pinned retest of three already reviewed Delta main writes.
+  // Unlike ordinary main CI, these immutable ancestors require real new central
+  // CI evidence after the verified CI-control fix. Never retry another historical SHA.
+  if (repositories.includes("fongap-labs/delta") && /^[a-f0-9]{40}$/.test(currentControlHeadSha)) {
+    try {
+      const currentDeltaHead = await defaultHead(reader, "fongap-labs/delta");
+      for (const item of reviewedDeltaCiCases) {
+        if (
+          !(await verifyReviewedDeltaCiTarget(
+            reader,
+            "fongap-labs/delta",
+            item.sha,
+            currentDeltaHead
+          )) ||
+          !(await needsReviewedDeltaCi(reader, item.sha, currentControlHeadSha))
+        ) {
+          continue;
+        }
+        if (reserve) await reserve("fongap-labs/delta", item.sha);
+        await dispatch("fongap-labs/delta", item.sha);
+        result.dispatched += 1;
+      }
+    } catch (error) {
+      result.failed_repositories.push("fongap-labs/delta");
+      console.error(
+        "::error::Reviewed Delta historical CI dispatch failed; no unverified source may run.",
+        error instanceof Error ? error.name : "unknown"
+      );
     }
   }
 

@@ -124,8 +124,10 @@ test("same-SHA CI events reuse active reservations and the bounded failure budge
   assert.match(dispatcher, /failure is not eligible for another run/);
 });
 
-test("a stale branch request is rejected before source checkout", () => {
-  assert.match(workflow, /REQUESTED_HEAD_SHA" = "\$default_sha"/);
+test("stale branch refs still fail closed except three approved historical Delta SHAs", () => {
+  assert.match(workflow, /REQUESTED_HEAD_SHA" != "\$default_sha"/);
+  assert.match(workflow, /node scripts\/delta-historical-ci\.ts/);
+  assert.match(workflow, /if \[ "\$approved" != "true" \]/);
   assert.match(workflow, /Central CI request is stale; default branch has moved/);
   assert.match(workflow, /exit 75/);
 });
