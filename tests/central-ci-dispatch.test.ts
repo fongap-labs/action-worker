@@ -156,7 +156,10 @@ test("a pull request CI that fails in prepare still publishes a CI Evidence verd
   assert.match(job, /if \[ "\$PR_NUMBER" = "0" \]; then/);
   assert.match(job, /default_branch=.*gh api/);
   assert.match(job, /permission-contents: read/);
-  assert.match(job, /steps\.prepare_publish\.outputs\.published == 'true' && needs\.prepare\.outputs\.pr_number != '0'/);
+  assert.match(
+    job,
+    /steps\.prepare_publish\.outputs\.published == 'true' && needs\.prepare\.outputs\.pr_number != '0'/
+  );
   assert.match(job, /write-commit-status\.ts "\$REPOSITORY" "\$REQUESTED_HEAD_SHA" failure/);
   assert.match(job, /"CI Evidence"/);
   assert.doesNotMatch(job, /central-ci\.sh/);
