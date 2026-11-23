@@ -569,10 +569,36 @@ jobs:
 
           Write-Host "Central Windows CI passed for $env:TARGET_REPOSITORY."
 
-      # Only verified public Delta MAIN can seed the shared cache. Every PR is
-      # read-only even when its CI passes, and every install remains frozen.
-      - name: Save verified Delta main pnpm store
+      # repository_dispatch runs under Action Worker main, not Delta main.
+      # A non-PR dispatch is insufficient proof of the target's default branch.
+      # Validate the actual checked-out SHA against live Delta main just before
+      # attempting to seed a shared cache; target PRs are always read-only.
+      - name: Verify current Delta main cache seed
+        id: delta_main_cache_seed
         if: success() && inputs.repository == 'fongap-labs/delta' && inputs.is_private == 'false' && inputs.pr_number == '0' && steps.delta_pnpm_cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expected = $env:EXPECTED_HEAD_SHA
+          if ($expected -cnotmatch '^[0-9a-f]{40}$') { exit 0 }
+          $targetRoot = Join-Path $env:GITHUB_WORKSPACE 'target'
+          $checkout = & git -C $targetRoot rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $checkout -cne $expected) { exit 0 }
+
+          # Only a public fixed GitHub remote; no credentials or target-provided URL.
+          $remote = @( & git -c credential.helper= ls-remote https://github.com/fongap-labs/delta.git refs/heads/main 2>$null )
+          if ($LASTEXITCODE -ne 0 -or $remote.Count -ne 1) { exit 0 }
+          $match = [regex]::Match([string]$remote[0], '^([0-9a-f]{40})\s+refs/heads/main$')
+          if (-not $match.Success -or $match.Groups[1].Value -cne $expected) { exit 0 }
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value 'eligible=true'
+
+      # Only a verified, current public Delta main run may write this cache.
+      # CI success and the frozen install never depend on the cache being present.
+      - name: Save verified Delta main pnpm store
+        if: success() && inputs.repository == 'fongap-labs/delta' && inputs.is_private == 'false' && inputs.pr_number == '0' && steps.delta_main_cache_seed.outputs.eligible == 'true' && steps.delta_pnpm_cache.outputs.cache-hit != 'true'
         continue-on-error: true
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
