@@ -74,6 +74,13 @@ test("renamed repository validates only original pre-rename SHA-pinned signed ga
       ),
       false
     );
+    assert.equal(
+      hasValidStatusAttestation(
+        { ...status, description: "no signature" },
+        { repository: renamed, sha: head, context }
+      ),
+      false
+    );
   }
   assert.equal(
     hasValidStatusAttestation(oldStatus("Main Write Guard"), {
