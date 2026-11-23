@@ -85,6 +85,20 @@ export function verifyDeltaDocsTree(
   }
 }
 
+export function verifyDeltaDocsTrustAnchor(
+  controlSha: string,
+  executingSha: string,
+  rootTree: string
+): void {
+  if (
+    !shaPattern.test(controlSha) ||
+    controlSha !== executingSha ||
+    rootTree !== deltaCleanRootTreeSha
+  ) {
+    throw new CliError("Delta docs control checkout or trusted root does not match.", 65);
+  }
+}
+
 /**
  * The new Delta main has no product code or execution manifest. For its initial
  * documentation-only phase, run a fail-closed, centrally owned Git/content audit.
@@ -107,13 +121,15 @@ export function verifyDeltaDocsBootstrap(
   ) {
     throw new CliError("Delta docs bootstrap is restricted to public Delta documentation PRs.", 65);
   }
+  const workerRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const controlSha = git(controlRoot, ["rev-parse", "HEAD"]).toString("utf8").trim();
+  const executingSha = git(workerRoot, ["rev-parse", "HEAD"]).toString("utf8").trim();
   const rootTree = git(targetRoot, ["rev-parse", `${deltaCleanRootSha}^{tree}`])
     .toString("utf8")
     .trim();
-  if (controlSha !== base || rootTree !== deltaCleanRootTreeSha) {
-    throw new CliError("Delta docs baseline does not match the trusted root and PR base.", 65);
-  }
+  // The trusted Action Worker checkout and the Delta PR base belong to different
+  // repositories. Bind the control checkout to the executing script instead.
+  verifyDeltaDocsTrustAnchor(controlSha, executingSha, rootTree);
   for (const pair of [
     [deltaCleanRootSha, base],
     [base, head],
@@ -143,7 +159,6 @@ export function verifyDeltaDocsBootstrap(
   if (items.length % 2 !== 0) throw new CliError("Delta docs Git diff is malformed.", 65);
   const changes: string[] = [];
   for (let i = 0; i < items.length; i += 2) changes.push(`${items[i]}\t${items[i + 1]}`);
-  const workerRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const template = readFileSync(join(workerRoot, "templates/bridge/notify-action-worker.yml"));
   const trustedBridgeBlobSha = createHash("sha1")
     .update(`blob ${template.length}\0`)

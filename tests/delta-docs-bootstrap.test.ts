@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { deltaCleanRootTreeSha } from "../scripts/delta-clean-root.ts";
 import {
   parseDocsTree,
   verifyDeltaDocsBootstrap,
   verifyDeltaDocsTree,
+  verifyDeltaDocsTrustAnchor,
 } from "../scripts/delta-docs-bootstrap.ts";
 
 const paths = ["AGENTS.md", "CHANGELOG.md", "CLAUDE.md", "LICENSE", "README.md"];
@@ -15,6 +17,22 @@ const entries = paths.map((path) => ({
   path,
 }));
 const additions = ["A\tAGENTS.md", "A\tCHANGELOG.md", "A\tCLAUDE.md", "M\tREADME.md"];
+
+test("Delta docs baseline binds to its executing Action Worker checkout, not Delta PR base", () => {
+  const control = "a".repeat(40);
+  const deltaBase = "b".repeat(40);
+  assert.notEqual(control, deltaBase);
+  assert.doesNotThrow(() => verifyDeltaDocsTrustAnchor(control, control, deltaCleanRootTreeSha));
+  assert.throws(
+    () => verifyDeltaDocsTrustAnchor(control, deltaBase, deltaCleanRootTreeSha),
+    /control checkout/
+  );
+  assert.throws(() => verifyDeltaDocsTrustAnchor(control, control, "c".repeat(40)), /trusted root/);
+  assert.throws(
+    () => verifyDeltaDocsTrustAnchor("invalid", "invalid", deltaCleanRootTreeSha),
+    /control checkout/
+  );
+});
 
 test("Delta docs-only root bootstrap validates exact regular files and safe document changes", () => {
   assert.doesNotThrow(() => verifyDeltaDocsTree(entries, additions));
