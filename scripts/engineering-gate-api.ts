@@ -8,9 +8,9 @@ import {
   filterVerifiedPluginNameOnlyChanges,
   inspectEngineeringOwnership,
   isPinnedPluginRenameCandidate,
+  type OwnershipPolicy,
   PLUGIN_RENAME_BASE,
   PLUGIN_RENAME_REPOSITORY,
-  type OwnershipPolicy,
   parseChangedFiles,
   parseOwnershipPolicy,
 } from "./central-engineering-gate.ts";

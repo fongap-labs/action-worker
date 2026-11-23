@@ -7,8 +7,8 @@ import { test } from "node:test";
 import {
   type ChangedFile,
   centralOwnershipComparisonBase,
-  isPinnedPluginRenameCandidate,
   inspectEngineeringOwnership,
+  isPinnedPluginRenameCandidate,
   parseChangedFiles,
   parseOwnershipPolicy,
   runOwnershipGate,

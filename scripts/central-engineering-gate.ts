@@ -42,7 +42,6 @@ export function filterVerifiedPluginNameOnlyChanges(
   });
 }
 
-
 type LocalException = { repository: string; path_prefix: string; reason: string };
 type PrivateWorkflowPin = { repository: string; path: string; blob_sha: string; reason: string };
 export type OwnershipPolicy = {
