@@ -5,11 +5,17 @@ import { parse } from "yaml";
 
 function workflow(path: string) {
   return parse(readFileSync(path, "utf8")) as {
-    jobs: Record<string, { steps: Array<{ name?: string; if?: string; id?: string; run?: string }> }>;
+    jobs: Record<
+      string,
+      { steps: Array<{ name?: string; if?: string; id?: string; run?: string }> }
+    >;
   };
 }
 
-function step(steps: Array<{ name?: string; if?: string; id?: string; run?: string }>, name: string) {
+function step(
+  steps: Array<{ name?: string; if?: string; id?: string; run?: string }>,
+  name: string
+) {
   const match = steps.find((item) => item.name === name);
   assert.ok(match, "Missing " + name);
   return match;
@@ -17,8 +23,16 @@ function step(steps: Array<{ name?: string; if?: string; id?: string; run?: stri
 
 test("PR governance releases its runner while CI is signed pending, never approves a deferred gate", () => {
   const steps = workflow(".github/workflows/handle-pr-dispatch.yml").jobs.govern!.steps;
-  assert.equal(step(steps, "Dispatch centralized CI").id, "ci_dispatch");
-  for (const name of ["Collect CI evidence", "Validate CI evidence", "Mark deterministic gate passed", "Mint final governance read token", "Resolve governance ownership"]) {
+  const dispatch = steps.find((item) => item.id === "ci_dispatch");
+  assert.ok(dispatch);
+  assert.equal(dispatch.name, "Dispatch centralized CI");
+  for (const name of [
+    "Collect CI evidence",
+    "Validate CI evidence",
+    "Mark deterministic gate passed",
+    "Mint final governance read token",
+    "Resolve governance ownership",
+  ]) {
     assert.match(step(steps, name).if ?? "", /steps\.ci_dispatch\.outputs\.deferred != 'true'/);
   }
   const dispatcher = readFileSync("scripts/dispatch-central-ci.ts", "utf8");
@@ -29,7 +43,10 @@ test("PR governance releases its runner while CI is signed pending, never approv
   assert.match(step(steps, "Validate CI evidence").run ?? "", /validate-ci-evidence\.ts/);
   const merge = workflow(".github/workflows/handle-pr-dispatch.yml").jobs["auto-merge"];
   assert.ok(merge);
-  assert.match(readFileSync(".github/workflows/handle-pr-dispatch.yml", "utf8"), /needs\.govern\.outputs\.approved == 'true'/);
+  assert.match(
+    readFileSync(".github/workflows/handle-pr-dispatch.yml", "utf8"),
+    /needs\.govern\.outputs\.approved == 'true'/
+  );
 });
 
 test("long-running central PR CI takes over the signed lease and preserves required jobs", () => {
@@ -40,7 +57,8 @@ test("long-running central PR CI takes over the signed lease and preserves requi
   assert.match(lease.run ?? "", /write-commit-status\.ts/);
   assert.match(lease.run ?? "", /"CI Evidence"/);
   assert.match(content, /name: Attach Main CI lease to active Central CI run/);
-  for (const job of ["linux", "windows", "security", "finalize"]) assert.ok(content.includes("  " + job + ":"));
+  for (const job of ["linux", "windows", "security", "finalize"])
+    assert.ok(content.includes(`  ${job}:`));
   assert.match(content, /needs\.prepare\.outputs\.should_run != 'false'/);
 });
 
@@ -64,8 +82,12 @@ test("CI failure and prepare failure reopen a red gate only after status publica
   assert.match(resume.if ?? "", /steps\.ci_publish\.outputs\.published == 'true'/);
   assert.match(resume.if ?? "", /steps\.ci_publish\.outcome == 'failure'/);
   assert.match(resume.run ?? "", /run-pr-governance/);
+  assert.match(resume.run ?? "", /current_head/);
+  assert.match(resume.run ?? "", /\$current_head" == "\$TARGET_HEAD_SHA/);
   assert.ok(steps.indexOf(publish) < steps.indexOf(resume));
-  const failureSteps = workflow(".github/workflows/central-ci-dispatch.yml").jobs["prepare-failure"]!.steps;
+  const failureSteps = workflow(".github/workflows/central-ci-dispatch.yml").jobs[
+    "prepare-failure"
+  ]!.steps;
   const failed = step(failureSteps, "Publish failed CI Evidence for the current head");
   const recover = step(failureSteps, "Resume PR governance after CI prepare failure");
   assert.match(failed.run ?? "", /echo "published=true"/);

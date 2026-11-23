@@ -839,6 +839,17 @@ jobs:
 
       # On a failed CI the normal successful follow-up does not run.
       # Resume governance to publish a red PR verdict without waiting for intake.
+      - name: Mint failed CI PR identity read token
+        id: failed_pr_read_app
+        if: ${{ always() && steps.ci_publish.outputs.published == 'true' && steps.ci_publish.outcome == 'failure' && needs.prepare.outputs.pr_number != '0' }}
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-pull-requests: read
+
       - name: Mint failed CI PR continuation token
         id: failed_pr_dispatch_app
         if: ${{ always() && steps.ci_publish.outputs.published == 'true' && steps.ci_publish.outcome == 'failure' && needs.prepare.outputs.pr_number != '0' }}
@@ -855,12 +866,15 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.failed_pr_dispatch_app.outputs.token }}
+          PR_READ_TOKEN: ${{ steps.failed_pr_read_app.outputs.token }}
           TARGET_REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           TARGET_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           TARGET_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
         shell: bash
         run: |
           set -Eeuo pipefail
+          current_head="$(GH_TOKEN="$PR_READ_TOKEN" gh api "repos/$TARGET_REPOSITORY/pulls/$TARGET_PR_NUMBER" --jq '.head.sha' 2>/dev/null)" || exit 0
+          [[ "$current_head" == "$TARGET_HEAD_SHA" ]] || exit 0
           payload="$(jq -cn \
             --arg repository "$TARGET_REPOSITORY" \
             --arg head_sha "$TARGET_HEAD_SHA" \

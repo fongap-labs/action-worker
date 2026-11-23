@@ -1528,7 +1528,7 @@ test("unauthorized authors cannot use PR reviews to enter central CI", async () 
   const trustSource = await text("scripts/pr-trust.ts");
   assert.doesNotMatch(trustSource, /listPullReviews|APPROVED/);
   assert.ok(trustSource.includes("if (!decision.trusted) {"));
-  for (const step of ["Dispatch centralized CI", "Collect CI evidence", "Validate CI evidence"]) {
+  for (const step of ["Collect CI evidence", "Validate CI evidence"]) {
     assert.ok(
       governance.includes(`- name: ${step}\n        if: steps.trust.outputs.trusted == 'true' && `),
       `${step} runs only for a trusted head`
@@ -1536,7 +1536,11 @@ test("unauthorized authors cannot use PR reviews to enter central CI", async () 
   }
   assert.match(
     governance,
-    /- name: Mark deterministic gate passed\n\s+id: gate\n\s+if: steps\.trust\.outputs\.trusted == 'true'\n/
+    /- name: Dispatch centralized CI\n\s+id: ci_dispatch\n\s+if: steps\.trust\.outputs\.trusted == 'true' &&/
+  );
+  assert.match(
+    governance,
+    /- name: Mark deterministic gate passed\n\s+id: gate\n\s+if: steps\.trust\.outputs\.trusted == 'true' && steps\.ci_dispatch\.outputs\.deferred != 'true'\n/
   );
 
   // The Central CI that executes change code keeps failing closed on an untrusted head.
