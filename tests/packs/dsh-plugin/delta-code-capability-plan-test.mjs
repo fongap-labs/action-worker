@@ -5,8 +5,8 @@ import {
   validateCodingCapabilities,
   queryCodingCapabilities,
   createCodingCapabilitiesTool,
-} from '#target/packages/dsh-delta-code/lib/delta-code-strategy/capability-catalog.js'
-import { planDeclaredCapabilities } from '#target/packages/dsh-delta-code/lib/delta-code-strategy/capability-plan.js'
+} from '#target/packages/delta-code/lib/delta-code-strategy/capability-catalog.js'
+import { planDeclaredCapabilities } from '#target/packages/delta-code/lib/delta-code-strategy/capability-plan.js'
 
 const by = id => CODING_CAPABILITIES.find(item => item.id === id)
 const graph = [

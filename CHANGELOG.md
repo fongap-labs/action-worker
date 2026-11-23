@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 将中央 dsh-plugin 集成测试中旧的 Delta Code、Delta Desktop、Delta Suite 包路径与插件断言统一为 delta-*，保持测试内容和权限验证逻辑不变。
+
 - 修复: 针对 dsh-plugin 的 Delta 插件一次性重命名，精确登记文档治理更新前后的两个已验证 main 基线，保持源文件逐字节同构与中央 CI 权限门禁不变。
 
 - 修复: 让 Linux 与 Windows 中央构建的本地工程所有权校验复用受控的 Delta 插件改名同构证明，确保前置与执行阶段一致且继续拒绝真正新增的测试或 CI 启动器。

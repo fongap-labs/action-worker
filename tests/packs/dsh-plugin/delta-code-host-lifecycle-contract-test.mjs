@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { registerCodingSkills } from '#target/packages/dsh-delta-code/lib/delta-code-adapter/providers/dsh/skills.js'
-import { registerDeltaCodePrompt } from '#target/packages/dsh-delta-code/lib/delta-code-adapter/providers/dsh/prompt.js'
-import { registerAutomaticCodingRouter } from '#target/packages/dsh-delta-code/lib/delta-code-adapter/providers/dsh/auto-routing.js'
-import { deltaCodeStrategy } from '#target/packages/dsh-delta-code/lib/delta-code-strategy/index.js'
-import { mountDeltaCodeFeatures } from '#target/packages/dsh-delta-code/lib/delta-code-kernel/feature.js'
+import { registerCodingSkills } from '#target/packages/delta-code/lib/delta-code-adapter/providers/dsh/skills.js'
+import { registerDeltaCodePrompt } from '#target/packages/delta-code/lib/delta-code-adapter/providers/dsh/prompt.js'
+import { registerAutomaticCodingRouter } from '#target/packages/delta-code/lib/delta-code-adapter/providers/dsh/auto-routing.js'
+import { deltaCodeStrategy } from '#target/packages/delta-code/lib/delta-code-strategy/index.js'
+import { mountDeltaCodeFeatures } from '#target/packages/delta-code/lib/delta-code-kernel/feature.js'
 
 function createDeferredHost() {
   const injected = new Map()
@@ -101,7 +101,7 @@ test('native Prompt section is released and never installed after teardown', () 
     },
   } })
   assert.equal(registered.length, 1)
-  assert.equal(registered[0].name, 'dsh-delta-code:guidance')
+  assert.equal(registered[0].name, 'delta-code:guidance')
   assert.match(registered[0].text, /code_capabilities/)
   stop()
   stop()

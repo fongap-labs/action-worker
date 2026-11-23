@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import {
   eligibleAutoSkillCandidates,
   createAutoSkillStageSpecs,
-} from '#target/packages/dsh-delta-code/lib/delta-code-repository/github-skill-auto-stage.js'
+} from '#target/packages/delta-code/lib/delta-code-repository/github-skill-auto-stage.js'
 
 const SHA = 'a'.repeat(40)
 const BLOB = 'b'.repeat(40)
