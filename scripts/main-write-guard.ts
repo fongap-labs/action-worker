@@ -308,6 +308,9 @@ export async function validateMainWriteProvenance(
   // Exactly this deliberately recreated two-file root is a reviewed initialization,
   // not a merged PR or a general direct-write exception. Any other SHA still fails.
   if (isDeltaCleanRootTarget(repository, mainSha)) {
+    if (!isJsonRecord(repositoryValue) || repositoryValue.private !== false) {
+      throw new CliError("::error::Delta clean-root exception requires a verified public repository.", 65);
+    }
     verifyDeltaCleanRootCommit(repository, mainSha, commit);
     return {
       repository,
