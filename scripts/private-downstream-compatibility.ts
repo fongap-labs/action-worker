@@ -101,8 +101,17 @@ export function privateCompatibilityFailures(
   const failures: string[] = [];
   for (const consumer of scan.consumers) {
     try {
-      const runner = resolveRunnerProfile(runnerPolicy, consumer.runner_profile);
       const expected = consumer.path.includes("release.manifest.json") ? "sandbox" : "privileged";
+      const declared = runnerPolicy.profiles[consumer.runner_profile];
+      // A deliberately disabled, no-fallback profile is a valid *declaration* for a
+      // planned product. The actual release/deploy job must still reject it.
+      if (declared && !declared.enabled && declared.fallback_profiles.length === 0) {
+        if (declared.trust_domain !== expected) {
+          throw new CliError("Reserved runner has the wrong trust domain.", 65);
+        }
+        continue;
+      }
+      const runner = resolveRunnerProfile(runnerPolicy, consumer.runner_profile);
       if (runner.profile.trust_domain !== expected) {
         throw new CliError("Runner has the wrong trust domain.", 65);
       }
