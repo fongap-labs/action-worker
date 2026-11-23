@@ -88,7 +88,10 @@ test("missing or forged status cannot suppress the mandatory main CI", async () 
 
 test("valid complete CI success is reused, without treating a URL alone as proof", async () => {
   const status = signed("success");
-  const complete = readerFor(controlRun({ conclusion: "success" }));
+  const complete = readerFor(controlRun({
+    conclusion: "success",
+    path: ".github/workflows/handle-task-dispatch.yml",
+  }));
   assert.equal(await shouldRun(status, complete), true);
   const past = new Date(Date.now() - 50_000).toISOString();
   const verified = readerFor(controlRun({
