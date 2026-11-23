@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyDeltaDocsBootstrap } from "./delta-docs-bootstrap.ts";
 import { parseExecutionManifest } from "./execution-contract.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { verifyBridgeBootstrap } from "./verify-bridge-bootstrap.ts";
@@ -123,6 +124,10 @@ export async function executeManifestLinuxCi(
   try {
     manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as unknown;
   } catch {
+    if (!existsSync(manifestPath) && process.env.TARGET_REPOSITORY === "fongap-labs/delta") {
+      verifyDeltaDocsBootstrap(targetRoot, controlRoot, base, head, shard);
+      return;
+    }
     throw new CliError("Trusted Linux CI manifest is missing or invalid.", 65);
   }
   const selected = chooseLinuxManifestCommand(manifest, targetRoot, shard);
