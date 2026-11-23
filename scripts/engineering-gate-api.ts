@@ -96,13 +96,7 @@ async function inspectPinnedPluginNameOnlyChanges(
       }
     );
     for (const sha of [base, head]) {
-      const actual = await runText("git", [
-        "-C",
-        root,
-        "rev-parse",
-        "--verify",
-        sha + "^{commit}",
-      ]);
+      const actual = await runText("git", ["-C", root, "rev-parse", "--verify", sha + "^{commit}"]);
       if (actual !== sha) throw new CliError("Plugin migration Git revision mismatch.", 65);
     }
     const readAtRevision = (revision: "base" | "head", path: string): Buffer =>
