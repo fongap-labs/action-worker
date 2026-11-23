@@ -3,6 +3,7 @@ import { after, test } from "node:test";
 import {
   type HistoricalMainReview,
   reconcileHistoricalMainGuards,
+  verifyCompletedGovernance,
 } from "../scripts/historical-main-review.ts";
 import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { signedStatusDescription } from "../scripts/status-attestation.ts";
@@ -55,7 +56,7 @@ function status(sha: string, context: string, targetUrl: string, state: "failure
   };
 }
 
-function run(id: number, conclusion: "success" | "failure") {
+function run(id: number, conclusion: "success" | "failure" | "cancelled") {
   return {
     id,
     conclusion,
@@ -219,6 +220,79 @@ test("a previously signed success is never posted twice", async () => {
   const { runReview, written } = await reviewOne({ priorSuccess: true });
   assert.deepEqual(await runReview(), []);
   assert.deepEqual(written, []);
+});
+
+test("a cancelled Delta governance run is accepted only when signed gates precede merge and cancellation follows", async () => {
+  const mergedAt = Date.parse("2026-11-19T00:30:08Z");
+  const governance = status(headSha, "PR Governance", governanceUrl, "success");
+  const validation = status(headSha, "validate-merge", governanceUrl, "success");
+  const jobs = [
+    {
+      name: "PR Governance",
+      conclusion: "cancelled",
+      completed_at: "2026-11-19T00:30:10Z",
+      steps: [
+        { name: "Update final gate", conclusion: "success", completed_at: "2026-11-19T00:30:05Z" },
+        { name: "Update central merge gate", conclusion: "success", completed_at: "2026-11-19T00:30:06Z" },
+        { name: "Publish PR review", conclusion: "cancelled", completed_at: "2026-11-19T00:30:10Z" },
+      ],
+    },
+    { name: "Automatic squash merge (operational)", conclusion: "cancelled" },
+    { name: "Resolve unfinished PR Governance", conclusion: "success" },
+  ];
+  const check = (items: typeof jobs, conclusion: "cancelled" | "failure" = "cancelled") => {
+    const reader = {
+      async get(path: string): Promise<unknown> {
+        if (path === `repos/${controlRepository}/actions/runs/31`) return run(31, conclusion);
+        if (path === `repos/${controlRepository}/actions/runs/31/jobs?per_page=100`) {
+          return { jobs: items };
+        }
+        throw new Error("Unexpected path " + path);
+      },
+    };
+    return verifyCompletedGovernance(
+      reader,
+      repository,
+      headSha,
+      governance,
+      validation,
+      mergedAt,
+      controlRepository,
+      31
+    );
+  };
+  await assert.doesNotReject(check(jobs));
+  await assert.rejects(
+    verifyCompletedGovernance(
+      { get: async (path: string) => {
+        if (path === `repos/${controlRepository}/actions/runs/31`) return run(31, "cancelled");
+        return { jobs };
+      } },
+      repository,
+      headSha,
+      governance,
+      validation,
+      mergedAt,
+      controlRepository
+    ),
+    /explicitly reviewed post-merge run/
+  );
+  const clone = () => structuredClone(jobs);
+  const early = clone();
+  early[0]!.steps![2]!.completed_at = "2026-11-19T00:30:07Z";
+  await assert.rejects(check(early), /both signed gates/);
+  const wrong = clone();
+  wrong[0]!.steps![2]!.name = "Validate change record";
+  await assert.rejects(check(wrong), /both signed gates/);
+  const lateGate = clone();
+  lateGate[0]!.steps![0]!.completed_at = "2026-11-19T00:30:09Z";
+  await assert.rejects(check(lateGate), /both signed gates/);
+  const failed = clone();
+  failed[0]!.steps!.push({
+    name: "Validate security gate", conclusion: "failure", completed_at: "2026-11-19T00:30:04Z"
+  });
+  await assert.rejects(check(failed), /both signed gates/);
+  await assert.rejects(check(jobs, "failure"), /only one auto-merge job/);
 });
 
 after(() => {
