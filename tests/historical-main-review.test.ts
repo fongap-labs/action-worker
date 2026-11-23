@@ -252,10 +252,7 @@ test("a cancelled Delta governance run is accepted only when signed gates preced
     { name: "Automatic squash merge (operational)", conclusion: "cancelled" },
     { name: "Resolve unfinished PR Governance", conclusion: "success" },
   ];
-  const check = (
-    items: typeof jobs,
-    conclusion: "cancelled" | "failure" = "cancelled"
-  ) => {
+  const check = (items: typeof jobs, conclusion: "cancelled" | "failure" = "cancelled") => {
     const reader = {
       async get(path: string): Promise<unknown> {
         if (path === `repos/${controlRepository}/actions/runs/31`) return run(31, conclusion);
