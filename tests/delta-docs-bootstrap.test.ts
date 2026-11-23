@@ -67,3 +67,25 @@ test("the verified fallback is only reachable when the trusted execution manifes
   assert.match(executor, /!existsSync\(manifestPath\)/);
   assert.match(executor, /verifyDeltaDocsBootstrap\(targetRoot, controlRoot, base, head, shard\)/);
 });
+
+test("docs-only Delta bootstrap permits an unchanged pinned approved bridge but no modified bridge", () => {
+  const trusted = "b".repeat(40);
+  const bridge = {
+    mode: "100644",
+    type: "blob",
+    sha: trusted,
+    path: ".github/workflows/notify-action-worker.yml",
+  };
+  assert.doesNotThrow(() => verifyDeltaDocsTree([...entries, bridge], additions, trusted));
+  assert.throws(() => verifyDeltaDocsTree([...entries, bridge], additions, "c".repeat(40)));
+  assert.throws(() =>
+    verifyDeltaDocsTree(
+      [...entries, bridge],
+      ["M\t.github/workflows/notify-action-worker.yml"],
+      trusted
+    )
+  );
+  assert.throws(() =>
+    verifyDeltaDocsTree([...entries, { ...bridge, mode: "100755" }], additions, trusted)
+  );
+});

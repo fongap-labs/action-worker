@@ -9,6 +9,15 @@ import { verifyBridgeBootstrap } from "./verify-bridge-bootstrap.ts";
 
 const bootstrapCommand = ["bash", "{control_root}/.github/scripts/central-ci.sh", "{target_root}"];
 
+export function isDeltaBridgeBootstrapChange(paths: readonly string[]): boolean {
+  return (
+    paths.length === 2 &&
+    new Set(paths).size === 2 &&
+    paths.includes(".github/workflows/notify-action-worker.yml") &&
+    paths.includes("CHANGELOG.md")
+  );
+}
+
 export type LinuxManifestChoice =
   | { kind: "bootstrap" }
   | { kind: "node"; script: string; args: string[]; timeoutMs: number };
@@ -125,7 +134,32 @@ export async function executeManifestLinuxCi(
     manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as unknown;
   } catch {
     if (!existsSync(manifestPath) && process.env.TARGET_REPOSITORY === "fongap-labs/delta") {
-      verifyDeltaDocsBootstrap(targetRoot, controlRoot, base, head, shard);
+      const diff = spawnSync("git", ["diff", "--no-renames", "--name-only", base, head, "--"], {
+        cwd: targetRoot,
+        encoding: "utf8",
+        timeout: 15_000,
+        maxBuffer: 64 * 1024,
+      });
+      if (diff.error || diff.status !== 0 || typeof diff.stdout !== "string") {
+        throw new CliError("Delta bootstrap could not verify immutable changed paths.", 65);
+      }
+      if (isDeltaBridgeBootstrapChange(diff.stdout.split("\n").filter(Boolean))) {
+        if (shard !== "all" || process.env.TARGET_PRIVATE !== "false") {
+          throw new CliError(
+            "Trusted Delta bridge onboarding requires an unsharded public target.",
+            65
+          );
+        }
+        await verifyBridgeBootstrap(
+          targetRoot,
+          base,
+          head,
+          resolve(dirname(fileURLToPath(import.meta.url)), "..")
+        );
+        console.log("Trusted Delta notification bridge bootstrap verified.");
+      } else {
+        verifyDeltaDocsBootstrap(targetRoot, controlRoot, base, head, shard);
+      }
       return;
     }
     throw new CliError("Trusted Linux CI manifest is missing or invalid.", 65);

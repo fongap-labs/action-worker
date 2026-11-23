@@ -3,7 +3,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { chooseLinuxManifestCommand } from "../scripts/execute-linux-ci.ts";
+import {
+  chooseLinuxManifestCommand,
+  isDeltaBridgeBootstrapChange,
+} from "../scripts/execute-linux-ci.ts";
 
 const bootstrap = ["bash", "{control_root}/.github/scripts/central-ci.sh", "{target_root}"];
 function manifest(command: string[], matrix?: { shard: string[] }) {
@@ -138,5 +141,25 @@ test("Linux fallback permits only the centrally audited Delta Windows companion"
     assert.throws(() => chooseLinuxManifestCommand(linux, root), /at most one audited Windows job/);
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Delta bridge bootstrap gate matches only the approved bridge plus changelog", () => {
+  assert.equal(
+    isDeltaBridgeBootstrapChange([".github/workflows/notify-action-worker.yml", "CHANGELOG.md"]),
+    true
+  );
+  assert.equal(
+    isDeltaBridgeBootstrapChange(["CHANGELOG.md", ".github/workflows/notify-action-worker.yml"]),
+    true
+  );
+  for (const paths of [
+    [],
+    ["CHANGELOG.md"],
+    ["src/index.ts", "CHANGELOG.md"],
+    [".github/workflows/notify-action-worker.yml", "CHANGELOG.md", "src/main.ts"],
+    ["CHANGELOG.md", "CHANGELOG.md"],
+  ]) {
+    assert.equal(isDeltaBridgeBootstrapChange(paths), false);
   }
 });
