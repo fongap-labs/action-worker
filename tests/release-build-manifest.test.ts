@@ -222,10 +222,7 @@ test("Chromium release builds fail closed until an isolated self-hosted builder 
   assert.equal(chromium.trust_domain, "sandbox");
   assert.deepEqual(chromium.fallback_profiles, []);
   assert.ok(chromium.labels.includes("aw-chromium-build"));
-  assert.throws(
-    () => resolveRunnerProfile(policy, "windows-chromium-build"),
-    /no enabled backend/
-  );
+  assert.throws(() => resolveRunnerProfile(policy, "windows-chromium-build"), /no enabled backend/);
 
   const ready = parseRunnerPolicy({
     ...policy,
@@ -240,7 +237,7 @@ test("Chromium release builds fail closed until an isolated self-hosted builder 
   assert.deepEqual(resolved.profile.labels, chromium.labels);
 
   const workflow = await readFile(".github/workflows/release-app.yml", "utf8");
-  assert.match(workflow, /matrix\.runner_profile == 'windows-chromium-build' && 720 \|\| 90/);
+  assert.match(workflow, /timeout-minutes: 360/);
   assert.match(workflow, /BROWSER_BUILD_SOURCE_BUILD_ENABLED:/);
   assert.match(workflow, /vars\.AW_BROWSER_BUILD_WORKSPACE_ROOT/);
   assert.match(workflow, /vars\.AW_BROWSER_BUILD_NOTICES_PATH/);
