@@ -354,9 +354,9 @@ test("plugin rename proof candidates are limited to existing paths and the two C
 });
 
 test("plugin rename allowance pins only the two verified main baselines", () => {
-  assert.deepEqual([...PLUGIN_RENAME_BASES], [
-    "f6f265ae211cfa99830d214c3fba3319e5a5ce1c",
-    "094ad41c4948155419eb12a53be6709d88272c3d",
-  ]);
+  assert.deepEqual(
+    [...PLUGIN_RENAME_BASES],
+    ["f6f265ae211cfa99830d214c3fba3319e5a5ce1c", "094ad41c4948155419eb12a53be6709d88272c3d"]
+  );
   assert.equal(PLUGIN_RENAME_BASES.has("0".repeat(40)), false);
 });
