@@ -75,6 +75,11 @@ try {
   $releaseVersion = '0.0.0-beta.1'
   Invoke-Checked 'pwsh.exe' @('-NoProfile', '-File', (Join-Path $root 'apps/desktop/scripts/build-delta-release.ps1'),
     '-Target', 'x86_64-pc-windows-msvc', '-Version', $releaseVersion, '-OutputDir', $releaseOutput)
+  # Optional bounded numeric diagnostics, never a substitute for acceptance.
+  try {
+    & node.exe (Join-Path $env:CENTRAL_CI_AW_ROOT 'scripts/delta-package-timings.ts') $root 2>$null
+  }
+  catch { }
   $stage = 'package-closure-regression'
   Invoke-Checked 'pnpm.cmd' @('exec', 'vitest', 'run', 'apps/desktop/tests/prepare-package-set.spec.ts')
   $stage = 'release-acceptance'
