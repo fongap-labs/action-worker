@@ -130,7 +130,15 @@ test("release privacy scan rejects unresolved, forward, chained, traversing and 
   const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const target = join(directory, "bundle.zip");
-  for (const kind of ["missing", "forward", "chain", "traversal", "absolute", "symlink", "nonempty"]) {
+  for (const kind of [
+    "missing",
+    "forward",
+    "chain",
+    "traversal",
+    "absolute",
+    "symlink",
+    "nonempty",
+  ]) {
     hardlinkArchive(target, kind);
     const result = run(directory);
     assert.equal(result.status, 1, kind);
@@ -144,18 +152,24 @@ test("release privacy scan preserves invalid byte boundaries without hiding real
   context.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, "time.bin");
   const address = ["developer", "example.invalid"].join("@");
-  await writeFile(file, Buffer.concat([
-    Buffer.from(address.slice(0, -7)),
-    Buffer.from([255]),
-    Buffer.from(address.slice(-7)),
-  ]));
+  await writeFile(
+    file,
+    Buffer.concat([
+      Buffer.from(address.slice(0, -7)),
+      Buffer.from([255]),
+      Buffer.from(address.slice(-7)),
+    ])
+  );
   assert.equal(run(directory).status, 0);
-  await writeFile(file, Buffer.concat([
-    Buffer.from([255]),
-    Buffer.alloc(65523, 32),
-    Buffer.from(address),
-    Buffer.from([255]),
-  ]));
+  await writeFile(
+    file,
+    Buffer.concat([
+      Buffer.from([255]),
+      Buffer.alloc(65523, 32),
+      Buffer.from(address),
+      Buffer.from([255]),
+    ])
+  );
   const finding = run(directory);
   assert.equal(finding.status, 1);
   assert.match(finding.output, /privacy-email-address/);
