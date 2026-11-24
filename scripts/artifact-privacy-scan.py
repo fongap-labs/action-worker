@@ -86,7 +86,7 @@ class Scanner:
             self.expanded_bytes += len(block)
             if self.expanded_bytes > MAX_EXPANDED_BYTES:
                 raise PrivacyScanError("expanded-size-budget-exceeded")
-            text = tail + block.decode("utf-8", errors="ignore")
+            text = tail + block.decode("utf-8", errors="replace")
             self.check_text(text)
             tail = text[-OVERLAP_BYTES:]
 
