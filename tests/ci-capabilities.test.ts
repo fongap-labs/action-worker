@@ -208,7 +208,14 @@ test("central Windows route grants only explicit trusted manifest opt-in", () =>
   const windows = {
     id: "windows",
     runner_profile: "windows-standard",
-    command: ["pwsh", "-File", "{central_root}/tests/packs/delta/windows-desktop-ci.ps1"],
+    command: [
+      "pwsh",
+      "-NoProfile",
+      "-File",
+      "{central_root}/tests/packs/delta/windows-desktop-ci.ps1",
+      "-TargetRoot",
+      "{target_root}",
+    ],
     timeout_minutes: 90,
     capability_requests: ["source.read"],
   };
