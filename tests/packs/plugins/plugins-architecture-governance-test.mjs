@@ -4,21 +4,17 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { resolve, relative, dirname, sep } from 'node:path'
 const read = path => readFileSync(resolve(root, path), 'utf8')
 const json = path => JSON.parse(read(path))
-// Transitional admission: the existing main predates the proposed contract.
-// Validate the existing product boundary even before the contract lands.
-const hasContract = existsSync(resolve(root, 'projects/architecture.json'))
-const contract = hasContract ? json('projects/architecture.json') : {
-  schema_version: 1,
-  products: [
-    { id: 'delta-suite', package: '@fongap-labs/delta-suite', path: 'packages/delta-suite', capabilities: ['general-experience'], allowed_workspace_dependencies: [] },
-    { id: 'delta-code', package: '@fongap-labs/delta-code', path: 'packages/delta-code', capabilities: ['coding'], allowed_workspace_dependencies: ['@fongap-labs/shared'] },
-  ],
-  internal_packages: [{ package: '@fongap-labs/shared', path: 'packages/shared', capabilities: ['neutral-tools'], allowed_workspace_dependencies: [] }],
-}
+const contract = json('projects/architecture.json')
 
 test('architecture contract rollout is complete when any new governance artifact exists', () => {
-  const indicators = ['docs/ARCHITECTURE_GOVERNANCE.md', 'projects/delta-code/architecture-mece.json', 'projects/delta-code/feature-readiness.json']
-  if (indicators.some(path => existsSync(resolve(root, path)))) assert.ok(hasContract, 'missing repository architecture contract')
+  assert.equal(contract.schema_version, 1)
+  for (const path of [
+    'docs/ARCHITECTURE_GOVERNANCE.md',
+    'projects/delta-code/architecture-mece.json',
+    'projects/delta-code/feature-readiness.json',
+    'projects/delta-suite/architecture-mece.json',
+    'projects/delta-suite/feature-readiness.json',
+  ]) assert.ok(existsSync(resolve(root, path)), 'missing required architecture artifact: ' + path)
 })
 const packages = [...contract.products, ...contract.internal_packages]
 const unique = values => assert.equal(new Set(values).size, values.length)
@@ -27,10 +23,8 @@ test('workspace package identity, product manifests and capability ownership agr
   assert.equal(contract.schema_version, 1)
   unique(packages.map(p => p.package))
   unique(packages.flatMap(p => p.capabilities))
-  if (hasContract) {
-    for (const product of contract.products) {
-      assert.ok(product.architecture && product.readiness, 'missing product contract paths: ' + product.id)
-    }
+  for (const product of contract.products) {
+    assert.ok(product.architecture && product.readiness, 'missing product contract paths: ' + product.id)
   }
   const actual = readdirSync(resolve(root, 'packages'), { withFileTypes: true })
     .filter(e => e.isDirectory() && existsSync(resolve(root, 'packages', e.name, 'package.json')))
@@ -87,12 +81,6 @@ test('literal source imports respect product boundaries', () => {
 
 test('Code domain directories have exactly one declared owner', () => {
   const p = contract.products.find(p => p.id === 'delta-code')
-  if (!hasContract) {
-    for (const domain of ['kernel', 'adapter', 'strategy', 'coding', 'quality', 'repository', 'collaboration', 'support']) {
-      assert.ok(existsSync(resolve(root, p.path, 'src', 'delta-code-' + domain)))
-    }
-    return
-  }
   const architecture = json(p.architecture)
   const declared = architecture.owners.map(owner => owner.path).sort()
   unique(declared)
@@ -107,18 +95,73 @@ test('Suite mounted Host feature IDs agree with the MECE contract', () => {
   const architecture = json('projects/delta-suite/architecture-mece.json')
   const source = read('packages/delta-suite/src/delta-suite-composition.ts')
   const registered = Object.fromEntries([...source.matchAll(/registry\.register\(\{\s*id:\s*'([^']+)',\s*owner:\s*'([^']+)'/g)].map(([, id, owner]) => [id, owner]))
-  assert.deepEqual(registered, hasContract ? architecture.host_feature_registration : {
-    'context.compaction-status': 'context', 'context.task-intent': 'context',
-    'security.privacy-guards': 'security', 'discovery.session-search': 'discovery',
-    'sessions.session-operations': 'sessions',
-  })
+  assert.deepEqual(registered, architecture.host_feature_registration)
   for (const owner of Object.values(registered)) assert.ok(architecture.owners.some(o => o.id === owner))
 })
 
 test('governance document and machine-contract links are indexed', () => {
   const index = read('docs/README.md')
-  for (const path of (hasContract ? ['ARCHITECTURE.md', 'ARCHITECTURE_GOVERNANCE.md', 'DEVELOPMENT.md', 'OPERATIONS.md', 'SECURITY.md', 'COMPATIBILITY.md', '../projects/architecture.json'] : ['ARCHITECTURE.md', 'DEVELOPMENT.md', 'OPERATIONS.md'])) {
+  for (const path of ['ARCHITECTURE.md', 'ARCHITECTURE_GOVERNANCE.md', 'DEVELOPMENT.md', 'OPERATIONS.md', 'SECURITY.md', 'COMPATIBILITY.md', '../projects/architecture.json']) {
     assert.ok(index.includes('](' + path + ')'), 'missing index link: ' + path)
     assert.ok(existsSync(resolve(root, 'docs', path)))
+  }
+})
+
+function literalImports(source) {
+  return [...source.matchAll(/(?:\bfrom\s*|\bimport\s*(?:\(\s*)?|\brequire\s*\(\s*)['"]([^'"]+)['"]/g)]
+    .map(match => match[1])
+}
+
+test('plugin kernels have no external dependencies or internal module cycles', () => {
+  for (const product of contract.products) {
+    const kernel = resolve(root, product.path, 'src', product.id + '-kernel')
+    assert.ok(existsSync(kernel), 'missing product kernel: ' + product.id)
+    const files = [...sources(kernel)]
+    assert.ok(files.length > 0, 'empty product kernel: ' + product.id)
+    const graph = new Map()
+    for (const file of files) {
+      const dependencies = literalImports(readFileSync(file, 'utf8')).map(specifier => {
+        assert.ok(specifier.startsWith('.'), 'kernel imports external module: ' + relative(root, file) + ' -> ' + specifier)
+        const resolved = resolve(dirname(file), specifier)
+        assert.ok(resolved.startsWith(kernel + sep), 'kernel imports outside its boundary: ' + relative(root, file) + ' -> ' + specifier)
+        const candidates = [resolved, resolved.replace(/\.js$/, '.ts'), resolved + '.ts', resolve(resolved, 'index.ts')]
+        const target = candidates.find(candidate => files.includes(candidate))
+        assert.ok(target, 'unresolved kernel dependency: ' + specifier)
+        return target
+      })
+      graph.set(file, dependencies)
+    }
+    const visiting = new Set()
+    const visited = new Set()
+    function visit(file) {
+      assert.ok(!visiting.has(file), 'cyclic kernel dependency: ' + relative(root, file))
+      if (visited.has(file)) return
+      visiting.add(file)
+      for (const dependency of graph.get(file)) visit(dependency)
+      visiting.delete(file)
+      visited.add(file)
+    }
+    for (const file of files) visit(file)
+  }
+})
+
+test('internal packages are not release products and runtime dependencies are bundled', () => {
+  const internalNames = new Set(contract.internal_packages.map(p => p.package))
+  for (const internal of contract.internal_packages) {
+    const manifest = json(internal.path + '/package.json')
+    assert.equal(internal.standalone_release, false)
+    assert.ok(!manifest.dsh?.bundle?.patch, 'internal package declares a plugin release entry: ' + internal.package)
+  }
+  for (const product of contract.products) {
+    const manifest = json(product.path + '/package.json')
+    const bundled = manifest.bundleDependencies || manifest.bundledDependencies || []
+    for (const [dependency, version] of Object.entries(manifest.dependencies || {})) {
+      if (!internalNames.has(dependency)) continue
+      assert.equal(version, 'workspace:*', 'internal runtime dependency must resolve from workspace: ' + dependency)
+      assert.ok(bundled.includes(dependency), 'missing bundled runtime dependency: ' + dependency)
+    }
+    for (const dependency of bundled) {
+      if (internalNames.has(dependency)) assert.ok(Object.hasOwn(manifest.dependencies || {}, dependency))
+    }
   }
 })
