@@ -165,3 +165,72 @@ test('internal packages are not release products and runtime dependencies are bu
     }
   }
 })
+
+
+// Static source-boundary contract: type-only imports do not add runtime authority.
+// This is intentionally a literal import check, not a complete TypeScript parser.
+function boundaryRuntimeImports(source) {
+  const withoutTypes = source.replace(
+    /^[ \t]*import[ \t]+type\b[^;]*?\bfrom\s*['"][^'"\r\n]+['"][ \t]*;?/gm, '')
+  return [...new Set(literalImports(withoutTypes))].sort()
+}
+
+test('declared Suite source boundaries have a single owner and bounded runtime dependencies', () => {
+  const suite = contract.products.find(product => product.id === 'delta-suite')
+  const architecture = json(suite.architecture)
+  const boundaries = architecture.source_boundaries
+  assert.ok(boundaries && boundaries.session_protection, 'missing established session protection boundary')
+  const expected = [
+    ['session_protection', 'security', 'delta-suite-security/session-protection.ts'],
+    ['client_context_projection', 'context', 'client-context-projection.ts'],
+    ['client_totp_qr', 'security', 'client-totp-qr.ts'],
+  ]
+  for (const [id, owner, relativePath] of expected) {
+    const path = suite.path + '/src/' + relativePath
+    // An older, still-open PR may predate an extraction. Once the file is
+    // introduced, its ownership is mandatory, and a declared boundary cannot vanish.
+    if (id === 'session_protection' || existsSync(resolve(root, path)) || boundaries[id]) {
+      assert.equal(boundaries[id]?.owner, owner, 'wrong source owner: ' + id)
+      assert.equal(boundaries[id]?.path, path, 'wrong source path: ' + id)
+    }
+  }
+  const declared = Object.values(boundaries)
+  unique(declared.map(boundary => boundary.path))
+  unique(declared.flatMap(boundary => boundary.public_functions))
+  for (const boundary of declared) {
+    assert.ok(architecture.owners.some(owner => owner.id === boundary.owner))
+    const sourceRoot = resolve(root, suite.path, 'src')
+    assert.ok(resolve(root, boundary.path).startsWith(sourceRoot + sep))
+    const source = read(boundary.path)
+    assert.deepEqual(boundaryRuntimeImports(source), [...boundary.allowed_runtime_imports].sort(),
+      'runtime dependency drift: ' + boundary.path)
+    for (const symbol of boundary.public_functions) {
+      assert.match(symbol, /^[A-Za-z_$][A-Za-z0-9_$]*$/)
+      assert.match(source, new RegExp('^(?:export\\s+)?(?:async\\s+)?(?:function|const|class)\\s+' + symbol.replace(/\$/g, '\\$') + '\\b', 'm'),
+        'missing declared implementation: ' + symbol)
+    }
+    if (boundary.host_contract) {
+      const hostContract = read(boundary.host_contract)
+      assert.doesNotMatch(hostContract, /^\s*(?:export\s+)?(?:const|let|var|function|class|enum)\s/m,
+        'workspace contract must remain types-only')
+    }
+    if (boundary.compatibility_entry) {
+      const compatibility = read(boundary.compatibility_entry)
+      for (const symbol of boundary.public_functions) {
+        assert.match(compatibility, new RegExp('\\b' + symbol + '\\b'))
+        assert.doesNotMatch(compatibility, new RegExp('^export\\s+(?:async\\s+)?(?:function|const|class)\\s+' + symbol + '\\b', 'm'),
+          'compatibility entry must not duplicate the implementation: ' + symbol)
+      }
+    }
+    if (boundary.runtime_entry) {
+      assert.equal(boundary.runtime_entry, suite.path + '/lib/client.js')
+      const relativeSource = boundary.path.slice(suite.path.length + 1)
+      const clientConfig = json(suite.path + '/tsconfig.client.json')
+      const hostConfig = json(suite.path + '/tsconfig.json')
+      assert.ok(clientConfig.include.includes(relativeSource), 'missing browser helper input: ' + relativeSource)
+      assert.ok(hostConfig.exclude.includes(relativeSource), 'browser helper leaks into Host build: ' + relativeSource)
+      assert.doesNotMatch(source, /^\s*(?:import|export)\s/m,
+        'single browser module helpers must remain self-contained scripts')
+    }
+  }
+})
