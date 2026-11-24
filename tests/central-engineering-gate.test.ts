@@ -317,6 +317,11 @@ test("Linux central sandbox runs trusted ownership policy before project-control
   assert.match(workflow, /POLICY_HEAD_SHA: \$\{\{ inputs\.head_sha \}\}/);
 });
 
+test("Delta desktop builder has valid shell syntax", () => {
+  if (process.platform === "win32") return;
+  execFileSync("bash", ["-n", "tests/packs/delta/desktop-build-ci.sh"]);
+});
+
 test("Delta desktop builder compiles referenced libraries before package-local TypeScript", () => {
   const build = readFileSync("tests/packs/delta/desktop-build-ci.sh", "utf8");
   const install = build.indexOf("pnpm install --frozen-lockfile");
