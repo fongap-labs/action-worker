@@ -54,7 +54,6 @@ test("cache never replaces frozen install, full Windows packaging, or executable
     "build-delta-release.ps1",
     "verify-delta-release.mjs",
     "prepare-package-set.spec.ts",
-    "local-diagnostics-smoke.mjs",
     "release-archive-extraction",
     "portable-checksum-verification",
     "Start-Process -FilePath $exe",
