@@ -754,4 +754,4 @@ if [[ -f packages/experimental/browser-use-playwright-mcp/package.json ]]; then
 fi
 
 # Run the central-only synthetic journal regression against the real desktop source.
-node "$(dirname "${BASH_SOURCE[0]}")/local-diagnostics-smoke.mjs
+node "$(dirname "${BASH_SOURCE[0]}")/local-diagnostics-smoke.mjs"
