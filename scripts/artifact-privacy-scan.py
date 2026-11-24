@@ -86,7 +86,7 @@ class Scanner:
             self.expanded_bytes += len(block)
             if self.expanded_bytes > MAX_EXPANDED_BYTES:
                 raise PrivacyScanError("expanded-size-budget-exceeded")
-            text = tail + block.decode("utf-8", errors="ignore")
+            text = tail + block.decode("utf-8", errors="replace")
             self.check_text(text)
             tail = text[-OVERLAP_BYTES:]
 
@@ -136,19 +136,31 @@ class Scanner:
         else:
             try:
                 with tarfile.open(fileobj=stream, mode="r:*") as archive:
+                    regular_members = {}
                     for member in archive:
                         if member.isdir():
+                            self.check_name(member.name)
                             continue
-                        if not member.isfile():
-                            raise PrivacyScanError("unsafe-archive-entry")
                         if member.name.casefold() in seen:
                             raise PrivacyScanError("duplicate-archive-entry")
                         seen.add(member.name.casefold())
-                        opened = archive.extractfile(member)
+                        source = member
+                        if member.islnk():
+                            self.check_name(member.linkname)
+                            # TAR hard links can alias data already present in the same archive.
+                            # Read that exact regular member, never resolve or extract a link.
+                            if member.size != 0 or member.linkname not in regular_members:
+                                raise PrivacyScanError("unsafe-archive-hardlink")
+                            source = regular_members[member.linkname]
+                        elif not member.isfile():
+                            raise PrivacyScanError("unsafe-archive-entry")
+                        opened = archive.extractfile(source)
                         if opened is None:
                             raise PrivacyScanError("unreadable-archive-entry")
                         with opened:
                             self.inspect(member.name, opened, depth)
+                        if member.isfile():
+                            regular_members[member.name] = member
             except (tarfile.TarError, EOFError) as error:
                 raise PrivacyScanError("unreadable-tar-archive") from error
 
