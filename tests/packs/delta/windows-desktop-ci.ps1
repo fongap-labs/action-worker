@@ -65,83 +65,26 @@ try {
   # Verify product policy without the CI-only pnpm child process path.
   # Frozen install and all builds are executed explicitly below via pnpm.cmd.
   Invoke-Checked 'node.exe' @('scripts/delta-verify.mjs')
-  $stage = 'frozen-install'
-  Invoke-Checked 'pnpm.cmd' @('install', '--frozen-lockfile')
-  $stage = 'host-build'
-  Invoke-Checked 'pnpm.cmd' @('run', 'build:lib:host')
-  $stage = 'shared-plugin-build'
-  Invoke-Checked 'pnpm.cmd' @('--filter', '@fongap-labs/delta-plugin-shared', 'run', 'build')
-  $stage = 'delta-code-build'
-  Invoke-Checked 'pnpm.cmd' @('--filter', '@fongap-labs/delta-code', 'run', 'build')
-  $stage = 'desktop-build'
-  Invoke-Checked 'pnpm.cmd' @('run', 'build:desktop')
-  $stage = 'local-diagnostics-smoke'
-  Invoke-Checked 'node.exe' @((Join-Path $env:CENTRAL_CI_AW_ROOT 'tests/packs/delta/local-diagnostics-smoke.mjs'))
-
-  # This documented offline preset is unsigned: it does not load signing or
-  # update credentials. The package command itself runs its packaged Electron
-  # runtime smoke on Windows, including Host startup and runtime payload checks.
-  $env:DELTA_PORTABLE_OFFLINE = '1'
-  # Invoke the existing product entrypoint with its explicit unsigned flag.
-  # DELTA_PORTABLE_OFFLINE alone must not silently bypass release dotenv policy.
-  $stage = 'unsigned-directory-pack-and-host-smoke'
-  Invoke-Checked 'pnpm.cmd' @('--filter', '@deepseek-ai/dsh-desktop', 'run', 'package:win:x64:dir', '--', '--unsigned')
-  # Optional, read-only performance diagnostics. Never turn target metadata
-  # into a gate result, and never print paths, commands or raw target logs.
-  try {
-    $timingScript = Join-Path $env:CENTRAL_CI_AW_ROOT 'scripts/delta-package-timings.ts'
-    & node.exe $timingScript $root 2>$null
+  # CI must build exactly the same archive that the release worker builds.
+  # No pre-built Electron output, alternate package command or reuse flags.
+  $stage = 'release-build'
+  $runnerTemp = [System.IO.Path]::GetFullPath($env:RUNNER_TEMP)
+  $releaseOutput = Join-Path $runnerTemp ("delta-release-ci-" + [guid]::NewGuid().ToString('N'))
+  $portableOutput = Join-Path $releaseOutput 'extracted'
+  New-Item -ItemType Directory -Force -Path $releaseOutput, $portableOutput | Out-Null
+  $releaseVersion = '0.0.0-beta.1'
+  Invoke-Checked 'pwsh.exe' @('-NoProfile', '-File', (Join-Path $root 'apps/desktop/scripts/build-delta-release.ps1'),
+    '-Target', 'x86_64-pc-windows-msvc', '-Version', $releaseVersion, '-OutputDir', $releaseOutput)
+  $stage = 'release-acceptance'
+  Invoke-Checked 'node.exe' @((Join-Path $root 'apps/desktop/scripts/verify-delta-release.mjs'),
+    '--target', 'x86_64-pc-windows-msvc', '--version', $releaseVersion, '--output-dir', $releaseOutput)
+  $stage = 'release-archive-extraction'
+  $sevenZip = Join-Path $env:ProgramFiles '7-Zip/7z.exe'
+  $archive = Join-Path $releaseOutput 'Delta-win-x64.zip'
+  if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
+    throw 'Delta Windows CI did not produce a release archive.'
   }
-  catch {
-    # Missing or malformed target timing metadata cannot alter the CI verdict.
-  }
-  $unpacked = Join-Path $root 'apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/win-unpacked'
-  $binary = Join-Path $unpacked 'Delta.exe'
-  if (-not (Test-Path -LiteralPath $binary -PathType Leaf) -or
-      (Get-Item -LiteralPath $binary).Length -le 0) {
-    throw 'Delta Windows CI did not produce an executable Electron directory.'
-  }
-
-  # The product packager reuses only the unsigned output just built above.
-  # It expects its stable private staging path; validate it before creating it.
-  $buildRoot = [System.IO.Path]::GetFullPath((Join-Path $root 'apps/desktop/.desktop-build/targets/win-x64'))
-  $buildPrefix = $root.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
-  if (-not $buildRoot.StartsWith($buildPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Delta Windows CI Electron staging path escaped the checked-out build root.'
-  }
-  $reuseRoot = Join-Path $buildRoot 'delta-electron-builder'
-  $reuseOutput = Join-Path $reuseRoot 'win-unpacked'
-  if (Test-Path -LiteralPath $reuseRoot) {
-    throw 'Delta Windows CI found unexpected pre-existing Electron staging output.'
-  }
-  $stage = 'electron-output-reuse'
-  New-Item -ItemType Directory -Force -Path $reuseOutput | Out-Null
-  Get-ChildItem -LiteralPath $unpacked -Force | ForEach-Object {
-    Copy-Item -LiteralPath $_.FullName -Destination $reuseOutput -Recurse -Force
-  }
-
-  # Stage and validate the actual user-facing App/Data/Other portable layout.
-  # The target-controlled packager may only replace this fixed runner-owned path.
-  $runnerWorkRoot = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent (Split-Path -Parent $root)) 'outputs'))
-  $portableOutput = [System.IO.Path]::GetFullPath((Join-Path $runnerWorkRoot 'Delta-v1-windows-ci'))
-  $outputPrefix = $runnerWorkRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
-  if (-not $portableOutput.StartsWith($outputPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Delta Windows CI output path escaped the runner-owned outputs directory.'
-  }
-  $stage = 'portable-directory-stage'
-  $env:DELTA_SKIP_BUILD = '1'
-  $env:DELTA_REUSE_ELECTRON_OUTPUT = '1'
-  $env:DELTA_REPLACE_OUTPUT = '1'
-  $env:DELTA_OUTPUT_DIR = $portableOutput
-  try {
-    Invoke-Checked 'pnpm.cmd' @('--filter', '@deepseek-ai/dsh-desktop', 'run', 'package:delta-portable')
-  }
-  finally {
-    Remove-Item Env:DELTA_SKIP_BUILD -ErrorAction SilentlyContinue
-    Remove-Item Env:DELTA_REUSE_ELECTRON_OUTPUT -ErrorAction SilentlyContinue
-    Remove-Item Env:DELTA_REPLACE_OUTPUT -ErrorAction SilentlyContinue
-    Remove-Item Env:DELTA_OUTPUT_DIR -ErrorAction SilentlyContinue
-  }
+  Invoke-Checked $sevenZip @('x', '-y', "-o$portableOutput", $archive)
 
   $stage = 'portable-output-layout'
   $children = @(Get-ChildItem -LiteralPath $portableOutput -Force | Select-Object -ExpandProperty Name | Sort-Object -CaseSensitive)
@@ -158,7 +101,7 @@ try {
     if (-not (Test-Path -LiteralPath $path)) { throw "Delta portable output is missing a required path: $relative" }
   }
   $versionRecord = Get-Content -Raw -LiteralPath (Join-Path $portableOutput 'Other/VERSION.json') | ConvertFrom-Json
-  if ($versionRecord.product -cne 'Delta' -or $versionRecord.platform -cne 'win32-x64' -or
+  if ($versionRecord.product -cne 'Delta' -or $versionRecord.version -cne $releaseVersion -or $versionRecord.platform -cne 'win32-x64' -or
       $versionRecord.harnessSource -cne '4b399c39a6d1479cd84ca591b4d7c88e24d38a96') {
     throw 'Delta portable version record does not match the approved Windows x64 source.'
   }
@@ -262,4 +205,7 @@ catch {
 }
 finally {
   Pop-Location
+  if ((Get-Variable releaseOutput -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath $releaseOutput)) {
+    Remove-Item -LiteralPath $releaseOutput -Recurse -Force -ErrorAction SilentlyContinue
+  }
 }
