@@ -75,6 +75,10 @@ try {
   $releaseVersion = '0.0.0-beta.1'
   Invoke-Checked 'pwsh.exe' @('-NoProfile', '-File', (Join-Path $root 'apps/desktop/scripts/build-delta-release.ps1'),
     '-Target', 'x86_64-pc-windows-msvc', '-Version', $releaseVersion, '-OutputDir', $releaseOutput)
+  $stage = 'package-closure-regression'
+  Invoke-Checked 'pnpm.cmd' @('exec', 'vitest', 'run', 'apps/desktop/tests/prepare-package-set.spec.ts')
+  $stage = 'local-diagnostics-smoke'
+  Invoke-Checked 'node.exe' @((Join-Path $env:CENTRAL_CI_AW_ROOT 'tests/packs/delta/local-diagnostics-smoke.mjs'))
   $stage = 'release-acceptance'
   Invoke-Checked 'node.exe' @((Join-Path $root 'apps/desktop/scripts/verify-delta-release.mjs'),
     '--target', 'x86_64-pc-windows-msvc', '--version', $releaseVersion, '--output-dir', $releaseOutput)
