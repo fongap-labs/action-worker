@@ -175,3 +175,25 @@ test("release privacy scan preserves invalid byte boundaries without hiding real
   assert.match(finding.output, /privacy-email-address/);
   assert.doesNotMatch(finding.output, /developer|time\.bin/);
 });
+
+test("release privacy diagnostics classify origins without revealing archive member names", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const address = ["developer", "example.invalid"].join("@");
+  const target = join(directory, "bundle.zip");
+  archive(target, "runtime/python/Lib/site-packages/hidden.dist-info/METADATA", address, "zip");
+  const metadata = run(directory);
+  assert.equal(metadata.status, 1);
+  assert.ok(metadata.output.includes("python-packages/package-metadata/privacy-email-address"));
+  assert.doesNotMatch(metadata.output, /developer|hidden|example\.invalid/);
+  archive(target, "App/resources/app.asar", address, "zip");
+  const asar = run(directory);
+  assert.equal(asar.status, 1);
+  assert.ok(asar.output.includes("electron-asar/asar/privacy-email-address"));
+  assert.doesNotMatch(asar.output, /developer|resources\/app\.asar/);
+  archive(target, "runtime/node_modules/hidden/index.js.map", address, "zip");
+  const map = run(directory);
+  assert.equal(map.status, 1);
+  assert.ok(map.output.includes("node-dependencies/source-map/privacy-email-address"));
+  assert.doesNotMatch(map.output, /developer|hidden|index\.js\.map/);
+});

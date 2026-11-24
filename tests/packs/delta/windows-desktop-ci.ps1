@@ -85,6 +85,9 @@ try {
   $stage = 'release-acceptance'
   Invoke-Checked 'node.exe' @((Join-Path $root 'apps/desktop/scripts/verify-delta-release.mjs'),
     '--target', 'x86_64-pc-windows-msvc', '--version', $releaseVersion, '--output-dir', $releaseOutput)
+  $stage = 'release-privacy'
+  Invoke-Checked 'python.exe' @((Join-Path $env:CENTRAL_CI_AW_ROOT 'scripts/artifact-privacy-scan.py'),
+    $releaseOutput, (Join-Path $env:CENTRAL_CI_AW_ROOT 'policies/security.json'))
   $stage = 'release-archive-extraction'
   $sevenZip = Join-Path $env:ProgramFiles '7-Zip/7z.exe'
   $archive = Join-Path $releaseOutput 'Delta-win-x64.zip'
