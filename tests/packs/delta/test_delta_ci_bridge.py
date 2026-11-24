@@ -79,7 +79,7 @@ def test_delta_ci_execution_manifest_keeps_trusted_product_verifiers() -> None:
         assert jobs[1] == {
             "id": "windows",
             "runner_profile": "windows-standard",
-            "command": ["pwsh", "-File", "{central_root}/tests/packs/delta/windows-desktop-ci.ps1"],
+            "command": ["pwsh", "-NoProfile", "-File", "{central_root}/tests/packs/delta/windows-desktop-ci.ps1", "-TargetRoot", "{target_root}"],
             "timeout_minutes": 90,
             "capability_requests": ["source.read"],
         }
