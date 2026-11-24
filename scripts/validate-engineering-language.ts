@@ -134,6 +134,15 @@ export function engineeringLineViolation(
     }
     return "Workflow engineering text must use English.";
   }
+  // DOM snapshots contain rendered user-facing text on indented text nodes.
+  if (/\.snap$/i.test(path) && /^\s{2,}[^<>/`{}]+\s*$/u.test(line)) {
+    return null;
+  }
+  // A regex passed to an assertion is expected UI data, not a test description.
+  // Remove only the regex literal so adjacent comments remain subject to the gate.
+  if (/(?:\.spec|\.test)\.[cm]?[jt]sx?$/i.test(path)) {
+    line = line.replace(/(\.toMatch\(\s*)\/(?:\\.|[^/\\])+\/[a-z]*(\s*\))/g, '$1""$2');
+  }
   if (QUOTED_CONFIG_KEY.test(line) || CONFIG_KEY.test(stripQuotedStrings(line))) {
     return "Configuration keys must use English.";
   }
