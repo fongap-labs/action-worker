@@ -401,6 +401,11 @@ test("engineering language rejects Chinese machine text but allows documentation
     "Logs, errors, and test descriptions must use English."
   );
   assert.equal(engineeringLineViolation("src/router.ts", 'const label = "中文界面";'), null);
+  assert.equal(engineeringLineViolation("src/view.test.tsx", 'expect(text).toMatch(/^任务执行中，\\d+秒$/)'), null);
+  assert.notEqual(engineeringLineViolation("src/view.test.tsx", 'expect(text).toMatch(/^任务执行中$/) // 中文注释'), null);
+  assert.notEqual(engineeringLineViolation("src/view.tsx", 'const pattern = /中文/'), null);
+  assert.equal(engineeringLineViolation("tests/__snapshots__/view.snap", '                开始会话'), null);
+  assert.notEqual(engineeringLineViolation("tests/__snapshots__/view.snap", '    // 中文注释'), null);
   // CHANGELOG text in an authored string is user-facing data, not a configuration key.
   assert.equal(
     engineeringLineViolation(
