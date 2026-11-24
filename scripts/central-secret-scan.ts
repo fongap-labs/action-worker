@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { engineeringOwnershipDiffBase } from "./engineering-gate-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { ensureSourceImportAvailable } from "./source-import-baselines.ts";
 
 // Central secret scan of the commits a pull request adds (gitleaks, pinned and checksum-verified).
 //
@@ -223,6 +224,29 @@ export function syntheticImportScanCommit(target: string, upstream: string, head
   return scanCommit;
 }
 
+/** Ensure a centrally pinned imported source exists before building the full-tree scan range. */
+export function syntheticImportScanCommitWithPinnedSource(
+  target: string,
+  bootstrap: string,
+  upstream: string,
+  head: string,
+  ensureSource: (
+    root: string,
+    bootstrapSha: string
+  ) => string | undefined = ensureSourceImportAvailable
+): string {
+  let available: string | undefined;
+  try {
+    available = ensureSource(target, bootstrap);
+  } catch {
+    throw new CannotRun("pinned import commit could not be verified");
+  }
+  if (available !== upstream) {
+    throw new CannotRun("pinned import commit could not be verified");
+  }
+  return syntheticImportScanCommit(target, upstream, head);
+}
+
 export async function main(argv: string[], environment: NodeJS.ProcessEnv): Promise<number> {
   const [target = "", base = "", head = "", config = ""] = argv;
   const mode = environment.AW_GITLEAKS_MODE || "enforce";
@@ -254,7 +278,9 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv): Prom
     const report = join(work, "report.json");
     const comparisonBase = engineeringOwnershipDiffBase(base);
     const scanHead =
-      comparisonBase === base ? head : syntheticImportScanCommit(target, comparisonBase, head);
+      comparisonBase === base
+        ? head
+        : syntheticImportScanCommitWithPinnedSource(target, base, comparisonBase, head);
     const args = [
       "git",
       target,

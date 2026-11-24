@@ -12,6 +12,8 @@
 
 - 修复: Delta Suite P0-2 停用凭据型 Gateway Host 路由后，同步中央契约测试为严格禁止凭据解析、网络探测、接口注册及未经授权的设置写入；保留纯映射和 CAS 合约测试。
 
+- 修复: 中央 secret scan 先按固定来源与 SHA 取回 Delta 导入基线缺失的 Harness commit，再比较完整源码树；取回失败或身份不符仍失败关闭。
+
 - 新增: 为一次性源码导入增加中央固定基线策略，并让差异门禁只对精确固定提交比较；Windows x64 中央验收改为检查 Delta 真实 `App/Data/Other` 便携目录及校验和。
 
 - 维护: 将 Delta Code 的 Modern Web Guidance 安全性、固定来源索引与按需调用回归移入统一插件中央测试包，不再新增插件仓库本地测试。
