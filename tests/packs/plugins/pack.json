@@ -14,7 +14,8 @@
       "delta-code-experience-evidence-test.mjs",
       "delta-code-skill-auto-stage-test.mjs",
       "delta-code-skill-auto-advance-test.mjs",
-      "delta-code-modern-web-guidance-test.mjs"
+      "delta-code-modern-web-guidance-test.mjs",
+      "delta-suite-task-intent-test.mjs"
     ]
   }
 }
