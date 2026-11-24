@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Delta 性能冒烟仅在源码声明 Delta Code 插件时检查其冷导入，并输出子进程失败原因，兼容尚未包含该插件的首版。
+
 - 修复: 移除 Change Record validator 中未使用的导入，清理中央静态分析失败。
 
 - 新增: 将 Delta 的 CUA、浏览器、Forge、Worktree 和 LiveShare 回归检查，以及 Worktree/Forge 配置、菜单文案和会话组合验收加入中央测试包，避免在产品仓库新增本地测试。
