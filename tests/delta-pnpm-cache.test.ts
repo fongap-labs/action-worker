@@ -51,17 +51,12 @@ test("PR cache writes are forbidden; only a trusted main CI may save", () => {
 test("cache never replaces frozen install, full Windows packaging, or executable smoke", () => {
   const required = [
     "delta-verify.mjs",
-    "'--frozen-lockfile'",
-    "build:lib:host",
-    "@fongap-labs/delta-plugin-shared",
-    "@fongap-labs/delta-code",
-    "build:desktop",
+    "build-delta-release.ps1",
+    "verify-delta-release.mjs",
+    "prepare-package-set.spec.ts",
     "local-diagnostics-smoke.mjs",
-    "package:win:x64:dir",
-    "--unsigned",
-    "package:delta-portable",
+    "release-archive-extraction",
     "portable-checksum-verification",
-    "Copy-Item -LiteralPath $_.FullName -Destination $reuseOutput",
     "Start-Process -FilePath $exe",
   ];
   for (const phrase of required) {
