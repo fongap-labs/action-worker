@@ -57,13 +57,14 @@ def test_pr_notification_dispatches_without_checkout_or_local_review() -> None:
     assert "pnpm install" not in source
 
 
-def test_delta_ci_execution_manifest_keeps_one_product_verifier() -> None:
+def test_delta_ci_execution_manifest_keeps_trusted_product_verifiers() -> None:
     manifest = json.loads(
         (ROOT / ".github" / "execution-manifest.json").read_text(encoding="utf-8")
     )
     assert manifest["schema_version"] == "1"
     jobs = manifest["operations"]["ci"]["jobs"]
-    assert len(jobs) == 1
+    # The pre-migration baseline has only Linux; the new release route declares both.
+    assert [job["id"] for job in jobs] in (["linux"], ["linux", "windows"])
     job = jobs[0]
     assert job["id"] == "linux"
     assert job["runner_profile"] == "linux-standard"
@@ -74,6 +75,14 @@ def test_delta_ci_execution_manifest_keeps_one_product_verifier() -> None:
     ]
     assert job["capability_requests"] == ["source.read"]
     assert (ROOT / "scripts" / "delta-verify.mjs").is_file()
+    if len(jobs) == 2:
+        assert jobs[1] == {
+            "id": "windows",
+            "runner_profile": "windows-standard",
+            "command": ["pwsh", "-File", "{central_root}/tests/packs/delta/windows-desktop-ci.ps1"],
+            "timeout_minutes": 90,
+            "capability_requests": ["source.read"],
+        }
 
 
 def test_windows_ci_builds_and_relocates_the_actual_portable_layout() -> None:
