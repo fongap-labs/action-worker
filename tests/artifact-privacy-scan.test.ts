@@ -83,7 +83,7 @@ function hardlinkArchive(target: string, kind: string) {
     "if kind=='private': data=('developer'+chr(64)+'example.invalid').encode()",
     "if kind=='nested-private':",
     "  nested=io.BytesIO()",
-    "  with zipfile.ZipFile(nested,'w') as z: z.writestr('data.txt',('developer'+chr(64)+'example.invalid').encode())",
+    "  with zipfile.ZipFile(nested,'w',compression=zipfile.ZIP_DEFLATED) as z: z.writestr('data.txt',('developer'+chr(64)+'example.invalid').encode())",
     "  data=nested.getvalue()",
     "buf=io.BytesIO()",
     "with tarfile.open(fileobj=buf,mode='w:gz') as tar:",
@@ -92,7 +92,9 @@ function hardlinkArchive(target: string, kind: string) {
     "  alias=tarfile.TarInfo('zone/alias.zip' if kind=='nested-private' else 'zone/alias')",
     "  alias.type=tarfile.SYMTYPE if kind=='symlink' else tarfile.LNKTYPE",
     "  alias.linkname={'missing':'zone/missing','traversal':'../data','absolute':'/data'}.get(kind,'zone/data')",
-    "  tar.addfile(alias)",
+    "  if kind=='nonempty':",
+    "    alias.size=1; tar.addfile(alias,io.BytesIO(b'x'))",
+    "  else: tar.addfile(alias)",
     "  if kind=='forward': tar.addfile(regular,io.BytesIO(data))",
     "  if kind=='chain':",
     "    other=tarfile.TarInfo('zone/another'); other.type=tarfile.LNKTYPE; other.linkname='zone/alias'; tar.addfile(other)",
@@ -116,7 +118,7 @@ test("release privacy scan accepts internal tar hardlinks and scans their aliase
   hardlinkArchive(target, "private");
   const finding = run(directory);
   assert.equal(finding.status, 1);
-  assert.match(finding.output, /privacy-email-address\]: 2/);
+  assert.ok(finding.output.includes("privacy-email-address]: 2"));
   assert.doesNotMatch(finding.output, /developer|zone\/alias/);
   hardlinkArchive(target, "nested-private");
   const nested = run(directory);
@@ -128,7 +130,7 @@ test("release privacy scan rejects unresolved, forward, chained, traversing and 
   const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const target = join(directory, "bundle.zip");
-  for (const kind of ["missing", "forward", "chain", "traversal", "absolute", "symlink"]) {
+  for (const kind of ["missing", "forward", "chain", "traversal", "absolute", "symlink", "nonempty"]) {
     hardlinkArchive(target, kind);
     const result = run(directory);
     assert.equal(result.status, 1, kind);
