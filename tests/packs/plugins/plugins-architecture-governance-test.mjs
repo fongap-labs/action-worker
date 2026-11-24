@@ -233,16 +233,12 @@ test('declared Suite source boundaries have a single owner and bounded runtime d
 })
 
 
-test('Suite literal internal runtime import graph is resolvable, acyclic and Host/browser isolated', () => {
-  const suite = contract.products.find(product => product.id === 'delta-suite')
-  const sourceRoot = resolve(root, suite.path, 'src')
+function assertProductRuntimeImportGraph(product, browserSources) {
+  const sourceRoot = resolve(root, product.path, 'src')
   const files = [...sources(sourceRoot)].filter(file => !file.endsWith('.d.ts')).sort()
-  assert.ok(files.length > 0, 'Suite source graph must not be empty')
+  assert.ok(files.length > 0, product.id + ' source graph must not be empty')
   const fileSet = new Set(files)
-  const config = json(suite.path + '/tsconfig.client.json')
-  const browser = new Set(config.include
-    .filter(file => !file.endsWith('.d.ts'))
-    .map(file => resolve(root, suite.path, file)))
+  const browser = new Set(browserSources.map(file => resolve(root, product.path, file)))
   for (const file of browser) assert.ok(fileSet.has(file), 'missing browser graph input: ' + relative(root, file))
 
   const graph = new Map()
@@ -252,7 +248,7 @@ test('Suite literal internal runtime import graph is resolvable, acyclic and Hos
       if (!specifier.startsWith('.')) continue
       const candidate = resolve(dirname(file), specifier)
       assert.ok(candidate.startsWith(sourceRoot + sep),
-        'relative dependency escapes Suite source: ' + relative(root, file) + ' -> ' + specifier)
+        'relative dependency escapes ' + product.id + ' source: ' + relative(root, file) + ' -> ' + specifier)
       const target = [
         candidate, candidate.replace(/\.js$/, '.ts'), candidate.replace(/\.js$/, '.tsx'),
         candidate.replace(/\.mjs$/, '.mts'), candidate.replace(/\.cjs$/, '.cts'),
@@ -272,7 +268,7 @@ test('Suite literal internal runtime import graph is resolvable, acyclic and Hos
   function visit(file) {
     if (visiting.has(file)) {
       const cycle = [...stack.slice(stack.indexOf(file)), file].map(path => relative(root, path))
-      assert.fail('Suite internal runtime import cycle: ' + cycle.join(' -> '))
+      assert.fail(product.id + ' internal runtime import cycle: ' + cycle.join(' -> '))
     }
     if (visited.has(file)) return
     visiting.add(file)
@@ -284,4 +280,19 @@ test('Suite literal internal runtime import graph is resolvable, acyclic and Hos
   }
   for (const file of files) visit(file)
   assert.equal(visited.size, files.length)
+}
+
+test('Suite literal internal runtime import graph is resolvable, acyclic and Host/browser isolated', () => {
+  const suite = contract.products.find(product => product.id === 'delta-suite')
+  const config = json(suite.path + '/tsconfig.client.json')
+  assertProductRuntimeImportGraph(suite, config.include.filter(file => !file.endsWith('.d.ts')))
+})
+
+test('Code literal internal runtime import graph is resolvable, acyclic and Host/browser isolated', () => {
+  const code = contract.products.find(product => product.id === 'delta-code')
+  const manifest = json(code.path + '/package.json')
+  assert.equal(manifest.exports['./client'], './lib/client.js')
+  assert.deepEqual(boundaryRuntimeImports(read(code.path + '/src/client.ts')), [],
+    'Code classic browser script must not import Host or external runtime modules')
+  assertProductRuntimeImportGraph(code, ['src/client.ts'])
 })
