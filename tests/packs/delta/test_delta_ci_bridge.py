@@ -81,14 +81,16 @@ def test_windows_ci_builds_and_relocates_the_actual_portable_layout() -> None:
         encoding="utf-8"
     )
     assert "26.13.1" in source
-    assert "package:delta-portable" in source
+    assert "build-delta-release.ps1" in source
+    assert "verify-delta-release.mjs" in source
     assert "App,Data,Other" in source
     assert "portable-checksum-verification" in source
     assert "Other/THIRD_PARTY_NOTICES.md" in source
     assert "App/Delta.exe" in source
     assert "Data/UserData" in source
     assert "Data/Home" in source
-    assert "electron-output-reuse" in source
+    assert "release-archive-extraction" in source
+    assert "DELTA_REUSE_ELECTRON_OUTPUT" not in source
     assert "Get-ChildItem -LiteralPath $portableOutput" in source
     assert "relocated-executable-startup" in source
 
