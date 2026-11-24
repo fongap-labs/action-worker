@@ -246,26 +246,19 @@ test("registered central Windows script is a real trusted PowerShell file", () =
   assert.ok(script);
   const source = readFileSync(script, "utf8");
   assert.match(source, /param\(/);
-  // Directory mode must also pass --unsigned; otherwise packaging reads
-  // apps/desktop/.env.windows (release signing/update settings) on CI.
-  const unsignedCommand =
-    "Invoke-Checked 'pnpm.cmd' @('--filter', '@deepseek-ai/dsh-desktop', 'run', 'package:win:x64:dir', '--', '--unsigned')";
-  assert.ok(
-    source.includes(unsignedCommand),
-    "Windows CI must invoke explicit unsigned directory packaging"
-  );
-  const offlineOptIn = source.indexOf("$env:DELTA_PORTABLE_OFFLINE = '1'");
-  assert.ok(
-    offlineOptIn >= 0 && offlineOptIn < source.indexOf(unsignedCommand),
-    "offline opt-in must precede the unsigned package command"
-  );
+  // Require the same unsigned portable release entrypoint and archive acceptance as production.
+  assert.match(source, /build-delta-release\.ps1/);
+  assert.match(source, /verify-delta-release\.mjs/);
+  assert.ok(source.indexOf("build-delta-release.ps1") < source.indexOf("verify-delta-release.mjs"));
+  assert.doesNotMatch(source, /DELTA_REUSE_ELECTRON_OUTPUT|package:win:x64:dir/);
   assert.doesNotMatch(source, /\.env\.windows/);
   assert.match(source, /delta-verify\.mjs/);
   assert.doesNotMatch(source, /delta-verify\.mjs[^\n]*--ci/);
   assert.match(source, /pnpm\.cmd/);
   assert.match(source, /Start-Process/);
   assert.match(source, /Delta Windows CI failed at stage: \$stage/);
-  assert.match(source, /unsigned-directory-pack-and-host-smoke/);
+  assert.match(source, /release-build/);
+  assert.match(source, /release-acceptance/);
   assert.match(source, /relocated-executable-startup/);
   assert.doesNotMatch(source, /throw "Delta Windows CI command failed/);
 });

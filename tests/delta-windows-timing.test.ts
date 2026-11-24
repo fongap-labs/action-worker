@@ -8,13 +8,10 @@ const sandbox = readFileSync(".github/workflows/central-ci-sandbox.yml", "utf8")
 test("Delta Windows full verification retains all mandatory stages with timing", () => {
   const phases = [
     "product-policy",
-    "frozen-install",
-    "host-build",
-    "shared-plugin-build",
-    "delta-code-build",
-    "desktop-build",
-    "local-diagnostics-smoke",
-    "unsigned-directory-pack-and-host-smoke",
+    "release-build",
+    "package-closure-regression",
+    "release-acceptance",
+    "release-archive-extraction",
     "portable-relocation",
     "relocated-executable-startup",
   ];
@@ -26,7 +23,9 @@ test("Delta Windows full verification retains all mandatory stages with timing",
   assert.match(windows, /Delta Windows CI timing stage=portable-relocation duration_ms=/);
   assert.match(windows, /Delta Windows CI timing stage=relocated-executable-startup duration_ms=/);
   assert.match(windows, /if \(\$LASTEXITCODE -ne 0\) \{/);
-  assert.match(windows, /scripts\/delta-package-timings\.ts/);
+  assert.match(windows, /build-delta-release\.ps1/);
+  assert.match(windows, /verify-delta-release\.mjs/);
+  assert.doesNotMatch(windows, /DELTA_REUSE_ELECTRON_OUTPUT|package:win:x64:dir/);
   assert.match(windows, /throw "Delta Windows CI child process exited with code \$LASTEXITCODE/);
   assert.match(windows, /throw 'Relocated Delta\.exe did not exit/);
   assert.match(windows, /throw "Relocated Delta\.exe failed its startup probe/);
