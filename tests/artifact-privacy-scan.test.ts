@@ -74,3 +74,65 @@ test("release privacy scan rejects path traversal and has a strict opaque mode",
   assert.equal(strict.status, 1);
   assert.match(strict.output, /opaque-asset-not-verifiable/);
 });
+
+function hardlinkArchive(target: string, kind: string) {
+  const code = [
+    "import io,os,tarfile,zipfile",
+    "kind=os.environ['KIND']; target=os.environ['TARGET']",
+    "data=b'ordinary timezone fixture'",
+    "if kind=='private': data=('developer'+chr(64)+'example.invalid').encode()",
+    "if kind=='nested-private':",
+    "  nested=io.BytesIO()",
+    "  with zipfile.ZipFile(nested,'w') as z: z.writestr('data.txt',('developer'+chr(64)+'example.invalid').encode())",
+    "  data=nested.getvalue()",
+    "buf=io.BytesIO()",
+    "with tarfile.open(fileobj=buf,mode='w:gz') as tar:",
+    "  regular=tarfile.TarInfo('zone/data'); regular.size=len(data)",
+    "  if kind!='forward': tar.addfile(regular,io.BytesIO(data))",
+    "  alias=tarfile.TarInfo('zone/alias.zip' if kind=='nested-private' else 'zone/alias')",
+    "  alias.type=tarfile.SYMTYPE if kind=='symlink' else tarfile.LNKTYPE",
+    "  alias.linkname={'missing':'zone/missing','traversal':'../data','absolute':'/data'}.get(kind,'zone/data')",
+    "  tar.addfile(alias)",
+    "  if kind=='forward': tar.addfile(regular,io.BytesIO(data))",
+    "  if kind=='chain':",
+    "    other=tarfile.TarInfo('zone/another'); other.type=tarfile.LNKTYPE; other.linkname='zone/alias'; tar.addfile(other)",
+    "with zipfile.ZipFile(target,'w') as z: z.writestr('runtime/timezones.tar.gz',buf.getvalue())",
+  ].join("\n");
+  const result = spawnSync("python3", ["-c", code], {
+    encoding: "utf8",
+    env: { ...process.env, TARGET: target, KIND: kind },
+  });
+  assert.equal(result.status, 0, "synthetic nested archive generation failed");
+}
+
+test("release privacy scan accepts internal tar hardlinks and scans their aliased bytes", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const target = join(directory, "bundle.zip");
+  hardlinkArchive(target, "safe");
+  const safe = run(directory);
+  assert.equal(safe.status, 0, safe.output);
+  assert.match(safe.output, /"files_scanned": 2/);
+  hardlinkArchive(target, "private");
+  const finding = run(directory);
+  assert.equal(finding.status, 1);
+  assert.match(finding.output, /privacy-email-address\]: 2/);
+  assert.doesNotMatch(finding.output, /developer|zone\/alias/);
+  hardlinkArchive(target, "nested-private");
+  const nested = run(directory);
+  assert.equal(nested.status, 1);
+  assert.match(nested.output, /privacy-email-address/);
+});
+
+test("release privacy scan rejects unresolved, forward, chained, traversing and symbolic links", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const target = join(directory, "bundle.zip");
+  for (const kind of ["missing", "forward", "chain", "traversal", "absolute", "symlink"]) {
+    hardlinkArchive(target, kind);
+    const result = run(directory);
+    assert.equal(result.status, 1, kind);
+    assert.match(result.output, /unsafe-archive-(?:hardlink|path|entry)/);
+    assert.doesNotMatch(result.output, /zone\/alias|runtime\/timezones/);
+  }
+});
