@@ -4,9 +4,7 @@
   "runtime": "node",
   "suffix": "-test.mjs",
   "overlay": true,
-  "node_flags": [
-    "--experimental-strip-types"
-  ],
+  "node_flags": ["--experimental-strip-types"],
   "tiers": {
     "gate": [
       "gateway-reasoning-contract-test.mjs",
