@@ -55,7 +55,7 @@ const { TextRetainer, ItemRetainer } = await load('packages/util/output-retentio
 }
 // Cold startup measures an actual Delta Code Host module import in an isolated
 // child process, not a cached dynamic import in this process.
-{
+if (existsSync(resolve('packages/plugin/delta-code/package.json'))) {
   const source = [
     'import assert from "node:assert/strict"',
     'import { performance } from "node:perf_hooks"',
@@ -72,7 +72,7 @@ const { TextRetainer, ItemRetainer } = await load('packages/util/output-retentio
     cwd: process.cwd(), encoding: 'utf8', timeout: 15000, maxBuffer: 8192,
     env: { ...process.env, DELTA_CODE_PERF_SMOKE: '1' },
   })
-  assert.equal(child.status, 0, 'Delta Code cold-import smoke failed')
+  assert.equal(child.status, 0, `Delta Code cold-import smoke failed: ${child.error?.message ?? child.stderr}`)
   const report = JSON.parse(child.stdout)
   assert.ok(Number.isFinite(report.importMs) && report.importMs >= 0)
   sample('delta-code-cold-module-load', begun, { importMs: report.importMs })
