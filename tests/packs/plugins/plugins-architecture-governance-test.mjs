@@ -187,12 +187,9 @@ test('declared Suite source boundaries have a single owner and bounded runtime d
   ]
   for (const [id, owner, relativePath] of expected) {
     const path = suite.path + '/src/' + relativePath
-    // An older, still-open PR may predate an extraction. Once the file is
-    // introduced, its ownership is mandatory, and a declared boundary cannot vanish.
-    if (id === 'session_protection' || existsSync(resolve(root, path)) || boundaries[id]) {
-      assert.equal(boundaries[id]?.owner, owner, 'wrong source owner: ' + id)
-      assert.equal(boundaries[id]?.path, path, 'wrong source path: ' + id)
-    }
+    assert.equal(boundaries[id]?.owner, owner, 'wrong source owner: ' + id)
+    assert.equal(boundaries[id]?.path, path, 'wrong source path: ' + id)
+    assert.ok(existsSync(resolve(root, path)), 'missing established source boundary: ' + id)
   }
   const declared = Object.values(boundaries)
   unique(declared.map(boundary => boundary.path))
@@ -233,4 +230,58 @@ test('declared Suite source boundaries have a single owner and bounded runtime d
         'single browser module helpers must remain self-contained scripts')
     }
   }
+})
+
+
+test('Suite literal internal runtime import graph is resolvable, acyclic and Host/browser isolated', () => {
+  const suite = contract.products.find(product => product.id === 'delta-suite')
+  const sourceRoot = resolve(root, suite.path, 'src')
+  const files = [...sources(sourceRoot)].filter(file => !file.endsWith('.d.ts')).sort()
+  assert.ok(files.length > 0, 'Suite source graph must not be empty')
+  const fileSet = new Set(files)
+  const config = json(suite.path + '/tsconfig.client.json')
+  const browser = new Set(config.include
+    .filter(file => !file.endsWith('.d.ts'))
+    .map(file => resolve(root, suite.path, file)))
+  for (const file of browser) assert.ok(fileSet.has(file), 'missing browser graph input: ' + relative(root, file))
+
+  const graph = new Map()
+  for (const file of files) {
+    const targets = []
+    for (const specifier of boundaryRuntimeImports(readFileSync(file, 'utf8'))) {
+      if (!specifier.startsWith('.')) continue
+      const candidate = resolve(dirname(file), specifier)
+      assert.ok(candidate.startsWith(sourceRoot + sep),
+        'relative dependency escapes Suite source: ' + relative(root, file) + ' -> ' + specifier)
+      const target = [
+        candidate, candidate.replace(/\.js$/, '.ts'), candidate.replace(/\.js$/, '.tsx'),
+        candidate.replace(/\.mjs$/, '.mts'), candidate.replace(/\.cjs$/, '.cts'),
+        candidate + '.ts', candidate + '.tsx', resolve(candidate, 'index.ts'),
+      ].find(path => fileSet.has(path))
+      assert.ok(target, 'unresolved relative dependency: ' + relative(root, file) + ' -> ' + specifier)
+      assert.equal(browser.has(file), browser.has(target),
+        'Host/browser import boundary crossed: ' + relative(root, file) + ' -> ' + relative(root, target))
+      targets.push(target)
+    }
+    graph.set(file, targets)
+  }
+
+  const visiting = new Set()
+  const visited = new Set()
+  const stack = []
+  function visit(file) {
+    if (visiting.has(file)) {
+      const cycle = [...stack.slice(stack.indexOf(file)), file].map(path => relative(root, path))
+      assert.fail('Suite internal runtime import cycle: ' + cycle.join(' -> '))
+    }
+    if (visited.has(file)) return
+    visiting.add(file)
+    stack.push(file)
+    for (const dependency of graph.get(file)) visit(dependency)
+    stack.pop()
+    visiting.delete(file)
+    visited.add(file)
+  }
+  for (const file of files) visit(file)
+  assert.equal(visited.size, files.length)
 })
