@@ -63,6 +63,7 @@ test("central CI publication signs with stable secret but publishes with scoped 
   assert.equal(publish.env?.AW_STATUS_KEYRING, "${{ secrets.AW_STATUS_KEYRING }}");
   const script = await readFile("scripts/write-commit-status.ts", "utf8");
   assert.match(script, /signedStatusDescription\(/);
-  assert.match(script, /runGithubCli\([\s\S]*?apiToken/);
+  assert.match(script, /postGithubCommitStatus\(\{[\s\S]*?token:\s*apiToken/);
+  assert.doesNotMatch(script, /runGithubCli\(/);
   assert.doesNotMatch(script, /AW_STATUS_TOKEN|signingKey/);
 });
