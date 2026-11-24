@@ -322,6 +322,12 @@ test("Delta desktop builder has valid shell syntax", () => {
   execFileSync("bash", ["-n", "tests/packs/delta/desktop-build-ci.sh"]);
 });
 
+test("Delta diagnostics smoke is conditional on the source module", () => {
+  const build = readFileSync("tests/packs/delta/desktop-build-ci.sh", "utf8");
+  assert.ok(build.includes("if [[ -f apps/desktop/src/local-diagnostics.ts ]]; then"));
+  assert.match(build, /local-diagnostics-smoke\.mjs"\nfi/);
+});
+
 test("Delta desktop builder compiles referenced libraries before package-local TypeScript", () => {
   const build = readFileSync("tests/packs/delta/desktop-build-ci.sh", "utf8");
   const install = build.indexOf("pnpm install --frozen-lockfile");
