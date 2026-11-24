@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- 修复: 移除 Change Record validator 中未使用的导入，清理中央静态分析失败。
+
+- 新增: 将 Delta 的 CUA、浏览器、Forge、Worktree 和 LiveShare 回归检查，以及 Worktree/Forge 配置、菜单文案和会话组合验收加入中央测试包，避免在产品仓库新增本地测试。
+
 - 新增: 将 Delta Suite 原生任务意图复述、用户拒绝、确认等待、风险讨论误判及 Host 生命周期回归迁入中央插件测试包，保持插件仓库不新增本地测试。
 
 - 修复: 中央 CI Commit Status 写入改用已验证的 HTTP 201 容错及有限重试封装，避免 GitHub CLI 在成功响应体为空时抛出 JSON 解析错误而导致主分支 CI 在执行测试前错误失败；保持签名、专用状态凭据与所有门禁不变。
