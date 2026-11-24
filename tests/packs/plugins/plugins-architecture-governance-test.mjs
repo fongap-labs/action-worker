@@ -292,7 +292,15 @@ test('Code literal internal runtime import graph is resolvable, acyclic and Host
   const code = contract.products.find(product => product.id === 'delta-code')
   const manifest = json(code.path + '/package.json')
   assert.equal(manifest.exports['./client'], './lib/client.js')
-  assert.deepEqual(boundaryRuntimeImports(read(code.path + '/src/client.ts')), [],
-    'Code classic browser script must not import Host or external runtime modules')
+  const client = read(code.path + '/src/client.ts')
+  // The Host supplies React to the classic script through its loader factory;
+  // it is not a package import. All other literal runtime dependencies remain forbidden.
+  assert.doesNotMatch(client, /^\s*(?:import|export)\s/m,
+    'Code classic browser script must not use static module syntax')
+  assert.match(client, /function installClient\(require: \(id: string\) => unknown\)/)
+  assert.match(client, /__ModuleLoader__\.load\(\{\s*id:\s*NAME,\s*factory:\s*installClient\s*\}\)/)
+  assert.match(client, /\brequire\(['"]react['"]\)/)
+  assert.deepEqual(boundaryRuntimeImports(client), ['react'],
+    'Code classic browser script may use only the Host loader React dependency')
   assertProductRuntimeImportGraph(code, ['src/client.ts'])
 })
