@@ -11,6 +11,7 @@ test("Delta Windows full verification retains all mandatory stages with timing",
     "release-build",
     "package-closure-regression",
     "release-acceptance",
+    "release-privacy",
     "release-archive-extraction",
     "portable-relocation",
     "relocated-executable-startup",
@@ -25,6 +26,15 @@ test("Delta Windows full verification retains all mandatory stages with timing",
   assert.match(windows, /if \(\$LASTEXITCODE -ne 0\) \{/);
   assert.match(windows, /build-delta-release\.ps1/);
   assert.match(windows, /verify-delta-release\.mjs/);
+  assert.match(windows, /scripts\/artifact-privacy-scan\.py/);
+  assert.match(windows, /policies\/security\.json/);
+  assert.ok(
+    windows.indexOf("$stage = 'release-privacy'") > windows.indexOf("$stage = 'release-acceptance'")
+  );
+  assert.ok(
+    windows.indexOf("$stage = 'release-privacy'") <
+      windows.indexOf("$stage = 'release-archive-extraction'")
+  );
   assert.doesNotMatch(windows, /DELTA_REUSE_ELECTRON_OUTPUT|package:win:x64:dir/);
   assert.match(windows, /throw "Delta Windows CI child process exited with code \$LASTEXITCODE/);
   assert.match(windows, /throw 'Relocated Delta\.exe did not exit/);

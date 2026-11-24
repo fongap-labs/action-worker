@@ -480,6 +480,12 @@ jobs:
         with:
           node-version: ${{ inputs.repository == 'fongap-labs/delta' && '26.13.1' || '22' }}
 
+      - name: Setup Python for Delta Windows privacy scan
+        if: inputs.repository == 'fongap-labs/delta'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
       - name: Install pinned pnpm for Delta Windows suite
         if: inputs.repository == 'fongap-labs/delta'
         shell: pwsh
@@ -572,7 +578,7 @@ jobs:
               $relative -eq 'tests/packs/delta/windows-desktop-ci.ps1' -and
               (Test-Path -LiteralPath $log)) {
             $allowlistedStages = @(
-              'product-policy', 'frozen-install', 'host-build',
+              'product-policy', 'release-privacy', 'frozen-install', 'host-build',
               'shared-plugin-build', 'delta-code-build', 'desktop-build',
             'local-diagnostics-smoke', 'unsigned-directory-pack-and-host-smoke',
             'electron-output-reuse',
