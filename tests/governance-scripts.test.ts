@@ -34,7 +34,7 @@ import {
 import { shouldResume } from "../scripts/should-resume-ocr.ts";
 import { validateEvidence } from "../scripts/validate-ci-evidence.ts";
 import { validateConfigText } from "../scripts/validate-config-naming.ts";
-import { validateDispatch } from "../scripts/validate-dispatch-payload.ts";
+import { taskConcurrencyGroup, validateDispatch } from "../scripts/validate-dispatch-payload.ts";
 import {
   assertEnglishText,
   diffHeaderPath,
@@ -1450,4 +1450,17 @@ test("PR review summary rejects unauthorized PRs without independent approval", 
     /WAITING FOR APPROVAL|Review changes|continues automatically after the approval/
   );
   assert.doesNotMatch(body, /next Intake run, usually within an hour/);
+});
+
+test("task concurrency identity isolates dev while preserving existing main groups", () => {
+  const repository = "fongap-labs/example";
+  assert.equal(
+    taskConcurrencyGroup(repository, "Project"),
+    taskConcurrencyGroup(repository, "Project", "main")
+  );
+  assert.notEqual(
+    taskConcurrencyGroup(repository, "Project"),
+    taskConcurrencyGroup(repository, "Project", "dev")
+  );
+  assert.throws(() => taskConcurrencyGroup(repository, "Project", "other"), /target branch/);
 });

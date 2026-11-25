@@ -212,3 +212,73 @@ test("a private task source restores only sealed state, and nothing without the 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("branch-specific state names and manifests cannot be reused across branches", () => {
+  const sha = "a".repeat(40);
+  assert.equal(taskStateArtifactName("o/r", "p"), taskStateArtifactName("o/r", "p", "main"));
+  assert.notEqual(taskStateArtifactName("o/r", "p"), taskStateArtifactName("o/r", "p", "dev"));
+  const main = JSON.stringify(buildTaskStateManifest("o/r", "p", sha));
+  const dev = JSON.stringify(buildTaskStateManifest("o/r", "p", sha, "dev"));
+  assert.equal(taskStateManifestMatches(main, "o/r", "p", "main"), true);
+  assert.equal(taskStateManifestMatches(main, "o/r", "p", "dev"), false);
+  assert.equal(taskStateManifestMatches(dev, "o/r", "p", "main"), false);
+  assert.equal(taskStateManifestMatches(dev, "o/r", "p", "dev"), true);
+  assert.throws(() => taskStateArtifactName("o/r", "p", "other"), /target branch/);
+});
+
+test("sealed state and logs authenticate the branch without breaking main ciphertext", () => {
+  const plain = Buffer.from("branch state", "utf8");
+  for (const kind of ["task-state", "task-log"] as const) {
+    const main = sealBytes(sealKey, kind, "o/r", "p", plain);
+    const dev = sealBytes(sealKey, kind, "o/r", "p", plain, "dev");
+    assert.deepEqual(openBytes(sealKey, kind, "o/r", "p", main, "main"), plain);
+    assert.deepEqual(openBytes(sealKey, kind, "o/r", "p", dev, "dev"), plain);
+    assert.throws(() => openBytes(sealKey, kind, "o/r", "p", main, "dev"), /does not belong/);
+    assert.throws(() => openBytes(sealKey, kind, "o/r", "p", dev), /does not belong/);
+  }
+});
+
+test("dev restoration never requests main or legacy artifacts and rejects main manifests", async () => {
+  const root = await mkdtemp(join(tmpdir(), "task-dev-state-"));
+  try {
+    const source = join(root, "source");
+    await writeTaskStateManifest(source, "o/r", "p", "a".repeat(40));
+    const queries: string[] = [];
+    const reader = {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/actions/artifacts?name=")) {
+          queries.push(path);
+          return { artifacts: [{ expired: false, workflow_run: { id: 5 } }] };
+        }
+        return taskRun;
+      },
+    };
+    const restore = (stateRoot: string) =>
+      restoreTaskState({
+        stateRoot,
+        repository: "o/r",
+        project: "p",
+        targetBranch: "dev",
+        isPrivate: false,
+        key: null,
+        reader,
+        controlRepository: "o/aw",
+        download: async (_runId, _name, destination) => {
+          await cp(source, destination, { recursive: true });
+        },
+      });
+    assert.equal(await restore(join(root, "first")), "No previous task state found.");
+    assert.deepEqual(queries, [
+      `repos/o/aw/actions/artifacts?name=${taskStateArtifactName("o/r", "p", "dev")}&per_page=20`,
+    ]);
+    await rm(join(source, taskStateManifestFile));
+    await writeTaskStateManifest(source, "o/r", "p", "a".repeat(40), "dev");
+    assert.equal(await restore(join(root, "second")), "Restored task state from run 5.");
+    assert.equal(
+      await verifyTaskStateDirectory(join(root, "second", "previous"), "o/r", "p", "dev"),
+      true
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
