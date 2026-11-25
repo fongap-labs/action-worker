@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { devGovernanceReceipt, prCiScopeDescription } from "../scripts/ci-scope-receipt.ts";
 import { verifyDevMergeAdmission, verifyDevSquashWrite } from "../scripts/dev-merge-admission.ts";
+import { verifyRecordedDevWrite } from "../scripts/dev-write-guard.ts";
 import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
@@ -143,4 +144,76 @@ test("dev write audit rejects different trees, parents and post-merge evidence",
   f.receipts[2]!.created_at = "2026-11-25T10:03:00Z";
   f.entries.set(f.statusPath, f.signed());
   await assert.rejects(verify(), /CI must precede merge/);
+});
+
+test("recorded development write requires signed receipt and a trusted dev parent", async () => {
+  const f = fixture();
+  f.entries.set(`${prefix}/pulls/7`, f.closed);
+  const path = `${prefix}/commits/${writeSha}/status`;
+  const parentPath = `${prefix}/commits/${scope.baseSha}/status`;
+  const auditUrl = `https://github.com/${control}/actions/runs/53`;
+  const receipt = {
+    context: "Dev Merge Receipt",
+    state: "success",
+    description: `merge-v1=${scope.mergeSha}`,
+    target_url: runUrl,
+    created_at: "2026-11-25T10:02:01Z",
+  };
+  const parent = {
+    context: "Dev Write Guard",
+    state: "success",
+    description: prCiScopeDescription(scope),
+    target_url: auditUrl,
+    created_at: "2026-11-25T09:00:00Z",
+  };
+  const governance = f.entries.get(`repos/${control}/actions/runs/51`) as Record<
+    string,
+    unknown
+  >;
+  f.entries.set(`repos/${control}/actions/runs/51`, {
+    ...governance,
+    updated_at: "2026-11-25T10:03:00Z",
+  });
+  f.entries.set(`repos/${control}/actions/runs/53`, {
+    ...governance,
+    id: 53,
+    path: ".github/workflows/intake.yml",
+    run_started_at: "2026-11-25T08:59:00Z",
+    updated_at: "2026-11-25T09:01:00Z",
+  });
+  f.entries.set(
+    parentPath,
+    attestFixtureStatuses({ statuses: [parent] }, repository, scope.baseSha)
+  );
+  f.entries.set(path, attestFixtureStatuses({ statuses: [receipt] }, repository, writeSha));
+  const verify = () =>
+    verifyRecordedDevWrite(
+      f.reader,
+      repository,
+      writeSha,
+      control,
+      Date.parse("2026-11-25T10:10:00Z")
+    );
+  assert.deepEqual(await verify(), { scope, description: prCiScopeDescription(scope) });
+  f.entries.set(path, { statuses: [receipt] });
+  await assert.rejects(verify(), /lacks a signed merge receipt/);
+  f.entries.set(
+    path,
+    attestFixtureStatuses(
+      { statuses: [{ ...receipt, created_at: "2026-11-25T10:01:00Z" }] },
+      repository,
+      writeSha
+    )
+  );
+  await assert.rejects(verify(), /must follow the actual write/);
+  f.entries.set(path, attestFixtureStatuses({ statuses: [receipt] }, repository, writeSha));
+  f.entries.set(
+    parentPath,
+    attestFixtureStatuses(
+      { statuses: [{ ...parent, context: "Main Write Guard" }] },
+      repository,
+      scope.baseSha
+    )
+  );
+  await assert.rejects(verify(), /lacks trusted Dev Write Guard/);
 });

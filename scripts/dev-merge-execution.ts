@@ -56,8 +56,7 @@ export function protectedMergeRuleset(value: unknown, branch: "main" | "dev"): b
     checks.strict_required_status_checks_policy === true &&
     Array.isArray(checks.required_status_checks) &&
     checks.required_status_checks.some(
-      (check) =>
-        isJsonRecord(check) && check.context === context && check.integration_id === appId
+      (check) => isJsonRecord(check) && check.context === context && check.integration_id === appId
     )
   );
 }
@@ -65,8 +64,14 @@ export function protectedMergeRuleset(value: unknown, branch: "main" | "dev"): b
 export function devMergePolicyEnabled(policy: unknown): boolean {
   const rulesets = rulesetPayloads(policy);
   return (
-    protectedMergeRuleset(rulesets.find((rule) => rule.name === "Protect Dev Branch"), "dev") &&
-    protectedMergeRuleset(rulesets.find((rule) => rule.name === "Protect Main Branch"), "main")
+    protectedMergeRuleset(
+      rulesets.find((rule) => rule.name === "Protect Dev Branch"),
+      "dev"
+    ) &&
+    protectedMergeRuleset(
+      rulesets.find((rule) => rule.name === "Protect Main Branch"),
+      "main"
+    )
   );
 }
 

@@ -81,6 +81,11 @@ export async function verifyRecordedDevWrite(
     }
     throw new CliError("Development write lacks a signed merge receipt.", 65);
   }
+  const mergedAt = Date.parse(getJsonString(pull, "merged_at"));
+  const receiptAt = Date.parse(getJsonString(receipt, "created_at"));
+  if (!Number.isFinite(mergedAt) || !Number.isFinite(receiptAt) || receiptAt < mergedAt) {
+    throw new CliError("Development merge receipt must follow the actual write.", 65);
+  }
   const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
   if (
     isJsonRecord(run) &&
