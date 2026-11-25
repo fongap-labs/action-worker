@@ -8,6 +8,7 @@ const shaPattern = /^[0-9a-f]{40}$/;
 
 export type TaskSourceCheck = {
   default_branch: string;
+  target_branch: "main";
   main_write: MainWriteProvenance;
 };
 
@@ -21,19 +22,23 @@ export async function validateTaskSource(
   reader: GithubReader,
   repository: string,
   bootstrapRef: string,
-  evidenceOptions: { statusAttempts?: number; runAttempts?: number; retryDelayMs?: number } = {}
+  evidenceOptions: { statusAttempts?: number; runAttempts?: number; retryDelayMs?: number } = {},
+  targetBranch = "main"
 ): Promise<TaskSourceCheck> {
   const ref = bootstrapRef.toLowerCase();
   if (!repositoryPattern.test(repository) || !shaPattern.test(ref)) {
     throw new CliError("::error::Task source request is invalid.", 64);
   }
 
+  if (targetBranch !== "main") {
+    throw new CliError("::error::Task target branch is not admitted by the current control.", 77);
+  }
   const defaultBranch = getJsonString(await reader.get(`repos/${repository}`), "default_branch");
-  if (!defaultBranch) {
-    throw new CliError(`::error::Task source default branch is unavailable: ${repository}.`, 65);
+  if (defaultBranch !== targetBranch) {
+    throw new CliError("::error::Task source default branch does not match the locked target.", 65);
   }
   const headSha = getJsonString(
-    await reader.get(`repos/${repository}/commits/${defaultBranch}`),
+    await reader.get(`repos/${repository}/commits/${targetBranch}`),
     "sha"
   );
   if (!shaPattern.test(headSha)) {
@@ -53,13 +58,16 @@ export async function validateTaskSource(
     ...evidenceOptions,
   });
   const mainWrite = await assertTrustedMainWrite(reader, repository, ref, true);
-  return { default_branch: defaultBranch, main_write: mainWrite };
+  return { default_branch: defaultBranch, target_branch: targetBranch, main_write: mainWrite };
 }
 
 async function main(): Promise<void> {
-  const [repository = "", bootstrapRef = ""] = process.argv.slice(2);
+  const [repository = "", bootstrapRef = "", targetBranch = "main"] = process.argv.slice(2);
   if (!repository || !bootstrapRef) {
-    throw new CliError("Usage: validate-task-source.ts <repository> <bootstrap_ref>", 64);
+    throw new CliError(
+      "Usage: validate-task-source.ts <repository> <bootstrap_ref> [target_branch]",
+      64
+    );
   }
   const token = process.env.AW_CONTROL_TOKEN || process.env.GH_TOKEN || "";
   if (!token) {
@@ -67,13 +75,13 @@ async function main(): Promise<void> {
   }
 
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
-  await validateTaskSource(reader, repository, bootstrapRef);
+  await validateTaskSource(reader, repository, bootstrapRef, {}, targetBranch);
 
   // The run summary of this public repository is world-readable, so name no task source here.
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
     "## Task source gate",
     "",
-    "- Source: current default-branch HEAD",
+    "- Source: current locked main HEAD",
     "- CI Evidence: verified Action Worker success",
     "- Main Write Guard: success",
   ]);

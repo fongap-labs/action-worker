@@ -120,8 +120,24 @@ test("task source gate accepts the default HEAD with verified evidence and a tru
   const { reader } = world();
   const check = await validateTaskSource(reader, repository, headSha, fast);
   assert.equal(check.default_branch, "main");
+  assert.equal(check.target_branch, "main");
   assert.equal(check.main_write.pr_number, 7);
   await validateTaskSource(reader, repository, headSha.toUpperCase(), fast);
+});
+
+test("unadmitted task branches fail before source or evidence lookup", async () => {
+  const { reader, requested } = world();
+  for (const branch of ["dev", "other", ""]) {
+    assert.equal(await exitCodeOf(validateTaskSource(reader, repository, headSha, fast, branch)), 77);
+  }
+  assert.deepEqual(requested, []);
+});
+
+test("a changed default branch cannot silently retarget a main task", async () => {
+  const { paths, reader, requested } = world();
+  paths.set(`repos/${repository}`, { default_branch: "dev" });
+  assert.equal(await exitCodeOf(validateTaskSource(reader, repository, headSha, fast)), 65);
+  assert.deepEqual(requested, [`repos/${repository}`]);
 });
 
 test("task source gate rejects a ref that is not the current default HEAD without side effects", async () => {

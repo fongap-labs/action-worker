@@ -50,6 +50,23 @@ import { attestFixtureResponseForPath, attestFixtureStatuses } from "./attested-
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
+test("task dispatch preserves an explicit managed branch and defaults old requests to main", () => {
+  const request = {
+    schema_version: "1",
+    request_id: "req-branch",
+    project: "ActionWorker",
+    bootstrap_ref: sha,
+    repository: "fongap-labs/example",
+  };
+  assert.equal(validateDispatch(request).target_branch, "main");
+  for (const target_branch of ["main", "dev"]) {
+    assert.equal(validateDispatch({ ...request, target_branch }).target_branch, target_branch);
+  }
+  for (const target_branch of ["", "refs/heads/main", "other", null, 123]) {
+    assert.throws(() => validateDispatch({ ...request, target_branch }), /target_branch/);
+  }
+});
+
 test("dispatch contracts reject unknown or malformed input", () => {
   validateDispatch({
     schema_version: "1",

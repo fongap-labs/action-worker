@@ -90,7 +90,8 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           BOOTSTRAP_REF: ${{ steps.payload.outputs.bootstrap_ref }}
-        run: node scripts/validate-task-source.ts "$REPOSITORY" "$BOOTSTRAP_REF"
+          TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
+        run: node scripts/validate-task-source.ts "$REPOSITORY" "$BOOTSTRAP_REF" "$TARGET_BRANCH"
 
       - name: Preflight task Secret declarations and central ceiling
         env:
