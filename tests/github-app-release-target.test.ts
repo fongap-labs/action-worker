@@ -176,3 +176,24 @@ test("a dev build provenance cannot be admitted to the existing formal publicati
     /provenance does not match/
   );
 });
+
+test("Beta target accepts only explicit same-repository dev provenance and reserved artifacts", () => {
+  const beta = { ...request, source_branch: "dev", artifact_name: "dev-beta-release" };
+  const target = {
+    ...manifest,
+    target_repository: request.source_repository,
+    version: "1.2.3-beta.1",
+    prerelease: true,
+  };
+  const source = { ...provenance, source_branch: "dev" };
+  const allowed = { ...policy, [request.source_repository]: ["release-source", "release-target"] };
+  const resolve = (req: unknown, man: unknown, prov: unknown) =>
+    releaseTargetFromArtifact(req, man, prov, allowed, "fongap-labs/action-worker");
+  assert.equal(resolve(beta, target, source).target_repository, request.source_repository);
+  assert.throws(() => resolve(beta, target, provenance));
+  assert.throws(() => resolve(beta, { ...target, prerelease: false }, source));
+  assert.throws(() =>
+    resolve(beta, { ...target, target_repository: manifest.target_repository }, source)
+  );
+  assert.throws(() => resolve({ ...beta, artifact_name: "release" }, target, source));
+});

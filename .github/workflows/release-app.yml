@@ -44,6 +44,7 @@ jobs:
       source_repository: ${{ steps.request.outputs.source_repository }}
       source_sha: ${{ steps.request.outputs.source_sha }}
       source_branch: ${{ steps.request.outputs.source_branch }}
+      beta_release_enabled: ${{ steps.request.outputs.beta_release_enabled }}
       is_private: ${{ steps.ingress.outputs.is_private }}
       version: ${{ steps.request.outputs.version }}
       artifact_name: ${{ steps.request.outputs.artifact_name }}
@@ -661,7 +662,7 @@ jobs:
           retention-days: 7
 
       - name: Mint release governance dispatch token
-        if: needs.prepare.outputs.source_branch == 'main'
+        if: needs.prepare.outputs.source_branch == 'main' || needs.prepare.outputs.beta_release_enabled == 'true'
         id: dispatch_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -672,12 +673,13 @@ jobs:
           permission-contents: write
 
       - name: Dispatch Release Governance
-        if: needs.prepare.outputs.source_branch == 'main'
+        if: needs.prepare.outputs.source_branch == 'main' || needs.prepare.outputs.beta_release_enabled == 'true'
         env:
           GH_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           SOURCE_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           ARTIFACT_NAME: ${{ needs.prepare.outputs.artifact_name }}
+          SOURCE_BRANCH: ${{ needs.prepare.outputs.source_branch }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -690,6 +692,7 @@ jobs:
               --arg artifact_repository "$GITHUB_REPOSITORY" \
               --argjson artifact_run_id "$GITHUB_RUN_ID" \
               --arg artifact_name "$ARTIFACT_NAME" \
+              --arg source_branch "$SOURCE_BRANCH" \
               '{
                 event_type: "run-release",
                 client_payload: {
@@ -700,7 +703,7 @@ jobs:
                   artifact_repository: $artifact_repository,
                   artifact_run_id: $artifact_run_id,
                   artifact_name: $artifact_name
-                }
+                } + (if $source_branch == "dev" then {source_branch: "dev"} else {} end)
               }'
           )"
 

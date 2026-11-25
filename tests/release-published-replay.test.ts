@@ -123,3 +123,21 @@ test("release dispatch serializes each product across repeated artifact runs", a
   assert.doesNotMatch(workflow, /group: release-[^\n]*artifact_run_id/);
   assert.match(workflow, /cancel-in-progress: false/);
 });
+
+test("dev replay requires its own proof and exact source tag", () => {
+  const { tagRef, release } = fixture();
+  const beta: PublishedReleaseReplay = { ...request, sourceBranch: "dev" };
+  const ref = { ...tagRef, object: { type: "commit", sha: request.sourceSha } };
+  const published = {
+    ...release,
+    target_commitish: request.sourceSha,
+    body: release.body
+      .replace("Central CI Evidence", "Dev CI Evidence")
+      .replace("Main Write Guard", "Dev Write Guard"),
+  };
+  assert.doesNotThrow(() => assertMatchingPublishedRelease(ref, published, beta));
+  assert.throws(() =>
+    assertMatchingPublishedRelease(ref, { ...published, body: release.body }, beta)
+  );
+  assert.throws(() => assertMatchingPublishedRelease(tagRef, release, beta));
+});

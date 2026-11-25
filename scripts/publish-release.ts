@@ -4,6 +4,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  assertBetaProducer,
+  readBetaReleasePolicy,
+  verifyBetaReleaseSource,
+} from "./beta-release-authorization.ts";
+import {
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
 } from "./branch-publication-policy.ts";
@@ -52,6 +57,7 @@ export { sha256File };
 type ReleaseRequest = {
   source_repository: string;
   source_sha: string;
+  source_branch?: "main" | "dev";
   artifact_repository: string;
   artifact_run_id: number;
   artifact_name: string;
@@ -384,7 +390,8 @@ async function main(): Promise<void> {
   await requireCommand("unzip", ["-v"]);
 
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
-  const releaseWriteToken = process.env.AW_RELEASE_WRITE_API_TOKEN ?? "";
+  const releaseWriteToken =
+    process.env.AW_BETA_RELEASE_WRITE_API_TOKEN || process.env.AW_RELEASE_WRITE_API_TOKEN || "";
   const approvedTarget = process.env.AW_RELEASE_TARGET_REPOSITORY ?? "";
   const statusToken = requireStatusToken();
   if (!controlToken || !releaseWriteToken || !approvedTarget) {
@@ -396,6 +403,19 @@ async function main(): Promise<void> {
 
   await validateRequest(requestPath);
   const request = asRequest(await readJson(requestPath));
+  const isBeta = request.source_branch === "dev";
+  if (
+    isBeta
+      ? !process.env.AW_BETA_RELEASE_WRITE_API_TOKEN ||
+        Boolean(
+          process.env.AW_RELEASE_WRITE_API_TOKEN ||
+            process.env.AW_NPM_DISPATCH_TOKEN ||
+            process.env.AW_RELEASE_PR_WRITE_API_TOKEN
+        )
+      : Boolean(process.env.AW_BETA_RELEASE_WRITE_API_TOKEN)
+  ) {
+    throw new CliError("Release writer credentials do not match the source branch.", 77);
+  }
   const sourceRepository = request.source_repository;
   const sourceSha = request.source_sha;
   const artifactRepository = request.artifact_repository;
@@ -414,8 +434,9 @@ async function main(): Promise<void> {
   const sourceRepoJson = await getGithubJson(`repos/${sourceRepository}`, controlToken);
   const defaultBranch = getJsonString(sourceRepoJson, "default_branch");
   assertMainPublicationBranch(defaultBranch);
+  const sourceBranch = isBeta ? "dev" : defaultBranch;
   const defaultCommit = await getGithubJson(
-    `repos/${sourceRepository}/commits/${defaultBranch}`,
+    `repos/${sourceRepository}/commits/${sourceBranch}`,
     controlToken
   );
   const defaultSha = getJsonString(defaultCommit, "sha");
@@ -425,7 +446,20 @@ async function main(): Promise<void> {
     controlToken,
     statusToken
   );
-  const mainWrite = await assertTrustedMainWrite(sourceReader, sourceRepository, sourceSha, true);
+  const betaPolicy = isBeta ? readBetaReleasePolicy() : undefined;
+  const writePr = isBeta
+    ? await verifyBetaReleaseSource(
+        sourceReader,
+        sourceRepository,
+        sourceSha,
+        controlRepository,
+        betaPolicy
+      )
+    : (await assertTrustedMainWrite(sourceReader, sourceRepository, sourceSha, true)).pr_number;
+  const writeEvidence = isBeta
+    ? `Dev Write Guard: success via PR #${writePr}`
+    : `Main Write Guard: success via PR #${writePr}`;
+  const ciEvidence = `${isBeta ? "Dev" : "Central"} CI Evidence: success`;
 
   const runJson = await waitForCompletedRun(artifactRepository, artifactRunId, controlToken);
   const runRepository = isJsonRecord(runJson) ? getJsonString(runJson.repository, "full_name") : "";
@@ -440,7 +474,8 @@ async function main(): Promise<void> {
     );
   }
 
-  const ciJson = JSON.parse(
+  if (isBeta) assertBetaProducer(request, runJson, controlRepository);
+  const ciJson = isBeta ? [] : JSON.parse(
     await runGithubCli(
       [
         "run",
@@ -475,7 +510,7 @@ async function main(): Promise<void> {
     statusToken
   );
   if (
-    !(await hasVerifiedCiEvidence(sourceReader, statusJson, {
+    !isBeta && !(await hasVerifiedCiEvidence(sourceReader, statusJson, {
       controlRepository: controlRepositoryOf(),
       targetRepository: sourceRepository,
       targetSha: sourceSha,
@@ -541,7 +576,7 @@ async function main(): Promise<void> {
     }
 
     const manifest = asManifest(await readJson(manifestPath));
-    assertBranchReleaseVersion(defaultBranch, manifest.version, manifest.prerelease ?? false);
+    assertBranchReleaseVersion(sourceBranch, manifest.version, manifest.prerelease ?? false);
     const actualFiles = await listRootFiles(artifactDir, [
       "release-manifest.json",
       "release-provenance.json",
@@ -584,7 +619,7 @@ async function main(): Promise<void> {
     const targetBranch = getJsonString(targetRepoJson, "default_branch");
     assertMainPublicationBranch(targetBranch);
     const targetCommit = await getGithubJson(
-      `repos/${targetRepository}/commits/${targetBranch}`,
+      `repos/${targetRepository}/commits/${isBeta ? "dev" : targetBranch}`,
       controlToken
     );
     const targetSha = getJsonString(targetCommit, "sha");
@@ -614,6 +649,7 @@ async function main(): Promise<void> {
         artifactRunId,
         requestId,
         isPrerelease,
+        ...(isBeta ? { sourceBranch: "dev" as const } : {}),
         assets: manifest.assets,
       });
       if (preTagNpmAsset) {
@@ -665,6 +701,15 @@ async function main(): Promise<void> {
       await readTwoPhaseStagingPolicy()
     );
     if (
+      isBeta &&
+      (phase.kind !== "read-only" || targetRepository !== sourceRepository || targetSha !== sourceSha)
+    ) {
+      throw new CliError(
+        "Beta publication must remain on its exact dev source and cannot stage a changelog.",
+        75
+      );
+    }
+    if (
       phase.kind === "staging" &&
       sourceRepository === targetRepository &&
       (defaultSha !== targetSha || defaultBranch !== targetBranch)
@@ -697,7 +742,7 @@ async function main(): Promise<void> {
     } else {
       await assertSourceCurrent(sourceRepository, sourceSha, defaultSha, manifest, controlToken);
     }
-    if (targetRepository !== sourceRepository || targetSha !== sourceSha) {
+    if (!isBeta && (targetRepository !== sourceRepository || targetSha !== sourceSha)) {
       await assertTrustedMainWrite(sourceReader, targetRepository, targetSha, true);
     }
     let releaseSha = targetSha;
@@ -743,9 +788,8 @@ async function main(): Promise<void> {
       ...(ciRunId
         ? [`CI dispatch run: https://github.com/${sourceRepository}/actions/runs/${ciRunId}`]
         : []),
-      `Central CI Evidence: success`,
-
-      `Main Write Guard: success via PR #${mainWrite.pr_number}`,
+      ciEvidence,
+      writeEvidence,
       `Request: ${requestId}`,
       `License: ${licenseExpression}`,
       ...(licenseFile ? [`License file: ${licenseFile}`] : []),
@@ -754,6 +798,15 @@ async function main(): Promise<void> {
 
     // A draft Release holds no Git tag. The tag is created from target_commitish only when the
     // verified draft is published below, so a failed release leaves no formal tag behind.
+    if (isBeta) {
+      await verifyBetaReleaseSource(
+        sourceReader,
+        sourceRepository,
+        sourceSha,
+        controlRepository,
+        betaPolicy
+      );
+    }
     const releaseJson = JSON.parse(
       await runGithubCli(
         [
@@ -860,6 +913,15 @@ async function main(): Promise<void> {
 
     // From here on, an absent HTTP response cannot prove the publish failed.
     // Preserve the published-or-draft Release until its state is reconciled.
+    if (isBeta) {
+      await verifyBetaReleaseSource(
+        sourceReader,
+        sourceRepository,
+        sourceSha,
+        controlRepository,
+        betaPolicy
+      );
+    }
     isPublishAttempted = true;
     await runGithubCli(
       [
@@ -869,6 +931,7 @@ async function main(): Promise<void> {
         `repos/${targetRepository}/releases/${releaseId}`,
         "-F",
         "draft=false",
+        ...(isBeta ? ["-f", "make_latest=false"] : []),
       ],
       releaseWriteToken
     );
@@ -890,9 +953,8 @@ async function main(): Promise<void> {
       `- Source: ${sourceRepository}@${sourceSha}`,
       `- Artifact: ${artifactRepository}@run-${artifactRunId}`,
       ...(ciRunId ? [`- CI dispatch run: ${ciRunId}`] : []),
-      `- Central CI Evidence: success`,
-
-      `- Main Write Guard: success via PR #${mainWrite.pr_number}`,
+      `- ${ciEvidence}`,
+      `- ${writeEvidence}`,
       `- Target: ${targetRepository}@${releaseSha}`,
       `- Tag: ${tag}`,
       `- License: ${licenseExpression}`,

@@ -1,3 +1,4 @@
+import { betaReleaseEnabled, readBetaReleasePolicy } from "./beta-release-authorization.ts";
 import {
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
@@ -457,6 +458,7 @@ async function main(): Promise<void> {
     `source_repository=${request.source_repository}`,
     `source_sha=${request.source_sha}`,
     `source_branch=${branch}`,
+    `beta_release_enabled=${branch === "dev" && manifest.target_repository === request.source_repository && betaReleaseEnabled(readBetaReleasePolicy(), request.source_repository)}`,
     `product=${product}`,
     `manifest_path=${manifest_path}`,
     `product_root=${product_root}`,

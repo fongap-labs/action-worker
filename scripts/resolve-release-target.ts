@@ -1,9 +1,20 @@
 import { join } from "node:path";
 import {
+  assertBetaProducer,
+  readBetaReleasePolicy,
+  verifyBetaReleaseSource,
+} from "./beta-release-authorization.ts";
+import {
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
 } from "./branch-publication-policy.ts";
-import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import {
+  getGithubJson,
+  getJsonArray,
+  getJsonString,
+  isJsonRecord,
+  statusAwareReader,
+} from "./github-api.ts";
 import { isStableNpmRelease } from "./release-npm-gate.ts";
 import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
@@ -30,7 +41,7 @@ export function releaseTargetFromArtifact(
     throw new CliError("::error::Release manifest has no target repository.", 65);
   }
   assertBranchReleaseVersion(
-    "main",
+    isJsonRecord(request) ? String(request.source_branch ?? "main") : "main",
     getJsonString(manifest, "version"),
     manifest.prerelease === true
   );
@@ -137,7 +148,29 @@ async function main(): Promise<void> {
     const value = await getGithubJson(`repos/${repository}`, readToken);
     assertMainPublicationBranch(getJsonString(value, "default_branch"));
   }
+  const isBeta = request.source_branch === "dev";
+  if (isBeta) {
+    const run = await getGithubJson(
+      `repos/${artifactRepository}/actions/runs/${runId}`,
+      readToken
+    );
+    assertBetaProducer(request, run, controlRepository);
+    const statusToken = process.env.AW_STATUS_API_TOKEN ?? "";
+    if (!statusToken) throw new CliError("Beta release status read token required.", 77);
+    await verifyBetaReleaseSource(
+      statusAwareReader(
+        process.env.GITHUB_API_URL ?? "https://api.github.com",
+        readToken,
+        statusToken
+      ),
+      source,
+      String(request.source_sha),
+      controlRepository,
+      readBetaReleasePolicy()
+    );
+  }
   await appendLines(process.env.GITHUB_OUTPUT, [
+    `source_branch=${isBeta ? "dev" : "main"}`,
     `owner=${target.owner}`,
     `repository_name=${target.repository_name}`,
     `target_repository=${target.target_repository}`,
