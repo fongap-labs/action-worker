@@ -80,6 +80,8 @@ node scripts/apply-repository-settings.ts <owner/name> true
 
 公开业务仓库的 `main` 要求 `validate-merge` 来自 `fongap-bot`（App ID `5609149`）。Action Worker 自身的 `validate-merge` 是 GitHub Actions 自检（App ID `15368`），由同一份策略在应用时识别，不能错误锁定为业务仓库的机器人。GitHub 负责合并前拦截，中央审计不能替代平台硬门禁。
 
+开发分支尚处于准入准备阶段。中央策略为公开仓库预置仅匹配 `refs/heads/dev` 的独立有效规则集，禁止创建、更新、删除及强制推送，无绕过角色；不变更现有主分支及历史分支的保护规则。此为临时封闭保护，不表示开发分支治理已经上线。待独立合并证据、写入审计及人工跨分支授权完成验证后，才按维护者授权替换为正常开发分支保护规则并受控创建分支。私有仓库的 GitHub Free 平台限制仍然适用，不得声称已具备原生强制保护。
+
 ## 4. 平台保护
 
 平台保护不可用时仍执行中央规则。
