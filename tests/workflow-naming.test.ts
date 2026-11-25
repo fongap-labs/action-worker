@@ -31,6 +31,7 @@ const chineseDisplayNames: Record<string, string> = {
   "verify-github-app.yml": "手动 · 验证 GitHub App",
   "runner-isolation-canary.yml": "手动 · 验证 Runner 隔离",
   "status-signing-recovery.yml": "手动 · 恢复签名密钥",
+  "authorize-branch-transfer.yml": "手动 · 分支授权",
   "task-source-dispatch.yml": "手动 · 派发任务",
   "intake.yml": "自动 · 总控调度",
   "cancel-pr-work.yml": "自动 · PR 清理",

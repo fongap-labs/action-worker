@@ -1,0 +1,170 @@
+import {
+  hasVerifiedControlStatus,
+  type JsonReader,
+  mainWriteGuardWorkflowPaths,
+  postMergeRemediationStatusPrefix,
+} from "./ci-evidence.ts";
+import { getGithubJsonIfExists, getJsonString, isJsonRecord } from "./github-api.ts";
+import { assertNoOpenManagedWriteIncidents } from "./main-write-incidents.ts";
+import { CliError } from "./runtime-command.ts";
+import { latestAttestedStatus, originalStatusDescription } from "./status-attestation.ts";
+
+export const branchAuthorizationWorkflow = ".github/workflows/authorize-branch-transfer.yml";
+export const devBootstrapContext = "Dev Bootstrap Authorization";
+const shaPattern = /^[0-9a-f]{40}$/;
+const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const authorizationWindowMs = 24 * 60 * 60 * 1000;
+
+export function bootstrapApprovalComment(
+  repository: string,
+  sha: string,
+  runId: number,
+  attempt: number
+): string {
+  if (
+    !repositoryPattern.test(repository) ||
+    !shaPattern.test(sha) ||
+    !Number.isSafeInteger(runId) ||
+    runId < 1 ||
+    !Number.isSafeInteger(attempt) ||
+    attempt < 1
+  ) {
+    throw new CliError("Invalid development initialization identity.", 65);
+  }
+  return `approve-dev-init ${runId}/${attempt} ${repository} ${sha}`;
+}
+
+export function isClosedDevProtection(value: unknown): boolean {
+  if (
+    !isJsonRecord(value) ||
+    value.target !== "branch" ||
+    value.enforcement !== "active" ||
+    !Array.isArray(value.bypass_actors) ||
+    value.bypass_actors.length !== 0 ||
+    !isJsonRecord(value.conditions) ||
+    !isJsonRecord(value.conditions.ref_name) ||
+    !Array.isArray(value.conditions.ref_name.include) ||
+    value.conditions.ref_name.include.length !== 1 ||
+    value.conditions.ref_name.include[0] !== "refs/heads/dev" ||
+    !Array.isArray(value.conditions.ref_name.exclude) ||
+    value.conditions.ref_name.exclude.length !== 0 ||
+    !Array.isArray(value.rules)
+  ) {
+    return false;
+  }
+  const types = value.rules.filter(isJsonRecord).map((rule) => rule.type);
+  return ["creation", "deletion", "non_fast_forward", "update"].every((type) =>
+    types.includes(type)
+  );
+}
+
+async function assertClosedDevProtection(reader: JsonReader, repository: string): Promise<void> {
+  const rules = await reader.get(
+    `repos/${repository}/rulesets?includes_parents=false&per_page=100`
+  );
+  if (!Array.isArray(rules)) throw new CliError("Development rulesets unavailable.", 75);
+  const matches = rules.filter((rule) => getJsonString(rule, "name") === "Protect Dev Branch");
+  const rule = matches[0];
+  if (!isJsonRecord(rule) || matches.length !== 1 || !Number.isSafeInteger(rule.id)) {
+    throw new CliError("Closed development ruleset is missing.", 75);
+  }
+  const detail = await reader.get(`repos/${repository}/rulesets/${rule.id}?includes_parents=false`);
+  if (!isClosedDevProtection(detail)) {
+    throw new CliError("Development initialization requires closed live protection.", 75);
+  }
+}
+
+export async function verifyBootstrapSource(
+  reader: JsonReader,
+  repository: string,
+  sha: string,
+  controlRepository: string,
+  isExistingDevRequired: boolean
+): Promise<void> {
+  if (
+    !repositoryPattern.test(repository) ||
+    !shaPattern.test(sha) ||
+    repository === controlRepository
+  ) {
+    throw new CliError("Development initialization target is invalid.", 65);
+  }
+  const repo = await reader.get(`repos/${repository}`);
+  if (
+    !isJsonRecord(repo) ||
+    repo.full_name !== repository ||
+    repo.private !== false ||
+    repo.default_branch !== "main"
+  ) {
+    throw new CliError("Development initialization requires a public managed repository.", 75);
+  }
+  await assertClosedDevProtection(reader, repository);
+  const main = await reader.get(`repos/${repository}/branches/main`);
+  const dev = await getGithubJsonIfExists(`repos/${repository}/branches/dev`, (path) =>
+    reader.get(path)
+  );
+  if (
+    !isJsonRecord(main) ||
+    getJsonString(main.commit, "sha") !== sha ||
+    (isExistingDevRequired
+      ? !isJsonRecord(dev) || getJsonString(dev.commit, "sha") !== sha
+      : dev !== undefined)
+  ) {
+    throw new CliError("Development initialization branch identity changed.", 75);
+  }
+  await assertNoOpenManagedWriteIncidents(reader, repository, "main");
+  await assertNoOpenManagedWriteIncidents(reader, repository, "dev");
+  const statuses = await reader.get(`repos/${repository}/commits/${sha}/status`);
+  const mainGuard = latestAttestedStatus(statuses, {
+    repository,
+    sha,
+    context: "Main Write Guard",
+  });
+  if (
+    !mainGuard ||
+    originalStatusDescription(mainGuard).startsWith(postMergeRemediationStatusPrefix) ||
+    !(await hasVerifiedControlStatus(reader, statuses, "Main Write Guard", {
+      controlRepository,
+      targetRepository: repository,
+      targetSha: sha,
+      workflowPaths: mainWriteGuardWorkflowPaths,
+      runAttempts: 1,
+    }))
+  ) {
+    throw new CliError("Development initialization requires a trusted current main SHA.", 75);
+  }
+}
+
+export async function verifyAuthorizedDevBootstrap(
+  reader: JsonReader,
+  repository: string,
+  sha: string,
+  statuses: unknown,
+  controlRepository: string,
+  now = Date.now()
+): Promise<string | undefined> {
+  const receipt = latestAttestedStatus(statuses, {
+    repository,
+    sha,
+    context: devBootstrapContext,
+  });
+  if (receipt?.state !== "success" || originalStatusDescription(receipt) !== `init-v1=${sha}`) {
+    return undefined;
+  }
+  const createdAt = Date.parse(getJsonString(receipt, "created_at"));
+  if (!Number.isFinite(createdAt) || createdAt > now || now - createdAt > authorizationWindowMs) {
+    throw new CliError("Development initialization authorization expired.", 75);
+  }
+  if (
+    !(await hasVerifiedControlStatus(reader, statuses, devBootstrapContext, {
+      controlRepository,
+      targetRepository: repository,
+      targetSha: sha,
+      workflowPaths: [branchAuthorizationWorkflow],
+      runAttempts: 1,
+    }))
+  ) {
+    throw new CliError("Development initialization publisher is not verified.", 75);
+  }
+  await verifyBootstrapSource(reader, repository, sha, controlRepository, true);
+  return `init-v1=${sha}`;
+}

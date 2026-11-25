@@ -49,14 +49,16 @@ function approvedReviewerIds(environment: unknown): Set<number> {
   return ids;
 }
 
-export async function assertBranchTransferApproval(
+export async function assertExactBranchApproval(
   reader: Reader,
   controlRepository: string,
-  scope: PrCiScope,
   runId: number,
-  attempt: number
+  attempt: number,
+  comment: string,
+  workflow:
+    | ".github/workflows/handle-pr-dispatch.yml"
+    | ".github/workflows/authorize-branch-transfer.yml"
 ): Promise<void> {
-  const comment = transferApprovalComment(scope, runId, attempt);
   if (!repositoryPattern.test(controlRepository)) {
     throw new CliError("Invalid trusted control repository.", 65);
   }
@@ -68,7 +70,7 @@ export async function assertBranchTransferApproval(
     getJsonNumber(run, "run_attempt") !== attempt ||
     getJsonString(run.repository, "full_name") !== controlRepository ||
     getJsonString(run, "head_branch") !== "main" ||
-    getJsonString(run, "path") !== ".github/workflows/handle-pr-dispatch.yml" ||
+    getJsonString(run, "path") !== workflow ||
     getJsonString(run, "status") !== "in_progress"
   ) {
     throw new CliError("Branch transfer approval requires the current trusted governance run.", 75);
@@ -107,6 +109,26 @@ export async function assertBranchTransferApproval(
   if (!isApproved) {
     throw new CliError("Exact maintainer branch transfer approval is missing.", 77);
   }
+}
+
+export async function assertBranchTransferApproval(
+  reader: Reader,
+  controlRepository: string,
+  scope: PrCiScope,
+  runId: number,
+  attempt: number,
+  workflow:
+    | ".github/workflows/handle-pr-dispatch.yml"
+    | ".github/workflows/authorize-branch-transfer.yml" = ".github/workflows/handle-pr-dispatch.yml"
+): Promise<void> {
+  await assertExactBranchApproval(
+    reader,
+    controlRepository,
+    runId,
+    attempt,
+    transferApprovalComment(scope, runId, attempt),
+    workflow
+  );
   const current = await readCurrentTransferScope(
     reader,
     scope.repository,
