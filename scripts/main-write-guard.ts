@@ -27,7 +27,10 @@ import {
   statusAwareReader,
 } from "./github-api.ts";
 import { assertNoOpenMainWriteIncidents } from "./main-write-incidents.ts";
-import { managedBranchWriteContext, resolveManagedBranchMerge } from "./managed-branch-provenance.ts";
+import {
+  managedBranchWriteContext,
+  resolveManagedBranchMerge,
+} from "./managed-branch-provenance.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { originalStatusDescription, signedStatusDescription } from "./status-attestation.ts";
