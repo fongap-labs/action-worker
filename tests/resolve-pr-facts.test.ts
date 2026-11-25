@@ -55,3 +55,12 @@ test("PR diff base rejects an invalid SHA", () => {
     /diff base SHA is invalid/
   );
 });
+
+test("dev CI direction is explicit and cannot authorize branch transfers", () => {
+  const dev = { base: { ref: "dev" }, head: { ref: "feat/example" } };
+  assert.equal(isGovernedPullDirection(dev), false);
+  assert.equal(isGovernedPullDirection(dev, "dev"), true);
+  for (const ref of ["main", "dev", ""]) {
+    assert.equal(isGovernedPullDirection({ ...dev, head: { ref } }, "dev"), false);
+  }
+});

@@ -3,6 +3,7 @@
   "title": "PR Task",
   "type": "object",
   "additionalProperties": false,
+  "dependentRequired": { "target_branch": ["head_sha"] },
   "required": ["schema_version", "request_id", "repository", "pr_number"],
   "properties": {
     "schema_version": {
@@ -21,6 +22,10 @@
     "pr_number": {
       "type": "integer",
       "minimum": 1
+    },
+    "target_branch": {
+      "description": "Explicit central CI request only; ordinary PR governance remains main-only.",
+      "enum": ["main", "dev"]
     },
     "head_sha": {
       "type": "string",

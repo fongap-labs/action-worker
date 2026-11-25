@@ -1464,3 +1464,18 @@ test("task concurrency identity isolates dev while preserving existing main grou
   );
   assert.throws(() => taskConcurrencyGroup(repository, "Project", "other"), /target branch/);
 });
+
+test("explicit target branch is admitted only at the central CI request boundary", () => {
+  const payload = {
+    schema_version: "1",
+    request_id: "pr:1",
+    repository: "fongap/example",
+    pr_number: 1,
+    head_sha: "a".repeat(40),
+    target_branch: "dev",
+  };
+  assert.doesNotThrow(() => validatePayload(payload, true));
+  assert.throws(() => validatePayload(payload));
+  assert.throws(() => validatePayload({ ...payload, target_branch: "other" }, true));
+  assert.throws(() => validatePayload({ ...payload, head_sha: undefined }, true));
+});
