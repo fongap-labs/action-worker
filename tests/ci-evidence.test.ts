@@ -16,6 +16,8 @@ import {
   verificationRecorder,
 } from "../scripts/ci-evidence.ts";
 import { prCiScopeDescription, readCurrentPrCiScope } from "../scripts/ci-scope-receipt.ts";
+import { managedBranchWriteContext } from "../scripts/managed-branch-provenance.ts";
+import { hasValidStatusAttestation } from "../scripts/status-attestation.ts";
 import { waitForCentralStatus } from "../scripts/wait-ci-evidence.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
@@ -751,4 +753,25 @@ test("live CI scope rejects stale merge parents and unadmitted PR direction", as
     readCurrentPrCiScope(reader, targetRepository, 7, targetSha),
     /no longer matches/
   );
+});
+
+test("signed write guard identities cannot be reused across branches at the same SHA", () => {
+  assert.equal(managedBranchWriteContext("main"), "Main Write Guard");
+  assert.equal(managedBranchWriteContext("dev"), "Dev Write Guard");
+  for (const branch of ["main", "dev"] as const) {
+    const context = managedBranchWriteContext(branch);
+    const other = managedBranchWriteContext(branch === "main" ? "dev" : "main");
+    const status = attestFixtureStatuses(
+      { context, state: "success", target_url: evidenceRunUrl },
+      targetRepository,
+      targetSha
+    );
+    const subject = { repository: targetRepository, sha: targetSha, context };
+    assert.equal(hasValidStatusAttestation(status, subject), true);
+    assert.equal(hasValidStatusAttestation(status, { ...subject, context: other }), false);
+    assert.equal(
+      hasValidStatusAttestation({ ...status, context: other }, { ...subject, context: other }),
+      false
+    );
+  }
 });
