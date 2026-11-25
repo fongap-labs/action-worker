@@ -100,10 +100,7 @@ export function taskConcurrencyGroup(
   }
   const identity = [repository.toLowerCase(), project];
   if (targetBranch === "dev") identity.push(targetBranch);
-  return createHash("sha256")
-    .update(JSON.stringify(identity))
-    .digest("hex")
-    .slice(0, 32);
+  return createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 32);
 }
 
 /** Fail closed before minting source credentials or running any legacy task code. */
