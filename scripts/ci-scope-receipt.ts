@@ -78,9 +78,8 @@ export async function readCurrentPrCiScope(
   );
   const mergeSha = isJsonRecord(mergeRef) ? getJsonString(mergeRef.object, "sha") : "";
   if (!shaPattern.test(baseSha) || !shaPattern.test(mergeSha)) return undefined;
-  const merge = await getGithubJsonIfExists(
-    `repos/${repository}/git/commits/${mergeSha}`,
-    (path) => reader.get(path)
+  const merge = await getGithubJsonIfExists(`repos/${repository}/git/commits/${mergeSha}`, (path) =>
+    reader.get(path)
   );
   if (
     !isJsonRecord(merge) ||
