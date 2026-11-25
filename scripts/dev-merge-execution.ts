@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { rulesetPayloads } from "./apply-repository-settings.ts";
+import { managedRepositoryRulesets } from "./apply-repository-settings.ts";
 import { type JsonReader, latestCiStatus } from "./ci-evidence.ts";
 import { type PrCiScope, prCiScopeDescription } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
@@ -41,6 +41,7 @@ export function protectedMergeRuleset(value: unknown, branch: "main" | "dev"): b
   }
   const rules = value.rules.filter(isJsonRecord);
   if (rules.some((rule) => rule.type === "update")) return false;
+  if (branch === "dev" && !rules.some((rule) => rule.type === "creation")) return false;
   for (const type of ["deletion", "non_fast_forward", "required_linear_history"]) {
     if (!rules.some((rule) => rule.type === type)) return false;
   }
@@ -61,8 +62,12 @@ export function protectedMergeRuleset(value: unknown, branch: "main" | "dev"): b
   );
 }
 
-export function devMergePolicyEnabled(policy: unknown): boolean {
-  const rulesets = rulesetPayloads(policy);
+export function devMergePolicyEnabled(
+  policy: unknown,
+  repository: string,
+  controlRepository: string
+): boolean {
+  const rulesets = managedRepositoryRulesets(policy, repository, controlRepository);
   return (
     protectedMergeRuleset(
       rulesets.find((rule) => rule.name === "Protect Dev Branch"),
@@ -109,7 +114,9 @@ export async function authorizeDevMerge(
   policy: unknown,
   identity: Identity
 ): Promise<PrCiScope | undefined> {
-  if (!devMergePolicyEnabled(policy)) return undefined;
+  if (!devMergePolicyEnabled(policy, identity.repository, identity.controlRepository)) {
+    return undefined;
+  }
   const { repository, prNumber, headSha, baseSha, runUrl, controlRepository } = identity;
   if (repository === controlRepository) {
     throw new CliError("Development merge of the control repository is not enabled.", 75);
@@ -195,7 +202,10 @@ async function main(): Promise<void> {
     await appendLines(process.env.GITHUB_OUTPUT, [`enabled=${Boolean(scope)}`]);
     return;
   }
-  if (stage !== "execute" || !devMergePolicyEnabled(policy)) {
+  if (
+    stage !== "execute" ||
+    !devMergePolicyEnabled(policy, identity.repository, identity.controlRepository)
+  ) {
     throw new CliError("Dev merge execution is not authorized.", 75);
   }
   const writeToken = process.env.AW_MERGE_WRITE_TOKEN ?? "";

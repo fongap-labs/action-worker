@@ -148,4 +148,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ matrix.repository }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
         run: node scripts/apply-repository-settings.ts "$TARGET_REPOSITORY" false
