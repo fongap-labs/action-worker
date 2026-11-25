@@ -218,14 +218,29 @@ export async function verifyDevSquashWrite(
 }
 
 async function main(): Promise<void> {
+  const reader = statusAwareReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    requireToken("control"),
+    requireToken("status")
+  );
+  const repository = process.env.REPOSITORY ?? "";
+  const prNumber = Number(process.env.PR_NUMBER ?? "");
+  if (
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
+    !Number.isSafeInteger(prNumber) ||
+    prNumber < 1
+  ) {
+    throw new CliError("Invalid dev PR identity.", 65);
+  }
+  const pull = await reader.get(`repos/${repository}/pulls/${prNumber}`);
+  if (isJsonRecord(pull) && pull.draft === true) {
+    console.log("Dev PR is a draft; merge admission skipped.");
+    return;
+  }
   await verifyDevMergeAdmission(
-    statusAwareReader(
-      process.env.GITHUB_API_URL ?? "https://api.github.com",
-      requireToken("control"),
-      requireToken("status")
-    ),
-    process.env.REPOSITORY ?? "",
-    Number(process.env.PR_NUMBER ?? ""),
+    reader,
+    repository,
+    prNumber,
     process.env.HEAD_SHA ?? "",
     process.env.BASE_SHA ?? "",
     process.env.RUN_URL ?? "",

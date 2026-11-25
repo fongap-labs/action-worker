@@ -1,5 +1,9 @@
 import { hasVerifiedCiEvidence, type JsonReader } from "./ci-evidence.ts";
-import { devGovernanceReceipt, prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
+import {
+  devGovernanceReceipt,
+  prCiScopeDescription,
+  readCurrentPrCiScope,
+} from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
 import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";

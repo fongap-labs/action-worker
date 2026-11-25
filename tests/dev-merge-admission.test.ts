@@ -129,7 +129,8 @@ test("dev admission binds every gate to the same PR, title and immutable snapsho
 test("dev write audit rejects different trees, parents and post-merge evidence", async () => {
   const f = fixture();
   f.entries.set(`${prefix}/pulls/7`, f.closed);
-  const verify = () => verifyDevSquashWrite(f.reader, scope, writeSha, fingerprint, runUrl, control);
+  const verify = () =>
+    verifyDevSquashWrite(f.reader, scope, writeSha, fingerprint, runUrl, control);
   await verify();
   for (const commit of [
     { ...f.commit, tree: { sha: "f".repeat(40) } },
