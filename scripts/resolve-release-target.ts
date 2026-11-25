@@ -1,4 +1,8 @@
 import { join } from "node:path";
+import {
+  assertBranchReleaseVersion,
+  assertMainPublicationBranch,
+} from "./branch-publication-policy.ts";
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { isStableNpmRelease } from "./release-npm-gate.ts";
 import { readRepositoryPolicyText } from "./repository-policy.ts";
@@ -25,6 +29,11 @@ export function releaseTargetFromArtifact(
   if (!isJsonRecord(manifest) || typeof manifest.target_repository !== "string") {
     throw new CliError("::error::Release manifest has no target repository.", 65);
   }
+  assertBranchReleaseVersion(
+    "main",
+    getJsonString(manifest, "version"),
+    manifest.prerelease === true
+  );
   const target = manifest.target_repository;
   const scope = resolveGithubApiScope(target, controlRepository, policy, "release-target");
   return {
@@ -124,6 +133,10 @@ async function main(): Promise<void> {
     policy,
     controlRepository
   );
+  for (const repository of new Set([source, target.target_repository])) {
+    const value = await getGithubJson(`repos/${repository}`, readToken);
+    assertMainPublicationBranch(getJsonString(value, "default_branch"));
+  }
   await appendLines(process.env.GITHUB_OUTPUT, [
     `owner=${target.owner}`,
     `repository_name=${target.repository_name}`,

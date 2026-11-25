@@ -8,7 +8,7 @@
 
 | 目的 | 工作流 | 手动输入 | 自动触发 |
 |------|--------|----------|----------|
-| 发布由源仓库构建的应用 | `手动 · 发布应用` (`release-app.yml`) | `source_repository` (owner/name)、`requested_version` (正式版 `X.Y.Z`，beta 版 `X.Y.Z-beta.N`，可留空=自动计算正式版)、`product` (多产品时必填) | `run-release-build` 分发事件 |
+| 发布由源仓库构建的应用 | `手动 · 发布应用` (`release-app.yml`) | `source_repository` (owner/name)、`requested_version` (正式版 `X.Y.Z`，可留空=自动计算正式版；dev Beta 尚未开放)、`product` (多产品时必填) | `run-release-build` 分发事件 |
 | 补发已发布 Release 中的 npm 包 | `手动 · 补发 npm 包` (`release-npm.yml`) | `repository` (owner/name)、`tag` | `run-npm-republish` 分发事件 |
 | 发布上游镜像的第三方工具 | `自动 · 工具发布` (`release-tool.yml`) | 无 | 定时，每 6 小时 |
 | 部署某个源提交 | `手动 · 部署服务` (`deploy-source-script.yml`) | `source_repository` (owner/name)、`source_sha` (可选，留空=当前 HEAD) | 中央 CI 通过且部署清单声明 push 触发 |
@@ -23,7 +23,7 @@
 
 1. 目标改动已通过 PR 合并进 `main`
 2. `source_repository` 写成 `owner/name`，且该仓库在 `AW_REPOSITORY_POLICY` 中具备对应能力（`release-source` / `deploy`）
-3. 发布时 `requested_version` 手动填写：正式版如 `v1.2.3`，beta 版如 `v1.2.3-beta.1`（作为预发布发布）。留空由 Action Worker 按上次正式版之后的 Conventional Commits 自动计算下一个正式版
+3. 发布时 `requested_version` 手动填写正式版如 `v1.2.3`。主分支禁止 Beta，开发分支仅允许 `X.Y.Z-beta.N`，但其发布入口及独立凭据尚未开放。留空由 Action Worker 按上次正式版之后的 Conventional Commits 自动计算下一个正式版
 
 ---
 
@@ -36,7 +36,7 @@
 | `Requested release version must be X.Y.Z (formal) or X.Y.Z-beta.N` | 版本不是三段数字，或预发布后缀不是 `-beta.N`（N ≥ 1） | 改成 `v1.2.3` 或 `v1.2.3-beta.1` |
 | `No release-worthy Conventional Commits since <base>. Cut a change or enter an explicit requested_version.` | 自动模式下跨度内没有 feat/fix 等可发布提交 | 合并新改动的 PR 后重启，或显式填一个稳定版本 |
 | `Commit subjects are not Conventional Commits titles (CHANGELOG_CONVENTIONS.md §3): ...` | 自动模式跨度内混入未按规范书写的提交标题 | 修正提交信息（PR 标题即提交标题），或显式填稳定版本跳过自动计算 |
-| `The commit span holds N commits, more than ... accepts. Enter an explicit requested_version instead.` | 自动模式下，距上次正式版积累的提交太多（compare 截断 / 跨度上限 / 产品根过滤上限） | 显式填版本（正式版或 beta 均可）；填了版本就不会再读取提交跨度 |
+| `The commit span holds N commits, more than ... accepts. Enter an explicit requested_version instead.` | 自动模式下，距上次正式版积累的提交太多（compare 截断 / 跨度上限 / 产品根过滤上限） | 显式填写正式版；填了版本就不会再读取提交跨度 |
 | `source_sha must be a full 40-character lowercase commit SHA` | SHA 格式错误 | 填完整 SHA，或留空部署当前 HEAD |
 | `default HEAD moved` / `must be the current default-branch HEAD` | 启动后默认分支有新提交 | 重新启动工作流 |
 | `Source SHA failed CI Evidence: central CI failed for ...` | 中央 CI 失败 | 打开报错链接查看失败 job，通过 PR 修复合并，等 CI 通过后重启 |
@@ -168,6 +168,8 @@ tag: dsh-ui-delta-v0.1.0-beta.2
 项目单产品清单 `.github/release.manifest.json`（或多产品 `projects/<产品>/release.manifest.json`）应将 `target_repository` 指向自己的 `owner/name`，由中央发布作业在**该仓库**创建 Release、tag 与资产。发布仍要求实际源码与构建脚本、非空产物、中央 CI Evidence、可信 main 写入来源及所有产物的校验和来源证明；仓库尚为空或缺少真实执行清单时不得用占位构建、空测试或人工创建 Release 代替验证。
 
 ## 5. 部署流程详解
+
+中央正式发布及部署入口必须验证实际默认分支为 `main`，生产部署只能选择 `production`。开发分支只允许 `beta` 部署，当前仍无开发部署授权，不能借用生产凭据或回退主分支。仓库已有能力及环境白名单继续生效。构建、发布目标解析、发布执行、手动和自动部署均不得以默认分支被改名为由绕过限制。
 
 ```
 不可变源码
