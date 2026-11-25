@@ -96,3 +96,27 @@ test("a deploy request may name a product, an environment and a trigger, and not
     assert.throws(() => parseDeployRequest({ ...request, ...extra }), JSON.stringify(extra));
   }
 });
+
+test("Beta deploy requests must explicitly bind dev, beta and manual trigger", () => {
+  const request = {
+    schema_version: "1",
+    request_id: "deploy-beta-1",
+    source_repository: "fongap-labs/example",
+    source_sha: sha,
+    source_branch: "dev",
+    environment: "beta",
+    trigger: "manual",
+  };
+  assert.deepEqual(parseDeployRequest(request), request);
+  for (const change of [
+    { source_branch: "main" },
+    { source_branch: undefined },
+    { environment: "production" },
+    { environment: undefined },
+    { trigger: "push" },
+    { trigger: "schedule" },
+    { trigger: undefined },
+  ]) {
+    assert.throws(() => parseDeployRequest({ ...request, ...change }));
+  }
+});

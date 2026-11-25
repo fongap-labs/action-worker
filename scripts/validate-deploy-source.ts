@@ -1,14 +1,24 @@
 import {
+  readBetaDeployPolicy,
+  resolveBetaDeployTarget,
+  verifyBetaDeploySource,
+} from "./beta-deploy-authorization.ts";
+import {
   assertBranchDeployEnvironment,
   assertMainPublicationBranch,
 } from "./branch-publication-policy.ts";
-import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
+import {
+  centralCiWait,
+  defaultControlRepository,
+  requireVerifiedCiEvidence,
+} from "./ci-evidence.ts";
 import {
   type DeployAdapter,
   isDeployEnvironmentName,
   type ResolvedDeployManifest,
   resolveDeployManifest,
 } from "./deploy-manifest.ts";
+import { productPolicyKey } from "./deploy-policy-key.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import { discoverProducts, isProductName, selectProduct } from "./product-discovery.ts";
@@ -29,6 +39,7 @@ export type DeployRequest = {
   request_id: string;
   source_repository: string;
   source_sha: string;
+  source_branch?: "main" | "dev";
   // Optional: empty or absent selects the only product (or the root manifest) of the source.
   product?: string;
   environment?: string;
@@ -40,7 +51,7 @@ const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 const triggers: readonly string[] = ["manual", "push", "schedule"];
 const requiredKeys = ["request_id", "schema_version", "source_repository", "source_sha"];
-const optionalKeys = ["environment", "product", "trigger"];
+const optionalKeys = ["environment", "product", "source_branch", "trigger"];
 
 function hasOnlyKeys(value: Record<string, unknown>): boolean {
   const keys = Object.keys(value);
@@ -61,6 +72,9 @@ export function parseDeployRequest(value: unknown): DeployRequest {
     !repositoryPattern.test(value.source_repository) ||
     typeof value.source_sha !== "string" ||
     !shaPattern.test(value.source_sha) ||
+    (value.source_branch !== undefined &&
+      value.source_branch !== "main" &&
+      value.source_branch !== "dev") ||
     (value.product !== undefined &&
       (typeof value.product !== "string" ||
         (value.product !== "" && !isProductName(value.product)))) ||
@@ -71,6 +85,13 @@ export function parseDeployRequest(value: unknown): DeployRequest {
       (typeof value.trigger !== "string" || !triggers.includes(value.trigger)))
   ) {
     throw new CliError("::error::Deploy request is invalid.", 64);
+  }
+  if (value.source_branch === "dev") {
+    if (value.environment !== "beta" || value.trigger !== "manual") {
+      throw new CliError("Dev deployment requires an explicit manual Beta request.", 65);
+    }
+  } else if (value.environment === "beta") {
+    throw new CliError("Beta deployment cannot use the main branch.", 65);
   }
   return value as DeployRequest;
 }
@@ -149,9 +170,20 @@ async function main(): Promise<void> {
   const repository = await reader.get(`repos/${request.source_repository}`);
   const defaultBranch = getJsonString(repository, "default_branch");
   assertMainPublicationBranch(defaultBranch);
-  if (request.environment) assertBranchDeployEnvironment(defaultBranch, request.environment);
+  const branch = request.source_branch ?? "main";
+  if (request.environment) assertBranchDeployEnvironment(branch, request.environment);
+  if (
+    branch === "dev" &&
+    (process.env.GITHUB_EVENT_NAME !== "workflow_dispatch" ||
+      process.env.GITHUB_REPOSITORY !== defaultControlRepository ||
+      process.env.GITHUB_REF !== "refs/heads/main" ||
+      !isJsonRecord(repository) ||
+      repository.private !== false)
+  ) {
+    throw new CliError("Beta deployment requires trusted manual control and a public source.", 75);
+  }
   const defaultCommit = await reader.get(
-    `repos/${request.source_repository}/commits/${defaultBranch}`
+    `repos/${request.source_repository}/commits/${branch}`
   );
   const defaultSha = getJsonString(defaultCommit, "sha");
   if (!shaPattern.test(defaultSha)) {
@@ -165,7 +197,7 @@ async function main(): Promise<void> {
   if (resolvedSha !== request.source_sha) {
     throw new CliError("::error::Deploy source commit could not be resolved exactly.", 65);
   }
-  if (requireDefaultHeadRaw === "true" && resolvedSha !== defaultSha) {
+  if ((branch === "dev" || requireDefaultHeadRaw === "true") && resolvedSha !== defaultSha) {
     throw new CliError(
       `::error::Deploy source is stale; default HEAD moved: expected=${defaultSha} actual=${resolvedSha}.`,
       75
@@ -181,13 +213,23 @@ async function main(): Promise<void> {
       65
     );
   }
+  if (branch === "dev") {
+    resolveBetaDeployTarget(readBetaDeployPolicy(), request.source_repository, product.name);
+  }
+  const environmentPolicy =
+    branch === "dev"
+      ? {
+          schema_version: 1,
+          repositories: { [productPolicyKey(request.source_repository, product.name)]: ["beta"] },
+        }
+      : await readJson(environmentPolicyPath);
   const manifest = await resolveDeployManifest(
     request.source_repository,
     resolvedSha,
     parseJson(rawRepositoryPolicy, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     await readJson(runnerPolicyPath),
     reader,
-    await readJson(environmentPolicyPath),
+    environmentPolicy,
     { product: product.name, environment: request.environment ?? "" }
   );
   if (manifest.adapter !== expectedAdapter) {
@@ -196,23 +238,42 @@ async function main(): Promise<void> {
       65
     );
   }
-  assertBranchDeployEnvironment(defaultBranch, manifest.environment);
+  assertBranchDeployEnvironment(branch, manifest.environment);
   assertDeployTrigger(trigger, manifest);
 
-  // A manual deploy requests central CI for the commit just before this step, so wait for it.
-  await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha, centralCiWait);
-
-  const mainWrite = await assertTrustedMainWrite(
-    reader,
-    request.source_repository,
-    resolvedSha,
-    true
-  );
+  let writePr: number;
+  if (branch === "dev") {
+    if (
+      manifest.automatic ||
+      manifest.schedule.length > 0 ||
+      manifest.runner_backend !== "github-hosted" ||
+      manifest.runner_labels_json !== '["ubuntu-24.04"]'
+    ) {
+      throw new CliError("Beta deployment requires a manual-only isolated hosted runner.", 75);
+    }
+    writePr = await verifyBetaDeploySource(
+      reader,
+      request.source_repository,
+      resolvedSha,
+      defaultControlRepository
+    );
+  } else {
+    // The main deployment requests central CI immediately before validation.
+    await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha, centralCiWait);
+    const mainWrite = await assertTrustedMainWrite(
+      reader,
+      request.source_repository,
+      resolvedSha,
+      true
+    );
+    writePr = mainWrite.pr_number;
+  }
 
   await appendLines(process.env.GITHUB_OUTPUT, [
     `source_repository=${request.source_repository}`,
     `source_sha=${resolvedSha}`,
     `default_branch=${defaultBranch}`,
+    `source_branch=${branch}`,
     `adapter=${manifest.adapter}`,
     `product=${manifest.product}`,
     `product_directory=${manifest.product_directory}`,
@@ -229,14 +290,14 @@ async function main(): Promise<void> {
     `- Repository: ${request.source_repository}`,
     `- Product: ${manifest.product || "(root)"}`,
     `- Commit: ${resolvedSha}`,
-    `- Default branch: ${defaultBranch}`,
+    `- Source branch: ${branch}`,
     `- Adapter: ${manifest.adapter}`,
     `- Environment: ${manifest.environment}`,
     `- Trigger: ${trigger}`,
     `- Runner profile: ${manifest.runner_profile}`,
     `- Require default HEAD: ${requireDefaultHeadRaw}`,
-    "- CI Evidence: verified Action Worker success",
-    `- Main Write Guard: success via PR #${mainWrite.pr_number}`,
+    `- ${branch === "dev" ? "Dev" : "Central"} CI Evidence: verified Action Worker success`,
+    `- ${branch === "dev" ? "Dev" : "Main"} Write Guard: success via PR #${writePr}`,
   ]);
 }
 

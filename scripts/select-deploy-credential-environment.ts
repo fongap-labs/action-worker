@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { readBetaDeployPolicy, resolveBetaDeployTarget } from "./beta-deploy-authorization.ts";
 import { isDeployPolicyKey, productPolicyKey } from "./deploy-policy-key.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
@@ -17,8 +18,13 @@ export function selectDeployCredentialEnvironment(
   authorizedEnvironments: Readonly<Record<string, readonly string[]>>,
   repository: string,
   product: string,
-  environment: string
+  environment: string,
+  betaPolicy?: unknown
 ): CredentialEnvironmentSelection {
+  if (environment === "beta") {
+    const target = resolveBetaDeployTarget(betaPolicy, repository, product);
+    return { credential_environment: target.credential_environment, create_deployment: false };
+  }
   const key = productPolicyKey(repository, product);
   if (
     !isDeployPolicyKey(key) ||
@@ -43,7 +49,7 @@ export function selectDeployCredentialEnvironment(
         !environmentPattern.test(logical) ||
         !authorizedEnvironments[routeKey]?.includes(logical) ||
         typeof actual !== "string" ||
-        !opsPattern.test(actual)
+        (!opsPattern.test(actual) || actual.startsWith("beta-"))
       ) {
         throw new CliError("Deployment credential Environment route is invalid.", 65);
       }
@@ -85,7 +91,8 @@ async function main(): Promise<void> {
     policy.repositories,
     process.env.DEPLOY_SOURCE_REPOSITORY ?? "",
     process.env.DEPLOY_PRODUCT ?? "",
-    process.env.DEPLOY_ENVIRONMENT ?? ""
+    process.env.DEPLOY_ENVIRONMENT ?? "",
+    process.env.DEPLOY_ENVIRONMENT === "beta" ? readBetaDeployPolicy() : undefined
   );
   await appendLines(process.env.GITHUB_OUTPUT, [
     "credential_environment=" + selection.credential_environment,

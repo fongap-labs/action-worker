@@ -4,6 +4,16 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "request_id", "source_repository", "source_sha"],
+  "allOf": [
+    {
+      "if": { "required": ["source_branch"], "properties": { "source_branch": { "const": "dev" } } },
+      "then": {
+        "required": ["environment", "trigger"],
+        "properties": { "environment": { "const": "beta" }, "trigger": { "const": "manual" } }
+      },
+      "else": { "properties": { "environment": { "not": { "const": "beta" } } } }
+    }
+  ],
   "properties": {
     "schema_version": {
       "const": "1"
@@ -17,6 +27,9 @@
     "source_repository": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "source_branch": {
+      "enum": ["main", "dev"]
     },
     "source_sha": {
       "type": "string",

@@ -10,9 +10,15 @@ on:
         required: true
         type: string
       source_sha:
-        description: 目标提交 SHA（40 位；留空则部署默认分支最新提交）
+        description: 目标提交 SHA（40 位；留空则部署所选分支最新提交）
         required: false
         type: string
+      source_branch:
+        description: 源分支（main 正式部署；dev 仅允许手动 beta 部署）
+        required: false
+        type: choice
+        default: main
+        options: [main, dev]
       product:
         description: 产品目录名（多产品仓库位于 projects/<产品>/ 下，必填；单产品仓库清单在 .github/ 根下，留空）
         required: false
@@ -47,6 +53,7 @@ jobs:
     outputs:
       source_repository: ${{ steps.source.outputs.source_repository }}
       source_sha: ${{ steps.source.outputs.source_sha }}
+      source_branch: ${{ steps.source.outputs.source_branch }}
       is_private: ${{ steps.source_visibility.outputs.is_private }}
       runner_labels_json: ${{ steps.source.outputs.runner_labels_json }}
       environment: ${{ steps.source.outputs.environment }}
@@ -97,7 +104,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          request="$(jq -c . <<< "$PAYLOAD")"
+          request="$(jq -ce 'select((.source_branch // "main") == "main" and (.environment // "") != "beta")' <<< "$PAYLOAD")"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
 
       - name: Resolve deploy source API scope
@@ -145,6 +152,7 @@ jobs:
           AW_DEPLOY_SOURCE_READ_TOKEN: ${{ steps.app_read.outputs.token }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch || 'main' }}
           SOURCE_PRODUCT: ${{ inputs.product }}
           SOURCE_ENVIRONMENT: ${{ inputs.environment }}
         shell: bash
@@ -152,6 +160,14 @@ jobs:
           set -Eeuo pipefail
           # Names the offending input and the allowed repositories instead of exiting silently.
           node scripts/repository-policy.ts validate "$SOURCE_REPOSITORY" deploy
+          [[ "$SOURCE_BRANCH" == main || "$SOURCE_BRANCH" == dev ]] || exit 64
+          if [[ "$SOURCE_BRANCH" == dev ]]; then
+            [[ "$SOURCE_ENVIRONMENT" == beta && "$GITHUB_REF" == refs/heads/main ]] || exit 77
+          else
+            [[ "$SOURCE_ENVIRONMENT" != beta ]] || exit 77
+          fi
+          source_ref="HEAD"
+          if [[ "$SOURCE_BRANCH" == dev ]]; then source_ref="refs/heads/dev"; fi
           if [ -z "$SOURCE_SHA" ]; then
             # Git transport avoids consuming the shared personal PAT REST quota. The existing
             # short-lived repository-scoped App read credential supports private source repositories too.
@@ -165,8 +181,8 @@ jobs:
               GIT_CONFIG_COUNT=1 \
               GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
               GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" \
-              git ls-remote --exit-code "https://github.com/$SOURCE_REPOSITORY.git" HEAD |
-                awk '$2 == "HEAD" {print $1}'
+              git ls-remote --exit-code "https://github.com/$SOURCE_REPOSITORY.git" "$source_ref" |
+                awk -v ref="$source_ref" '$2 == ref {print $1}'
             )"
             unset auth
           fi
@@ -177,12 +193,14 @@ jobs:
           {
             echo "source_repository=$SOURCE_REPOSITORY"
             echo "source_sha=$SOURCE_SHA"
+            echo "source_branch=$SOURCE_BRANCH"
           } >> "$GITHUB_OUTPUT"
           request="$(
             jq -cn \
               --arg request_id "manual-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
               --arg source_repository "$SOURCE_REPOSITORY" \
               --arg source_sha "$SOURCE_SHA" \
+              --arg source_branch "$SOURCE_BRANCH" \
               --arg product "$SOURCE_PRODUCT" \
               --arg environment "$SOURCE_ENVIRONMENT" \
               '{
@@ -190,6 +208,7 @@ jobs:
                 request_id: $request_id,
                 source_repository: $source_repository,
                 source_sha: $source_sha,
+                source_branch: $source_branch,
                 product: $product,
                 environment: $environment
               }'
@@ -197,6 +216,7 @@ jobs:
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
 
       - name: Mint deploy source CI status token
+        if: steps.manual_request.outputs.source_branch != 'dev'
         id: ci_status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -207,6 +227,7 @@ jobs:
           permission-statuses: write
 
       - name: Mint central CI dispatch token
+        if: steps.manual_request.outputs.source_branch != 'dev'
         id: ci_dispatch_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -222,6 +243,7 @@ jobs:
       # scripts/dispatch-central-deploy.ts). The validation stays the authority and reports an
       # untrusted write.
       - name: Request central CI for the source
+        if: steps.manual_request.outputs.source_branch != 'dev'
         env:
           AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.ci_status_app.outputs.token }}
@@ -232,12 +254,14 @@ jobs:
         run: node scripts/intake-main-ci.ts
 
       - name: Resolve source audit API scope
+        if: steps.manual_request.outputs.source_branch != 'dev'
         id: audit_scope
         env:
           TARGET_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
       - name: Mint source audit status token
+        if: steps.manual_request.outputs.source_branch != 'dev'
         id: audit_status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -248,6 +272,7 @@ jobs:
           permission-statuses: write
 
       - name: Mint source audit issue token
+        if: steps.manual_request.outputs.source_branch != 'dev'
         id: audit_issue_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -258,6 +283,7 @@ jobs:
           permission-issues: write
 
       - name: Attest the source main write
+        if: steps.manual_request.outputs.source_branch != 'dev'
         env:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
@@ -353,7 +379,7 @@ jobs:
     needs: [prepare, gateway_variables]
     # A skipped ops job is normal for non-Gateway deployments. Gateway production
     # requires an approved, successful ops read; failure cannot bypass this gate.
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && ((needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == '' && needs.gateway_variables.result == 'success') || (needs.prepare.outputs.source_repository != 'fongap-labs/ai-gateway' && needs.gateway_variables.result == 'skipped')) }}
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && ((needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == '' && needs.gateway_variables.result == 'success') || ((needs.prepare.outputs.source_repository != 'fongap-labs/ai-gateway' || needs.prepare.outputs.environment == 'beta') && needs.gateway_variables.result == 'skipped')) }}
     # Exactly one GitHub Environment per deployment job. The prepare gate checks
     # the source manifest against the central authorization policy.
     environment:
@@ -369,6 +395,7 @@ jobs:
     env:
       DEPLOY_SOURCE_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}
       DEPLOY_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+      DEPLOY_SOURCE_BRANCH: ${{ needs.prepare.outputs.source_branch }}
       DEPLOY_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
       DEPLOY_ENTRYPOINT: ${{ needs.prepare.outputs.entrypoint }}
       DEPLOY_PRODUCT: ${{ needs.prepare.outputs.product }}
@@ -432,6 +459,15 @@ jobs:
         with:
           node-version: 24
 
+      - name: Recheck dev HEAD after Environment approval
+        if: needs.prepare.outputs.source_branch == 'dev'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$DEPLOY_ENVIRONMENT" == beta && "$DEPLOY_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 77
+          live="$(git ls-remote --exit-code "https://github.com/$DEPLOY_SOURCE_REPOSITORY.git" refs/heads/dev | awk '$2 == "refs/heads/dev" {print $1}')"
+          [[ "$live" == "$DEPLOY_SOURCE_SHA" ]] || { echo "::error::Beta source HEAD changed." >&2; exit 75; }
+
       - name: Reject an Environment Cloudflare Secret override
         if: needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == ''
         env:
@@ -441,7 +477,7 @@ jobs:
         run: node control/scripts/gateway-secret-source.ts verify
 
       - name: Export scoped deployment variables
-        if: needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub'
+        if: needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub' || needs.prepare.outputs.environment == 'beta'
         env:
           REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
           AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY: ${{ needs.gateway_variables.outputs.variables_b64 }}
@@ -449,7 +485,7 @@ jobs:
         run: node control/scripts/export-repository-variables.ts
 
       - name: Export MCP Hub allowlisted Variables
-        if: needs.prepare.outputs.source_repository == 'fongap-labs/mcp-hub'
+        if: needs.prepare.outputs.source_repository == 'fongap-labs/mcp-hub' && needs.prepare.outputs.environment == 'production'
         env:
           AW_MCP_HUB_VAR_CLOUDFLARE_ACCOUNT_ID_SECONDARY: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
           AW_MCP_HUB_VAR_MCP_D1_ID: ${{ vars.MCP_D1_ID }}
@@ -534,6 +570,7 @@ jobs:
             echo
             echo "- Source: $DEPLOY_SOURCE_REPOSITORY@$DEPLOY_SOURCE_SHA"
             echo "- Product: ${DEPLOY_PRODUCT:-(root)}"
+            echo "- Source branch: $DEPLOY_SOURCE_BRANCH"
             echo "- Environment: $DEPLOY_ENVIRONMENT"
             echo "- Trigger: $DEPLOY_TRIGGER"
             echo "- Entrypoint: $DEPLOY_ENTRYPOINT"
@@ -554,7 +591,7 @@ jobs:
     # read-only audit after the actual Cloudflare deployment already completed.
     name: Record approved production deploy after protected ops publish
     needs: [prepare, deploy]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.prepare.result == 'success' && needs.deploy.result == 'success' && needs.prepare.outputs.credential_environment != needs.prepare.outputs.environment }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.prepare.result == 'success' && needs.deploy.result == 'success' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.credential_environment != needs.prepare.outputs.environment }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

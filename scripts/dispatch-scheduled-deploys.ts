@@ -118,6 +118,7 @@ export async function scheduledDeployTargets(
     }
     const plan = parseDeployPlan(text, repository);
     for (const environment of plan.environments) {
+      if (environment.environment === "beta") continue;
       if (environment.declares_triggers) {
         await assertNoRequiredReviewers(reader, controlRepository, environment.environment);
       }

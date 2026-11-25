@@ -1,5 +1,10 @@
 import { readFile } from "node:fs/promises";
 import {
+  betaDeployCredentialPlan,
+  readBetaDeployPolicy,
+  resolveBetaDeployTarget,
+} from "./beta-deploy-authorization.ts";
+import {
   assertUniqueEnvironments,
   isDeployPolicyKey,
   productPolicyKey,
@@ -328,6 +333,14 @@ export async function resolveDeploySecretPlan(
 ): Promise<DeploySecretPlanEntry[]> {
   const required = await readNames(requiredPath);
   const optional = await readNames(allowedPath);
+  if (environmentName === "beta") {
+    return betaDeployCredentialPlan(
+      resolveBetaDeployTarget(readBetaDeployPolicy(), repository, product),
+      required,
+      optional,
+      baseEnvironment
+    );
+  }
   const declared = new Set([...required, ...optional]);
   const ceiling = await readDeploySecretCeiling(policyPath, repository, environmentName, product, [
     ...declared,
@@ -351,7 +364,12 @@ export async function resolveDeploySecretPlan(
   const plan: DeploySecretPlanEntry[] = [];
   for (const name of [...declared].sort()) {
     const source = aliases.get(name) ?? name;
-    if (!envNamePattern.test(source) || isReserved(source) || seenSources.has(source)) {
+    if (
+      !envNamePattern.test(source) ||
+      isReserved(source) ||
+      source.startsWith("BETA_") ||
+      seenSources.has(source)
+    ) {
       throw new CliError(`Deploy secret source is invalid or duplicated: ${source}.`, 65);
     }
     seenSources.add(source);

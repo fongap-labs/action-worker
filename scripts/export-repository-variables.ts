@@ -1,6 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { chmod, writeFile } from "node:fs/promises";
 import { aiAgentRuntimeEntries, parseAiAgentConfig } from "./ai-agent-config.ts";
+import {
+  readBetaDeployPolicy,
+  resolveBetaDeployTarget,
+  selectBetaDeployVariables,
+} from "./beta-deploy-authorization.ts";
 import { decodeGatewayOpsVariables, validateGatewayOpsVariables } from "./gateway-ops-variables.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
@@ -119,25 +124,36 @@ async function main(): Promise<void> {
   if (!githubEnv) {
     throw new CliError("::error::GITHUB_ENV is not set.");
   }
+  const isBeta = process.env.DEPLOY_ENVIRONMENT === "beta";
   const value =
-    process.env.DEPLOY_SOURCE_REPOSITORY === "fongap-labs/mcp-hub"
+    !isBeta && process.env.DEPLOY_SOURCE_REPOSITORY === "fongap-labs/mcp-hub"
       ? scopedMcpHubVariables(process.env)
       : parseJson(
           process.env.REPOSITORY_VARS_JSON || "{}",
           "::error::Repository Variables payload must be valid JSON."
         );
-  const sorted = mergeApprovedGatewayOpsVariables(
-    Object.fromEntries(variableEntries(value)),
-    process.env.DEPLOY_SOURCE_REPOSITORY,
-    process.env.DEPLOY_ENVIRONMENT,
-    process.env.AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY
-      ? decodeGatewayOpsVariables(process.env.AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY)
-      : {},
-    process.env.DEPLOY_CREDENTIAL_ENVIRONMENT
-  );
+  const all = Object.fromEntries(variableEntries(value));
+  const sorted = isBeta
+    ? selectBetaDeployVariables(
+        resolveBetaDeployTarget(
+          readBetaDeployPolicy(),
+          process.env.DEPLOY_SOURCE_REPOSITORY ?? "",
+          process.env.DEPLOY_PRODUCT ?? ""
+        ),
+        all
+      )
+    : mergeApprovedGatewayOpsVariables(
+        Object.fromEntries(Object.entries(all).filter(([name]) => !name.startsWith("BETA_"))),
+        process.env.DEPLOY_SOURCE_REPOSITORY,
+        process.env.DEPLOY_ENVIRONMENT,
+        process.env.AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY
+          ? decodeGatewayOpsVariables(process.env.AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY)
+          : {},
+        process.env.DEPLOY_CREDENTIAL_ENVIRONMENT
+      );
   const entries = variableEntries(sorted);
-  const aiAgentConfig = parseAiAgentConfig(sorted.AW_AI_AGENT_CONFIG ?? "");
-  const agentEntries = aiAgentRuntimeEntries(aiAgentConfig);
+  const aiAgentConfig = parseAiAgentConfig(isBeta ? "" : sorted.AW_AI_AGENT_CONFIG ?? "");
+  const agentEntries = isBeta ? [] : aiAgentRuntimeEntries(aiAgentConfig);
   const repositoryNames = new Set(entries.map(([name]) => name));
   for (const [name] of agentEntries) {
     if (repositoryNames.has(name)) {
