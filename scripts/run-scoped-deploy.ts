@@ -21,6 +21,7 @@ const baseEnvironmentNames = new Set([
   "RUNNER_TEMP",
   "DEPLOY_SOURCE_REPOSITORY",
   "DEPLOY_SOURCE_SHA",
+  "DEPLOY_SOURCE_BRANCH",
   "DEPLOY_ENVIRONMENT",
   "DEPLOY_ENTRYPOINT",
   "DEPLOY_PRODUCT",
@@ -80,10 +81,21 @@ export function buildScopedDeployEnvironment(
   for (const name of baseEnvironmentNames) {
     if (base[name] !== undefined) result[name] = base[name];
   }
-  for (const [name, value] of Object.entries(publicVariables)) {
-    if (isOrdinaryVariable(name) && value !== undefined) result[name] = value;
+  const isBeta = base.DEPLOY_ENVIRONMENT === "beta";
+  if (isBeta && base.DEPLOY_SOURCE_BRANCH !== "dev") {
+    throw new CliError("Beta deploy execution requires the dev source branch.", 75);
+  }
+  if (!isBeta) {
+    for (const [name, value] of Object.entries(publicVariables)) {
+      if (isOrdinaryVariable(name) && !name.startsWith("BETA_") && value !== undefined) {
+        result[name] = value;
+      }
+    }
   }
   for (const entry of plan.secrets) {
+    if (entry.source.startsWith("BETA_") !== isBeta) {
+      throw new CliError("Deploy credential binding crosses the production/Beta boundary.", 77);
+    }
     const value =
       entry.kind === "variable" ? publicVariables[entry.source] : secretValues.get(entry.name);
     if (!value) {

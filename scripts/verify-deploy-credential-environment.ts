@@ -35,6 +35,18 @@ export async function assertExistingCredentialEnvironment(
   ) {
     throw new CliError("Credential Environment metadata is invalid; refusing deploy.", 65);
   }
+  if (
+    environment.startsWith("beta-") &&
+    !value.protection_rules.some(
+      (rule) =>
+        isJsonRecord(rule) &&
+        rule.type === "required_reviewers" &&
+        Array.isArray(rule.reviewers) &&
+        rule.reviewers.length > 0
+    )
+  ) {
+    throw new CliError("Beta credential Environment requires configured reviewers.", 77);
+  }
 }
 
 async function main(): Promise<void> {

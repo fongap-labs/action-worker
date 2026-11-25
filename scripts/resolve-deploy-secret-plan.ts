@@ -36,12 +36,10 @@ async function main(): Promise<void> {
     product,
     process.env
   );
-  const variableSources = await readDeploySecretVariableSources(
-    policyPath,
-    repository,
-    environment,
-    product
-  );
+  const variableSources =
+    environment === "beta"
+      ? new Set(plan.filter((entry) => entry.kind === "variable").map((entry) => entry.source))
+      : await readDeploySecretVariableSources(policyPath, repository, environment, product);
   const secretEntries = plan.filter((entry) => entry.kind === "secret");
   if (secretEntries.length > deploySecretSlots) {
     throw new CliError(
