@@ -16,7 +16,8 @@
       "delta-code-skill-auto-advance-test.mjs",
       "delta-code-modern-web-guidance-test.mjs",
       "delta-suite-task-intent-test.mjs",
-      "plugins-architecture-governance-test.mjs"
+      "plugins-architecture-governance-test.mjs",
+      "delta-suite-account-summary-test.mjs"
     ]
   }
 }
