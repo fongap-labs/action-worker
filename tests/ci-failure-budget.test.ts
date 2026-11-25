@@ -383,3 +383,68 @@ test("intake handoff rejects unauthorized runs, mismatched control SHAs and fail
     false
   );
 });
+
+test("dev reservations and failed publishers never consume main status at the same SHA", async () => {
+  const now = Date.now();
+  const status = {
+    context: "Dev CI Evidence",
+    state: "pending",
+    description: "Central CI running",
+    target_url: `https://github.com/${controlRepository}/actions/runs/955`,
+    created_at: new Date(now).toISOString(),
+    updated_at: new Date(now).toISOString(),
+  };
+  const response = attestFixtureResponseForPath(statusPath, { statuses: [status] });
+  const reader = {
+    async get(): Promise<unknown> {
+      return {
+        repository: { full_name: controlRepository },
+        path: ".github/workflows/central-ci-dispatch.yml",
+        event: "repository_dispatch",
+        head_branch: "main",
+        head_sha: controlSha,
+        status: "completed",
+        conclusion: "failure",
+      };
+    },
+  };
+  assert.equal(
+    await hasActiveCiEvidenceReservation(response, reader, controlRepository, repository, sha, now),
+    false
+  );
+  assert.equal(
+    await hasActiveCiEvidenceReservation(
+      response,
+      reader,
+      controlRepository,
+      repository,
+      sha,
+      now,
+      "Dev CI Evidence"
+    ),
+    true
+  );
+  assert.equal(
+    await hasUnresolvedCiEvidenceFailure(
+      response,
+      reader,
+      controlRepository,
+      repository,
+      sha,
+      controlSha
+    ),
+    false
+  );
+  assert.equal(
+    await hasUnresolvedCiEvidenceFailure(
+      response,
+      reader,
+      controlRepository,
+      repository,
+      sha,
+      controlSha,
+      "Dev CI Evidence"
+    ),
+    true
+  );
+});

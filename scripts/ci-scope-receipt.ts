@@ -48,9 +48,14 @@ export async function readCurrentPrCiScope(
   reader: { get(path: string): Promise<unknown> },
   repository: string,
   prNumber: number,
-  headSha: string
+  headSha: string,
+  targetBranch = "main"
 ): Promise<PrCiScope | undefined> {
-  return readPrSnapshot(reader, repository, prNumber, headSha, isGovernedPullDirection);
+  return readPrSnapshot(reader, repository, prNumber, headSha, (pull) => {
+    if (!isGovernedPullDirection(pull, targetBranch)) return false;
+    if (targetBranch !== "dev") return true;
+    return isJsonRecord(pull.head) && getJsonString(pull.head.repo, "full_name") === repository;
+  });
 }
 
 export async function readCurrentTransferScope(

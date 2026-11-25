@@ -3,9 +3,11 @@ import { hasVerifiedCiEvidence, type JsonReader, trustedCiStatus } from "./ci-ev
 import { prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
 import { requireStatusToken } from "./control-token.ts";
 import { getJsonNumber, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
 import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
+import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 function policyNumber(value: Record<string, unknown>, key: string, fallback: number): number {
   return typeof value[key] === "number" ? value[key] : fallback;
@@ -29,7 +31,8 @@ export async function assertCurrentPullHead(
   reader: JsonReader,
   repository: string,
   prNumber: number,
-  headSha: string
+  headSha: string,
+  targetBranch = "main"
 ): Promise<void> {
   const pull = await reader.get(`repos/${repository}/pulls/${prNumber}`);
   if (!isJsonRecord(pull) || !isJsonRecord(pull.head)) {
@@ -39,11 +42,12 @@ export async function assertCurrentPullHead(
   if (
     getJsonString(pull, "state") !== "open" ||
     currentHead !== headSha ||
-    !isGovernedPullDirection(pull)
+    !isGovernedPullDirection(pull, targetBranch) ||
+    (targetBranch === "dev" && getJsonString(pull.head.repo, "full_name") !== repository)
   ) {
     throw new CliError(
       `::error::Abandoning obsolete CI wait for ${repository}#${prNumber}: ` +
-        `expected admitted main direction and head ${headSha}, current head ${currentHead || "<missing>"}.`,
+        `expected admitted ${targetBranch} direction and head ${headSha}, current head ${currentHead || "<missing>"}.`,
       75
     );
   }
@@ -89,9 +93,15 @@ export async function waitForCentralStatus(
   controlRepository: string,
   pollSeconds: number,
   timeoutMinutes: number,
-  prNumber?: number
+  prNumber?: number,
+  targetBranch = "main"
 ): Promise<void> {
-  const context = getJsonString(ci, "status_context") || "CI Evidence";
+  const branchContext = gateContextsForBranch(loadGateContract(), targetBranch).ci_evidence;
+  if (targetBranch === "dev" && (!Number.isSafeInteger(prNumber) || (prNumber ?? 0) < 1)) {
+    throw new CliError("Dev CI wait requires an explicit PR number.", 65);
+  }
+  const context =
+    targetBranch === "dev" ? branchContext : getJsonString(ci, "status_context") || branchContext;
   const deadline = Date.now() + timeoutMinutes * 60_000;
 
   // Back off to at most one request per minute while honoring the full
@@ -102,13 +112,17 @@ export async function waitForCentralStatus(
 
   while (Date.now() < deadline) {
     if (prNumber !== undefined) {
-      await assertCurrentPullHead(reader, repository, prNumber, headSha);
+      await assertCurrentPullHead(reader, repository, prNumber, headSha, targetBranch);
     }
     const response = await reader.get(`repos/${repository}/commits/${headSha}/status`);
     const status = trustedCiStatus(response, context, controlRepository);
     attempt++;
 
-    if (!status) {
+    if (
+      !status ||
+      (targetBranch === "dev" &&
+        !hasValidStatusAttestation(status, { repository, sha: headSha, context }))
+    ) {
       console.error(
         `Central CI pending: waiting for trusted ${repository}@${headSha} context=${context} (poll ${attempt}, remaining ${Math.ceil(Math.max(0, deadline - Date.now()) / 60_000)}m)`
       );
@@ -136,7 +150,7 @@ export async function waitForCentralStatus(
       const expectedPrScope =
         prNumber === undefined
           ? undefined
-          : await readCurrentPrCiScope(reader, repository, prNumber, headSha);
+          : await readCurrentPrCiScope(reader, repository, prNumber, headSha, targetBranch);
       if (prNumber !== undefined && !expectedPrScope) {
         throw new CliError("::error::CI merge snapshot is not current; revalidate first.", 75);
       }
@@ -155,7 +169,13 @@ export async function waitForCentralStatus(
         );
       }
       if (expectedPrScope && prNumber !== undefined) {
-        const current = await readCurrentPrCiScope(reader, repository, prNumber, headSha);
+        const current = await readCurrentPrCiScope(
+          reader,
+          repository,
+          prNumber,
+          headSha,
+          targetBranch
+        );
         if (!current || prCiScopeDescription(current) !== prCiScopeDescription(expectedPrScope)) {
           throw new CliError("::error::CI merge snapshot changed during verification.", 75);
         }
@@ -163,7 +183,7 @@ export async function waitForCentralStatus(
     }
 
     if (prNumber !== undefined) {
-      await assertCurrentPullHead(reader, repository, prNumber, headSha);
+      await assertCurrentPullHead(reader, repository, prNumber, headSha, targetBranch);
     }
     const conclusion = state === "success" ? "success" : "failure";
     await publishEvidence({
@@ -187,14 +207,15 @@ export async function waitForCentralStatus(
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args.length !== 4) {
+  if (args.length !== 4 && args.length !== 5) {
     throw new CliError(
-      "Usage: wait-ci-evidence.ts <repository> <head-sha> <policy-file> <pr-number>",
+      "Usage: wait-ci-evidence.ts <repository> <head-sha> <policy-file> <pr-number> [main|dev]",
       64
     );
   }
 
-  const [repository = "", headSha = "", policyPath = "", prNumber = ""] = args;
+  const [repository = "", headSha = "", policyPath = "", prNumber = "", targetBranch = "main"] =
+    args;
   if (!/^[1-9][0-9]*$/.test(prNumber)) {
     throw new CliError("::error::Invalid CI pull request number.", 65);
   }
@@ -234,7 +255,8 @@ async function main(): Promise<void> {
     controlRepository,
     pollSeconds,
     timeoutMinutes,
-    Number(prNumber)
+    Number(prNumber),
+    targetBranch
   );
 }
 
