@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import {
+  assertCurrentMergeCiScope,
   assertReadyForAutomaticMerge,
   authorizeAdvancedBaseRefresh,
   isApprovedCompletedMerge,
@@ -8,6 +9,7 @@ import {
   mustRefreshBehindBranch,
   waitForApprovedCompletedMerge,
 } from "../scripts/auto-merge-pr.ts";
+import { prCiScopeDescription } from "../scripts/ci-scope-receipt.ts";
 import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
@@ -473,6 +475,60 @@ test("merge readiness rejects malformed repository, SHA and governance run URL",
       baseSha,
       "https://example.com/forged"
     )
+  );
+});
+
+test("final merge admission requires signed evidence for the live snapshot", async () => {
+  const scope = {
+    repository,
+    prNumber: number,
+    targetBranch: "main",
+    baseSha,
+    headSha,
+    mergeSha: "c".repeat(40),
+  };
+  const prefix = `repos/${repository}`;
+  const responses = new Map<string, unknown>([
+    [
+      `${prefix}/pulls/${number}`,
+      {
+        ...pull(),
+        head: { sha: headSha, ref: "fix/example" },
+        base: { sha: baseSha, ref: "main", repo: { full_name: repository } },
+      },
+    ],
+    [`${prefix}/branches/main`, { commit: { sha: baseSha } }],
+    [`${prefix}/git/ref/pull/${number}/merge`, { object: { sha: scope.mergeSha } }],
+    [
+      `${prefix}/git/commits/${scope.mergeSha}`,
+      { sha: scope.mergeSha, parents: [{ sha: baseSha }, { sha: headSha }] },
+    ],
+  ]);
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.ok(responses.has(path), path);
+      return responses.get(path);
+    },
+  };
+  const signedEvidence = (description: string) => ({
+    statuses: [status("CI Evidence", "success", ciUrl, undefined, description)],
+  });
+  const verifyScope = (candidate: unknown) =>
+    assertCurrentMergeCiScope(reader, candidate, repository, number, headSha, baseSha);
+  await assert.doesNotReject(verifyScope(signedEvidence(prCiScopeDescription(scope))));
+  for (const description of [
+    "Central CI gate verdict",
+    prCiScopeDescription({ ...scope, targetBranch: "dev" }),
+    prCiScopeDescription({ ...scope, prNumber: number + 1 }),
+    prCiScopeDescription({ ...scope, baseSha: "d".repeat(40) }),
+    prCiScopeDescription({ ...scope, mergeSha: "e".repeat(40) }),
+  ]) {
+    await assert.rejects(verifyScope(signedEvidence(description)), /CI snapshot scope changed/);
+  }
+  responses.set(`${prefix}/branches/main`, { commit: { sha: "f".repeat(40) } });
+  await assert.rejects(
+    verifyScope(signedEvidence(prCiScopeDescription(scope))),
+    /CI snapshot scope changed/
   );
 });
 
