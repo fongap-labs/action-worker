@@ -1,5 +1,10 @@
 import { trustedControlRunId } from "./ci-evidence.ts";
 import {
+  devGovernanceReceipt,
+  prCiScopeDescription,
+  readCurrentPrCiScope,
+} from "./ci-scope-receipt.ts";
+import {
   decodeGithubContent,
   parseDependencyRepairManifest,
   resolveDependencyRepairFacts,
@@ -212,7 +217,7 @@ async function needsDispatch(
 
   // A PR title can change without changing its head SHA. Successful and title-bound failure
   // verdicts carry the exact title fingerprint; stale verdicts must be recomputed.
-  if (governance && currentTitle) {
+  if (governance && currentTitle && targetBranch === "main") {
     const fingerprintPrefix = /^title-sha256=[0-9a-f]{64} /.exec(governance.description)?.[0];
     const expectedPrefix = "title-sha256=" + prTitleFingerprint(currentTitle) + " ";
     if (
@@ -352,13 +357,44 @@ export async function scanOpenPullRequests(
           repository,
           pull.headSha
         );
-        const action = await needsDispatch(
+        let action = await needsDispatch(
           statuses,
           reader,
           controlRepository,
           getJsonString(pull.pull, "title"),
           "dev"
         );
+        const governance = statuses.get("Dev PR Governance");
+        const evidence = statuses.get("Dev CI Evidence");
+        const gate = statuses.get("validate-merge-dev");
+        if (
+          action === "processed" &&
+          governance?.state === "success" &&
+          evidence?.state === "success" &&
+          gate?.state === "success"
+        ) {
+          const scope = await readCurrentPrCiScope(
+            reader,
+            repository,
+            pull.number,
+            pull.headSha,
+            "dev"
+          );
+          if (scope) {
+            const expected = devGovernanceReceipt(
+              scope,
+              prTitleFingerprint(getJsonString(pull.pull, "title").replace(/[\r\n]/g, " "))
+            );
+            if (
+              governance.description !== expected ||
+              gate.description !== expected ||
+              gate.run_id !== governance.run_id ||
+              evidence.description !== prCiScopeDescription(scope)
+            ) {
+              action = "dispatch";
+            }
+          }
+        }
         if (action === "in-flight") {
           result.in_flight += 1;
         } else if (

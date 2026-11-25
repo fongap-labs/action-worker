@@ -1,9 +1,9 @@
 import { hasVerifiedCiEvidence, type JsonReader } from "./ci-evidence.ts";
-import { prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
+import { devGovernanceReceipt, prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
 import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
-import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 export async function verifyDevGovernance(
   reader: JsonReader,
@@ -13,7 +13,7 @@ export async function verifyDevGovernance(
   baseSha: string,
   titleFingerprint: string,
   controlRepository: string
-): Promise<void> {
+): Promise<string> {
   const scope = await readCurrentPrCiScope(reader, repository, prNumber, headSha, "dev");
   if (!scope || scope.baseSha !== baseSha) {
     throw new CliError("Dev governance base or merge snapshot changed.", 75);
@@ -43,10 +43,11 @@ export async function verifyDevGovernance(
   if (!current || prCiScopeDescription(current) !== prCiScopeDescription(scope)) {
     throw new CliError("Dev governance scope changed during verification.", 75);
   }
+  return devGovernanceReceipt(scope, titleFingerprint);
 }
 
 async function main(): Promise<void> {
-  await verifyDevGovernance(
+  const receipt = await verifyDevGovernance(
     statusAwareReader(
       process.env.GITHUB_API_URL ?? "https://api.github.com",
       requireToken("control"),
@@ -59,6 +60,7 @@ async function main(): Promise<void> {
     process.env.TITLE_FINGERPRINT ?? "",
     process.env.GITHUB_REPOSITORY ?? ""
   );
+  await appendLines(process.env.GITHUB_OUTPUT, [`receipt=${receipt}`]);
 }
 
 if (isMain(import.meta.url)) {
