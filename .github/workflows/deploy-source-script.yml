@@ -478,7 +478,7 @@ jobs:
         run: node control/scripts/gateway-secret-source.ts verify
 
       - name: Export scoped deployment variables
-        if: needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub' || needs.prepare.outputs.environment == 'beta'
+        if: needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub' && needs.prepare.outputs.environment != 'beta'
         env:
           REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
           AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY: ${{ needs.gateway_variables.outputs.variables_b64 }}
@@ -499,6 +499,56 @@ jobs:
           AW_MCP_HUB_VAR_GMC_WRITE_MODE: ${{ vars.GMC_WRITE_MODE }}
           AW_MCP_HUB_VAR_GMC_CONTENT_MODE: ${{ vars.GMC_CONTENT_MODE }}
           AW_MCP_HUB_VAR_MCP_CRYPTO_SECRET_SYNC: ${{ vars.MCP_CRYPTO_SECRET_SYNC }}
+        run: node control/scripts/export-repository-variables.ts
+
+      - name: Resolve authorized Beta Variable names
+        if: needs.prepare.outputs.environment == 'beta'
+        id: beta_variables
+        run: node control/scripts/export-repository-variables.ts plan-beta
+
+      - name: Export authorized Beta Variables
+        if: needs.prepare.outputs.environment == 'beta'
+        env:
+          AW_BETA_VAR_00: ${{ vars[steps.beta_variables.outputs.variable_00] }}
+          AW_BETA_VAR_01: ${{ vars[steps.beta_variables.outputs.variable_01] }}
+          AW_BETA_VAR_02: ${{ vars[steps.beta_variables.outputs.variable_02] }}
+          AW_BETA_VAR_03: ${{ vars[steps.beta_variables.outputs.variable_03] }}
+          AW_BETA_VAR_04: ${{ vars[steps.beta_variables.outputs.variable_04] }}
+          AW_BETA_VAR_05: ${{ vars[steps.beta_variables.outputs.variable_05] }}
+          AW_BETA_VAR_06: ${{ vars[steps.beta_variables.outputs.variable_06] }}
+          AW_BETA_VAR_07: ${{ vars[steps.beta_variables.outputs.variable_07] }}
+          AW_BETA_VAR_08: ${{ vars[steps.beta_variables.outputs.variable_08] }}
+          AW_BETA_VAR_09: ${{ vars[steps.beta_variables.outputs.variable_09] }}
+          AW_BETA_VAR_10: ${{ vars[steps.beta_variables.outputs.variable_10] }}
+          AW_BETA_VAR_11: ${{ vars[steps.beta_variables.outputs.variable_11] }}
+          AW_BETA_VAR_12: ${{ vars[steps.beta_variables.outputs.variable_12] }}
+          AW_BETA_VAR_13: ${{ vars[steps.beta_variables.outputs.variable_13] }}
+          AW_BETA_VAR_14: ${{ vars[steps.beta_variables.outputs.variable_14] }}
+          AW_BETA_VAR_15: ${{ vars[steps.beta_variables.outputs.variable_15] }}
+          AW_BETA_VAR_16: ${{ vars[steps.beta_variables.outputs.variable_16] }}
+          AW_BETA_VAR_17: ${{ vars[steps.beta_variables.outputs.variable_17] }}
+          AW_BETA_VAR_18: ${{ vars[steps.beta_variables.outputs.variable_18] }}
+          AW_BETA_VAR_19: ${{ vars[steps.beta_variables.outputs.variable_19] }}
+          AW_BETA_VAR_20: ${{ vars[steps.beta_variables.outputs.variable_20] }}
+          AW_BETA_VAR_21: ${{ vars[steps.beta_variables.outputs.variable_21] }}
+          AW_BETA_VAR_22: ${{ vars[steps.beta_variables.outputs.variable_22] }}
+          AW_BETA_VAR_23: ${{ vars[steps.beta_variables.outputs.variable_23] }}
+          AW_BETA_VAR_24: ${{ vars[steps.beta_variables.outputs.variable_24] }}
+          AW_BETA_VAR_25: ${{ vars[steps.beta_variables.outputs.variable_25] }}
+          AW_BETA_VAR_26: ${{ vars[steps.beta_variables.outputs.variable_26] }}
+          AW_BETA_VAR_27: ${{ vars[steps.beta_variables.outputs.variable_27] }}
+          AW_BETA_VAR_28: ${{ vars[steps.beta_variables.outputs.variable_28] }}
+          AW_BETA_VAR_29: ${{ vars[steps.beta_variables.outputs.variable_29] }}
+          AW_BETA_VAR_30: ${{ vars[steps.beta_variables.outputs.variable_30] }}
+          AW_BETA_VAR_31: ${{ vars[steps.beta_variables.outputs.variable_31] }}
+          AW_BETA_VAR_32: ${{ vars[steps.beta_variables.outputs.variable_32] }}
+          AW_BETA_VAR_33: ${{ vars[steps.beta_variables.outputs.variable_33] }}
+          AW_BETA_VAR_34: ${{ vars[steps.beta_variables.outputs.variable_34] }}
+          AW_BETA_VAR_35: ${{ vars[steps.beta_variables.outputs.variable_35] }}
+          AW_BETA_VAR_36: ${{ vars[steps.beta_variables.outputs.variable_36] }}
+          AW_BETA_VAR_37: ${{ vars[steps.beta_variables.outputs.variable_37] }}
+          AW_BETA_VAR_38: ${{ vars[steps.beta_variables.outputs.variable_38] }}
+          AW_BETA_VAR_39: ${{ vars[steps.beta_variables.outputs.variable_39] }}
         run: node control/scripts/export-repository-variables.ts
 
       - name: Resolve deploy Secret plan

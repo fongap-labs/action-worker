@@ -7,6 +7,7 @@ import {
   resolveBetaDeployTarget,
   selectBetaDeployVariables,
 } from "../scripts/beta-deploy-authorization.ts";
+import { betaVariableSources, scopedBetaDeployVariables } from "../scripts/export-repository-variables.ts";
 import { buildScopedDeployEnvironment } from "../scripts/run-scoped-deploy.ts";
 import { selectDeployCredentialEnvironment } from "../scripts/select-deploy-credential-environment.ts";
 import { assertExistingCredentialEnvironment } from "../scripts/verify-deploy-credential-environment.ts";
@@ -26,15 +27,18 @@ test("Beta target is explicitly authorized without fallback to production or ano
   assert.throws(() => resolveBetaDeployTarget(policy, repository, "other"), /disabled/);
   assert.throws(() =>
     resolveBetaDeployTarget(
-      { ...policy, targets: { [repository]: { ...target, credential_environment: "example-ops" } } },
+      {
+        ...policy,
+        targets: { [repository]: { ...target, credential_environment: "example-ops" } },
+      },
       repository,
       ""
     )
   );
-  assert.deepEqual(
-    selectDeployCredentialEnvironment({}, {}, repository, "", "beta", policy),
-    { credential_environment: "beta-example-ops", create_deployment: false }
-  );
+  assert.deepEqual(selectDeployCredentialEnvironment({}, {}, repository, "", "beta", policy), {
+    credential_environment: "beta-example-ops",
+    create_deployment: false,
+  });
   assert.throws(() => selectDeployCredentialEnvironment({}, {}, repository, "", "beta"));
 });
 
@@ -74,6 +78,32 @@ test("Beta credentials and variables cannot fall back to a formal binding", () =
       variables
     )
   );
+});
+
+test("Beta Variables are staged only through authorized slots, never through the full context", () => {
+  const selected = resolveBetaDeployTarget(policy, repository, "");
+  assert.deepEqual(betaVariableSources(selected), ["BETA_EXAMPLE_OPS_ACCOUNT_ID"]);
+  assert.deepEqual(
+    scopedBetaDeployVariables(selected, {
+      AW_BETA_VAR_00: "beta-account",
+      AW_BETA_VAR_01: "unapproved",
+      BETA_EXAMPLE_OPS_ACCOUNT_ID: "unexpected",
+      REPOSITORY_VARS_JSON: JSON.stringify({ BETA_EXAMPLE_OPS_ACCOUNT_ID: "wrong" }),
+      ACCOUNT_ID: "production",
+    }),
+    { BETA_EXAMPLE_OPS_ACCOUNT_ID: "beta-account" }
+  );
+  assert.deepEqual(scopedBetaDeployVariables(selected, { AW_BETA_VAR_00: "" }), {});
+  const oversized = {
+    ...selected,
+    credentials: Object.fromEntries(
+      Array.from({ length: 41 }, (_, index) => [
+        `VAR_${index}`,
+        { source: `BETA_EXAMPLE_OPS_VAR_${index}`, kind: "variable" as const },
+      ])
+    ),
+  };
+  assert.throws(() => betaVariableSources(oversized), /fixed slot limit/);
 });
 
 test("Beta Environment must actually exist and have reviewers", async () => {

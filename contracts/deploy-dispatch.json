@@ -6,7 +6,10 @@
   "required": ["schema_version", "request_id", "source_repository", "source_sha"],
   "allOf": [
     {
-      "if": { "required": ["source_branch"], "properties": { "source_branch": { "const": "dev" } } },
+      "if": {
+        "required": ["source_branch"],
+        "properties": { "source_branch": { "const": "dev" } }
+      },
       "then": {
         "required": ["environment", "trigger"],
         "properties": { "environment": { "const": "beta" }, "trigger": { "const": "manual" } }

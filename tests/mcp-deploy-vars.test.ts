@@ -37,8 +37,29 @@ test("MCP Hub deploy cannot evaluate toJSON(vars) or export API Tokens as Variab
   const steps = workflow.jobs.deploy?.steps ?? [];
   const normal = steps.find((s) => s.name === "Export scoped deployment variables");
   const mcp = steps.find((s) => s.name === "Export MCP Hub allowlisted Variables");
-  assert.equal(normal?.if, "needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub'");
-  assert.equal(mcp?.if, "needs.prepare.outputs.source_repository == 'fongap-labs/mcp-hub'");
+  assert.equal(
+    normal?.if,
+    "needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub' && needs.prepare.outputs.environment != 'beta'"
+  );
+  assert.equal(
+    mcp?.if,
+    "needs.prepare.outputs.source_repository == 'fongap-labs/mcp-hub' && needs.prepare.outputs.environment == 'production'"
+  );
+  const betaPlan = steps.find((s) => s.name === "Resolve authorized Beta Variable names");
+  const beta = steps.find((s) => s.name === "Export authorized Beta Variables");
+  assert.equal(betaPlan?.if, "needs.prepare.outputs.environment == 'beta'");
+  assert.equal(betaPlan?.run, "node control/scripts/export-repository-variables.ts plan-beta");
+  assert.equal(beta?.if, "needs.prepare.outputs.environment == 'beta'");
+  assert.equal(beta?.run, "node control/scripts/export-repository-variables.ts");
+  assert.equal(Object.keys(beta?.env ?? {}).length, 40);
+  for (let index = 0; index < 40; index += 1) {
+    const slot = String(index).padStart(2, "0");
+    assert.equal(
+      beta?.env?.[`AW_BETA_VAR_${slot}`],
+      "${{ vars[steps.beta_variables.outputs.variable_" + slot + "] }}"
+    );
+  }
+  assert.equal(beta?.env?.REPOSITORY_VARS_JSON, undefined);
   assert.equal(normal?.env?.REPOSITORY_VARS_JSON, "${{ toJSON(vars) }}");
   assert.equal(
     mcp?.env?.AW_MCP_HUB_VAR_CLOUDFLARE_ACCOUNT_ID_SECONDARY,

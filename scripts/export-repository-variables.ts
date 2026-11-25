@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { chmod, writeFile } from "node:fs/promises";
 import { aiAgentRuntimeEntries, parseAiAgentConfig } from "./ai-agent-config.ts";
 import {
+  type BetaDeployTarget,
   readBetaDeployPolicy,
   resolveBetaDeployTarget,
   selectBetaDeployVariables,
@@ -115,7 +116,58 @@ export function mergeApprovedGatewayOpsVariables(
   return approved;
 }
 
+const betaVariableSlots = 40;
+
+export function betaVariableSources(target: BetaDeployTarget): string[] {
+  const sources = Object.values(target.credentials)
+    .filter((binding) => binding.kind === "variable")
+    .map((binding) => binding.source)
+    .sort();
+  if (sources.length > betaVariableSlots) {
+    throw new CliError("Beta Variable plan exceeds the fixed slot limit of 40.", 65);
+  }
+  return sources;
+}
+
+function betaVariableSlot(index: number): string {
+  return String(index).padStart(2, "0");
+}
+
+export function scopedBetaDeployVariables(
+  target: BetaDeployTarget,
+  environment: NodeJS.ProcessEnv
+): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const [index, source] of betaVariableSources(target).entries()) {
+    const value = environment[`AW_BETA_VAR_${betaVariableSlot(index)}`];
+    if (value) values[source] = value;
+  }
+  return selectBetaDeployVariables(target, values);
+}
+
+function selectedBetaDeployTarget(): BetaDeployTarget {
+  if (process.env.DEPLOY_ENVIRONMENT !== "beta") {
+    throw new CliError("Beta Variable selection requires a Beta deployment.", 77);
+  }
+  return resolveBetaDeployTarget(
+    readBetaDeployPolicy(),
+    process.env.DEPLOY_SOURCE_REPOSITORY ?? "",
+    process.env.DEPLOY_PRODUCT ?? ""
+  );
+}
+
 async function main(): Promise<void> {
+  if (process.argv[2] === "plan-beta") {
+    const sources = betaVariableSources(selectedBetaDeployTarget());
+    await appendLines(
+      process.env.GITHUB_OUTPUT,
+      Array.from(
+        { length: betaVariableSlots },
+        (_, index) => `variable_${betaVariableSlot(index)}=${sources[index] ?? ""}`
+      )
+    );
+    return;
+  }
   const runnerTemp = process.env.RUNNER_TEMP ?? "";
   const githubEnv = process.env.GITHUB_ENV ?? "";
   if (!runnerTemp) {
@@ -125,8 +177,9 @@ async function main(): Promise<void> {
     throw new CliError("::error::GITHUB_ENV is not set.");
   }
   const isBeta = process.env.DEPLOY_ENVIRONMENT === "beta";
-  const value =
-    !isBeta && process.env.DEPLOY_SOURCE_REPOSITORY === "fongap-labs/mcp-hub"
+  const value = isBeta
+    ? scopedBetaDeployVariables(selectedBetaDeployTarget(), process.env)
+    : process.env.DEPLOY_SOURCE_REPOSITORY === "fongap-labs/mcp-hub"
       ? scopedMcpHubVariables(process.env)
       : parseJson(
           process.env.REPOSITORY_VARS_JSON || "{}",
@@ -134,14 +187,7 @@ async function main(): Promise<void> {
         );
   const all = Object.fromEntries(variableEntries(value));
   const sorted = isBeta
-    ? selectBetaDeployVariables(
-        resolveBetaDeployTarget(
-          readBetaDeployPolicy(),
-          process.env.DEPLOY_SOURCE_REPOSITORY ?? "",
-          process.env.DEPLOY_PRODUCT ?? ""
-        ),
-        all
-      )
+    ? all
     : mergeApprovedGatewayOpsVariables(
         Object.fromEntries(Object.entries(all).filter(([name]) => !name.startsWith("BETA_"))),
         process.env.DEPLOY_SOURCE_REPOSITORY,
@@ -152,7 +198,7 @@ async function main(): Promise<void> {
         process.env.DEPLOY_CREDENTIAL_ENVIRONMENT
       );
   const entries = variableEntries(sorted);
-  const aiAgentConfig = parseAiAgentConfig(isBeta ? "" : sorted.AW_AI_AGENT_CONFIG ?? "");
+  const aiAgentConfig = parseAiAgentConfig(isBeta ? "" : (sorted.AW_AI_AGENT_CONFIG ?? ""));
   const agentEntries = isBeta ? [] : aiAgentRuntimeEntries(aiAgentConfig);
   const repositoryNames = new Set(entries.map(([name]) => name));
   for (const [name] of agentEntries) {
