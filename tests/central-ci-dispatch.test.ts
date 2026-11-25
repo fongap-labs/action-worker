@@ -272,3 +272,14 @@ test("main CI rejects a changed PR direction before pinning or publishing eviden
   assert.match(workflow, /PR direction changed; no failure verdict/);
   assert.match(workflow, /if: success\(\) && steps\.ci_publish\.outputs\.published == 'true'/);
 });
+
+test("CI verdict receives the immutable PR snapshot for signed scope receipts", () => {
+  const finalize = workflow.slice(
+    workflow.indexOf("  finalize:"),
+    workflow.indexOf("  prepare-failure:")
+  );
+  assert.ok(finalize.includes("AW_CI_SCOPE_BRANCH: main"));
+  assert.ok(finalize.includes("AW_CI_SCOPE_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}"));
+  assert.ok(finalize.includes("AW_CI_SCOPE_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}"));
+  assert.ok(finalize.includes("AW_CI_SCOPE_MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}"));
+});

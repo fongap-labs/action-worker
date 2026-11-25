@@ -1,3 +1,4 @@
+import { type PrCiScope, prCiScopeDescription } from "./ci-scope-receipt.ts";
 import {
   getJsonArray,
   getJsonNumber,
@@ -97,6 +98,7 @@ export type VerifiedCiEvidenceOptions = {
   controlRepository?: string;
   targetRepository?: string;
   targetSha?: string;
+  expectedPrScope?: PrCiScope;
   workflowPaths?: readonly string[];
   runAttempts?: number;
   statusAttempts?: number;
@@ -231,6 +233,18 @@ export async function hasVerifiedControlStatus(
   if (context === ciEvidenceContext && isCiNotRunVerdict(originalStatusDescription(status))) {
     trace("ci-not-run", { context });
     return false;
+  }
+  if (options.expectedPrScope) {
+    const scope = options.expectedPrScope;
+    if (
+      context !== ciEvidenceContext ||
+      scope.repository.toLowerCase() !== targetRepository.toLowerCase() ||
+      scope.headSha !== targetSha ||
+      originalStatusDescription(status) !== prCiScopeDescription(scope)
+    ) {
+      trace("pr-scope-mismatch", { context });
+      return false;
+    }
   }
   const runId = trustedControlRunId(getJsonString(status, "target_url"), controlRepository);
   const createdAt = Date.parse(getJsonString(status, "created_at"));

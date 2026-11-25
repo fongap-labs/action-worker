@@ -765,6 +765,10 @@ jobs:
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           GH_TOKEN: ${{ steps.verdict_read_app.outputs.token }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          AW_CI_SCOPE_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          AW_CI_SCOPE_BRANCH: main
+          AW_CI_SCOPE_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          AW_CI_SCOPE_MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}
           LINUX_RESULT: ${{ needs.linux.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
