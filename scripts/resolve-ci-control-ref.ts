@@ -1,5 +1,6 @@
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { TRUSTED_ASSOCIATIONS } from "./pr-trust.ts";
+import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -50,6 +51,9 @@ export function resolveCiControlDecision(
     throw new CliError("PR head changed before CI control resolution.", 75);
   }
 
+  if (!isGovernedPullDirection(pull)) {
+    throw new CliError("PR is outside the admitted main CI branch direction.", 75);
+  }
   const controlChanged = changedFiles.some((path) => CONTROL_PATHS.has(path));
   if (!controlChanged) {
     return {

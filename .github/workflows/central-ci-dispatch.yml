@@ -143,6 +143,10 @@ jobs:
           }
 
           default_branch="$(gh api "repos/$REPOSITORY" --jq '.default_branch')"
+          if [ "$default_branch" != "main" ]; then
+            echo "::error::Branch CI requires the admitted main branch." >&2
+            exit 75
+          fi
           default_sha="$(gh api "repos/$REPOSITORY/commits/$default_branch" --jq '.sha')"
           if [ "$REQUESTED_HEAD_SHA" != "$default_sha" ]; then
             # Only Delta's immutable #87 incident receipts can be re-verified
@@ -266,7 +270,9 @@ jobs:
             pull="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
             base_ref="$(jq -r '.base.ref // empty' <<< "$pull")"
             current_head_sha="$(jq -r '.head.sha // empty' <<< "$pull")"
-            if [[ -z "$base_ref" || "$current_head_sha" != "$EXPECTED_HEAD_SHA" ]]; then
+            head_ref="$(jq -r '.head.ref // empty' <<< "$pull")"
+            pull_state="$(jq -r '.state // empty' <<< "$pull")"
+            if [[ "$base_ref" != "main" || -z "$head_ref" || "$head_ref" == "main" || "$head_ref" == "dev" || "$pull_state" != "open" || "$current_head_sha" != "$EXPECTED_HEAD_SHA" ]]; then
               echo "::error::PR target branch or head changed while preparing the CI snapshot." >&2
               exit 75
             fi
@@ -724,6 +730,17 @@ jobs:
           repositories: ${{ steps.status_scope.outputs.repository_name }}
           permission-statuses: write
 
+      - name: Mint CI verdict target read token
+        if: needs.prepare.outputs.pr_number != '0'
+        id: verdict_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-pull-requests: read
+
       - name: Classify failed CI evidence
         if: >-
           always() &&
@@ -746,6 +763,8 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          GH_TOKEN: ${{ steps.verdict_read_app.outputs.token }}
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           LINUX_RESULT: ${{ needs.linux.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
@@ -765,6 +784,15 @@ jobs:
           if [[ "$NATIVE_PRIVATE_PILOT" != "true" && "$NATIVE_PRIVATE_REF" != "true" ]] && [[ "$LINUX_RESULT" == "cancelled" || "$SECURITY_RESULT" == "cancelled" || "$WINDOWS_RESULT" == "cancelled" ]]; then
             echo "Central CI was cancelled for $REPOSITORY@$HEAD_SHA; CI Evidence is left to the run that replaces it."
             exit 0
+          fi
+
+          if [ "$PR_NUMBER" != "0" ]; then
+            [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ && -n "$GH_TOKEN" ]] || exit 75
+            pull="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
+            if ! jq -e --arg head "$HEAD_SHA" '.state == "open" and .base.ref == "main" and (.head.ref | type == "string" and length > 0 and . != "main" and . != "dev") and .head.sha == $head' <<< "$pull" >/dev/null; then
+              echo "Central CI PR direction or head changed; no verdict for the stale scope."
+              exit 0
+            fi
           fi
 
           state=failure
@@ -814,7 +842,7 @@ jobs:
           fi
 
       - name: Dispatch asynchronous CI follow-ups
-        if: success()
+        if: success() && steps.ci_publish.outputs.published == 'true'
         uses: ./.github/actions/mint-app-token
         id: followup_dispatch_app
         with:
@@ -825,7 +853,7 @@ jobs:
           permission-contents: write
 
       - name: Send CI follow-up event
-        if: success()
+        if: success() && steps.ci_publish.outputs.published == 'true'
         env:
           GH_TOKEN: ${{ steps.followup_dispatch_app.outputs.token }}
           TARGET_REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
@@ -971,11 +999,16 @@ jobs:
           # source revision that remains current may receive its signed red gate.
           if [ "$PR_NUMBER" = "0" ]; then
             default_branch="$(gh api "repos/$REPOSITORY" --jq '.default_branch')"
-            [ -n "$default_branch" ] || exit 0
+            [ "$default_branch" = "main" ] || exit 0
             encoded_branch="$(jq -rn --arg branch "$default_branch" '$branch | @uri')"
             current_head="$(gh api "repos/$REPOSITORY/commits/$encoded_branch" --jq '.sha')"
           elif [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
-            current_head="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+            pull="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
+            if ! jq -e '.state == "open" and .base.ref == "main" and (.head.ref | type == "string" and length > 0 and . != "main" and . != "dev")' <<< "$pull" >/dev/null; then
+              echo "Central CI PR direction changed; no failure verdict for the stale scope."
+              exit 0
+            fi
+            current_head="$(jq -r '.head.sha' <<< "$pull")"
           else
             exit 0
           fi
