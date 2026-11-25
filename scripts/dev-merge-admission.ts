@@ -18,7 +18,7 @@ import { assertNoOpenManagedWriteIncidents } from "./main-write-incidents.ts";
 import { resolveManagedBranchMerge } from "./managed-branch-provenance.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
-import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import { latestAttestedStatus, originalStatusDescription } from "./status-attestation.ts";
 
 const devGates = ["Dev PR Governance", "validate-merge-dev"] as const;
@@ -136,17 +136,14 @@ export async function verifyDevMergeAdmission(
   return scope;
 }
 
-/** Verify a completed squash write against the exact snapshot validated before merge. */
-export async function verifyDevSquashWrite(
+/** Verify the actual squash commit and its exact PR attribution before recording a receipt. */
+export async function verifyDevSquashCommit(
   reader: JsonReader,
   scope: PrCiScope,
-  writeSha: string,
-  fingerprint: string,
-  runUrl: string,
-  controlRepository = defaultControlRepository
-): Promise<void> {
-  devGovernanceReceipt(scope, fingerprint);
-  if (!shaPattern.test(writeSha) || trustedControlRunId(runUrl, controlRepository) === null) {
+  writeSha: string
+): Promise<unknown> {
+  prCiScopeDescription(scope);
+  if (scope.targetBranch !== "dev" || !shaPattern.test(writeSha)) {
     throw new CliError("Invalid dev write identity.", 65);
   }
   const prefix = `repos/${scope.repository}`;
@@ -189,7 +186,25 @@ export async function verifyDevSquashWrite(
   ) {
     throw new CliError("Dev write does not match the admitted PR.", 75);
   }
-  const statuses = await reader.get(`${prefix}/commits/${scope.headSha}/status`);
+  return pull;
+}
+
+/** Verify a completed squash write against the exact snapshot validated before merge. */
+export async function verifyDevSquashWrite(
+  reader: JsonReader,
+  scope: PrCiScope,
+  writeSha: string,
+  fingerprint: string,
+  runUrl: string,
+  controlRepository = defaultControlRepository
+): Promise<void> {
+  devGovernanceReceipt(scope, fingerprint);
+  if (trustedControlRunId(runUrl, controlRepository) === null) {
+    throw new CliError("Invalid dev write governance identity.", 65);
+  }
+  const pull = await verifyDevSquashCommit(reader, scope, writeSha);
+  const mergedAt = Date.parse(getJsonString(pull, "merged_at"));
+  const statuses = await reader.get(`repos/${scope.repository}/commits/${scope.headSha}/status`);
   assertDevGates(statuses, scope, fingerprint, runUrl, mergedAt);
   const ci = latestAttestedStatus(statuses, {
     repository: scope.repository,
@@ -246,6 +261,7 @@ async function main(): Promise<void> {
     process.env.RUN_URL ?? "",
     process.env.GITHUB_REPOSITORY ?? defaultControlRepository
   );
+  await appendLines(process.env.GITHUB_OUTPUT, ["admitted=true"]);
   console.log("Dev merge admission passed; no write attempted.");
 }
 

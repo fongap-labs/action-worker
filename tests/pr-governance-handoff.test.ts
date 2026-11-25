@@ -119,3 +119,17 @@ test("dev merge admission has read-only credentials and is never the automatic m
   assert.match(content, /approved:.*target_branch == 'main'/);
   assert.equal(content.split("AW_DEV_GOVERNANCE_RECEIPT:").length - 1, 2);
 });
+
+test("dev write credential follows the reviewed protection boundary", () => {
+  const steps = workflow(".github/workflows/handle-pr-dispatch.yml").jobs["auto-merge"]!.steps;
+  const authorize = step(steps, "Verify protected dev execution boundary");
+  const mint = step(steps, "Mint automatic merge token");
+  const execute = step(steps, "Execute admitted development merge");
+  assert.match(authorize.run ?? "", /dev-merge-execution\.ts authorize/);
+  assert.match(mint.if ?? "", /steps\.dev_execution\.outputs\.enabled == 'true'/);
+  assert.equal(execute.if, "steps.dev_execution.outputs.enabled == 'true'");
+  assert.ok(steps.indexOf(authorize) < steps.indexOf(mint));
+  assert.ok(steps.indexOf(mint) < steps.indexOf(execute));
+  const audit = workflow(".github/workflows/intake.yml").jobs["main-writes"]!.steps;
+  assert.equal(step(audit, "Audit managed dev branches").run, "node scripts/audit-dev-writes.ts");
+});
