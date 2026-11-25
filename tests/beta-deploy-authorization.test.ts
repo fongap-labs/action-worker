@@ -7,7 +7,10 @@ import {
   resolveBetaDeployTarget,
   selectBetaDeployVariables,
 } from "../scripts/beta-deploy-authorization.ts";
-import { betaVariableSources, scopedBetaDeployVariables } from "../scripts/export-repository-variables.ts";
+import {
+  betaVariableSources,
+  scopedBetaDeployVariables,
+} from "../scripts/export-repository-variables.ts";
 import { buildScopedDeployEnvironment } from "../scripts/run-scoped-deploy.ts";
 import { selectDeployCredentialEnvironment } from "../scripts/select-deploy-credential-environment.ts";
 import { assertExistingCredentialEnvironment } from "../scripts/verify-deploy-credential-environment.ts";
