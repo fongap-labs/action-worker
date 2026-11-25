@@ -1,6 +1,6 @@
 import type { JsonReader } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
-import { getGithubJsonIfExists, getJsonString, GithubReader, isJsonRecord } from "./github-api.ts";
+import { GithubReader, getGithubJsonIfExists, getJsonString, isJsonRecord } from "./github-api.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
