@@ -128,7 +128,10 @@ test("task source gate accepts the default HEAD with verified evidence and a tru
 test("unadmitted task branches fail before source or evidence lookup", async () => {
   const { reader, requested } = world();
   for (const branch of ["dev", "other", ""]) {
-    assert.equal(await exitCodeOf(validateTaskSource(reader, repository, headSha, fast, branch)), 77);
+    assert.equal(
+      await exitCodeOf(validateTaskSource(reader, repository, headSha, fast, branch)),
+      77
+    );
   }
   assert.deepEqual(requested, []);
 });

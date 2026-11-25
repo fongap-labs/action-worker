@@ -140,8 +140,11 @@ async function main(): Promise<void> {
   } else {
     throw new CliError("::error::A GitHub event file or one client_payload JSON is required.", 64);
   }
-  const { agent_domain: agentDomain, operation, target_branch: targetBranch } =
-    validateDispatch(value);
+  const {
+    agent_domain: agentDomain,
+    operation,
+    target_branch: targetBranch,
+  } = validateDispatch(value);
   if (targetBranch !== "main") {
     throw new CliError("::error::Dev task execution is not admitted by the current control.", 77);
   }
