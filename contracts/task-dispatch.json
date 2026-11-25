@@ -28,6 +28,11 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
     },
+    "target_branch": {
+      "type": "string",
+      "enum": ["main", "dev"],
+      "default": "main"
+    },
     "agent_domain": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$",

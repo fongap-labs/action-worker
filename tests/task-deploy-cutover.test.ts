@@ -18,7 +18,7 @@ test("a retired source task cannot be reactivated using an old pinned commit", (
         project: "FongapCDN",
         bootstrap_ref: sha,
       }),
-      { agent_domain: "coding", operation: "task" }
+      { agent_domain: "coding", operation: "task", target_branch: "main" }
     );
     assert.throws(
       () => assertTaskExecutionAllowed(policy, "fongap-labs/internal-vault", "FongapCDN"),

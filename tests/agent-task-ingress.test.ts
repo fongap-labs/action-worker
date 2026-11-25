@@ -181,6 +181,7 @@ test("dispatch payload contains only existing trusted task contract fields", () 
         project: "repair",
         request_id: "agent-1234567-1",
         bootstrap_ref: sha,
+        target_branch: "main",
         agent_domain: "coding",
         operation: "task",
       },

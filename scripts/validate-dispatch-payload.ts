@@ -11,11 +11,15 @@ const requiredKeys = [
   "bootstrap_ref",
   "repository",
 ] as const;
-const optionalKeys = ["agent_domain", "operation"] as const;
+const optionalKeys = ["agent_domain", "operation", "target_branch"] as const;
 const optionalKeyPattern = /^[a-z][a-z0-9-]*$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-export function validateDispatch(value: unknown): { agent_domain: string; operation: string } {
+export function validateDispatch(value: unknown): {
+  agent_domain: string;
+  operation: string;
+  target_branch: "main" | "dev";
+} {
   if (!isJsonRecord(value)) {
     throw new CliError("::error::client_payload must be a JSON object.", 64);
   }
@@ -75,7 +79,11 @@ export function validateDispatch(value: unknown): { agent_domain: string; operat
   if (!validOperations.has(operation)) {
     throw new CliError(`::error::Unknown operation: ${operation}.`, 64);
   }
-  return { agent_domain: agentDomain, operation };
+  const targetBranch = value.target_branch === undefined ? "main" : value.target_branch;
+  if (targetBranch !== "main" && targetBranch !== "dev") {
+    throw new CliError("::error::Task target_branch must be main or dev.", 64);
+  }
+  return { agent_domain: agentDomain, operation, target_branch: targetBranch };
 }
 
 /** Serialize only an opaque per-project group across Jobs; masked source names cannot be job outputs. */
@@ -132,7 +140,14 @@ async function main(): Promise<void> {
   } else {
     throw new CliError("::error::A GitHub event file or one client_payload JSON is required.", 64);
   }
-  const { agent_domain: agentDomain, operation } = validateDispatch(value);
+  const {
+    agent_domain: agentDomain,
+    operation,
+    target_branch: targetBranch,
+  } = validateDispatch(value);
+  if (targetBranch !== "main") {
+    throw new CliError("::error::Dev task execution is not admitted by the current control.", 77);
+  }
   const payload = value as Record<string, unknown>;
   const repositoryPolicy = readRepositoryPolicyText();
   if (!repositoryPolicy) {
@@ -160,6 +175,7 @@ async function main(): Promise<void> {
     `repository=${String(payload.repository)}`,
     `agent_domain=${agentDomain}`,
     `operation=${operation}`,
+    `target_branch=${targetBranch}`,
   ]);
 }
 

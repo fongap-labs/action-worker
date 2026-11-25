@@ -180,6 +180,7 @@ export function agentDispatchPayload(request: AgentRequest, sha: string): Record
       project: request.project,
       request_id: request.request_id,
       bootstrap_ref: sha,
+      target_branch: "main",
       agent_domain: "coding",
       operation: "task",
     },
