@@ -252,6 +252,12 @@ jobs:
           DEV_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/audit-dev-writes.ts
 
+      - name: Observe managed branch differences
+        if: ${{ always() && !cancelled() && github.event_name == 'schedule' && steps.control_read_app.outputs.token != '' }}
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+        run: node scripts/audit-branch-drift.ts
+
   task-sources:
     # Task-source changes arrive through repository_dispatch or periodic reconciliation.
     if: github.event_name != 'push'
