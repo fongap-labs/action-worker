@@ -1,10 +1,13 @@
 import { GithubHttpError, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { type ManagedBranch, managedBranchLabel } from "./managed-branch-provenance.ts";
 import { CliError } from "./runtime-command.ts";
 
 type Reader = { get(path: string): Promise<unknown> };
 type Issue = Record<string, unknown>;
 
-const prefix = "main write incident:";
+function incidentPrefix(branch: ManagedBranch): string {
+  return `${managedBranchLabel(branch)} write incident:`;
+}
 const trustedAssociations = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 // GitHub App issue authors have author_association=NONE even inside managed repositories.
 const trustedAutomationLogins = new Set(["fongap-action-worker[bot]", "fongap-bot[bot]"]);
@@ -16,15 +19,15 @@ const shaPattern = /^[0-9a-f]{40}$/;
 const RESOLVE_COMMENT = "/resolve";
 
 export class IncidentAccessError extends CliError {
-  constructor(repository: string, status: number) {
+  constructor(repository: string, status: number, branch: ManagedBranch = "main") {
     super(
-      `::error::Cannot inspect main write incidents in ${repository}: GitHub API HTTP ${status}. Check that AW_CONTROL_TOKEN has access to this repository and Issues: read and write. The main write audit cannot pass without reading unresolved incidents.`,
+      `::error::Cannot inspect ${branch} write incidents in ${repository}: GitHub API HTTP ${status}. Check that AW_CONTROL_TOKEN has access to this repository and Issues: read and write. The ${branch} write audit cannot pass without reading unresolved incidents.`,
       77
     );
   }
 }
 
-function isIncident(value: unknown): value is Issue {
+function isIncident(value: unknown, prefix: string): value is Issue {
   if (!isJsonRecord(value) || isJsonRecord(value.pull_request)) return false;
   if (!getJsonString(value, "title").toLowerCase().startsWith(prefix)) return false;
   const association = getJsonString(value, "author_association").toUpperCase();
@@ -59,8 +62,10 @@ async function isResolvedByComment(
 export async function findIncidents(
   reader: Reader,
   repository: string,
-  state: "open" | "all"
+  state: "open" | "all",
+  branch: ManagedBranch = "main"
 ): Promise<Issue[]> {
+  const prefix = incidentPrefix(branch).toLowerCase();
   if (!repositoryPattern.test(repository)) {
     throw new CliError("::error::Invalid incident repository.", 65);
   }
@@ -73,22 +78,29 @@ export async function findIncidents(
       );
     } catch (error) {
       if (error instanceof GithubHttpError && (error.status === 403 || error.status === 404)) {
-        throw new IncidentAccessError(repository, error.status);
+        throw new IncidentAccessError(repository, error.status, branch);
       }
       throw error;
     }
     if (!Array.isArray(response)) {
-      throw new CliError("::error::Cannot verify main write incidents.", 65);
+      throw new CliError(`::error::Cannot verify ${branch} write incidents.`, 65);
     }
-    incidents.push(...response.filter(isIncident));
+    incidents.push(...response.filter((value) => isIncident(value, prefix)));
     if (response.length < 100) return incidents;
   }
-  throw new CliError("::error::Main write incident search exceeded supported pagination.", 65);
+  throw new CliError(
+    `::error::${managedBranchLabel(branch)} write incident search exceeded supported pagination.`,
+    65
+  );
 }
 
 // Returns open incidents that have not been explicitly resolved by a trusted comment.
-export async function findActiveIncidents(reader: Reader, repository: string): Promise<Issue[]> {
-  const openIncidents = await findIncidents(reader, repository, "open");
+export async function findActiveIncidents(
+  reader: Reader,
+  repository: string,
+  branch: ManagedBranch = "main"
+): Promise<Issue[]> {
+  const openIncidents = await findIncidents(reader, repository, "open", branch);
   const active: Issue[] = [];
   for (const incident of openIncidents) {
     const number = getJsonNumber(incident, "number");
@@ -98,34 +110,44 @@ export async function findActiveIncidents(reader: Reader, repository: string): P
   return active;
 }
 
-export async function assertNoOpenMainWriteIncidents(
+export async function assertNoOpenManagedWriteIncidents(
   reader: Reader,
-  repository: string
+  repository: string,
+  branch: ManagedBranch
 ): Promise<void> {
-  const incidents = await findActiveIncidents(reader, repository);
+  const incidents = await findActiveIncidents(reader, repository, branch);
   if (incidents.length === 0) return;
   const numbers = incidents.map((issue) => getJsonNumber(issue, "number")).filter((n) => n > 0);
   throw new CliError(
-    `::error::Unresolved main write incident(s) in ${repository}: ${numbers.map((n) => `#${n}`).join(", ") || "unknown issue"}. ` +
-      "The latest successful merge cannot clear historical untrusted writes. Review the evidence, record maintainer approval, then explicitly resolve each incident before release, deploy or trusted main attestation. " +
+    `::error::Unresolved ${branch} write incident(s) in ${repository}: ${numbers.map((n) => `#${n}`).join(", ") || "unknown issue"}. ` +
+      `The latest successful merge cannot clear historical untrusted writes. Review the evidence, record maintainer approval, then explicitly resolve each incident before release, deploy or trusted ${branch} attestation. ` +
       "To resolve, comment /resolve on the incident issue after the decision is documented. Incidents never auto-expire.",
     65
   );
 }
 
-export function incidentTitle(sha: string): string {
+export async function assertNoOpenMainWriteIncidents(
+  reader: Reader,
+  repository: string
+): Promise<void> {
+  await assertNoOpenManagedWriteIncidents(reader, repository, "main");
+}
+
+export function incidentTitle(sha: string, branch: ManagedBranch = "main"): string {
+  const prefix = incidentPrefix(branch);
   if (!shaPattern.test(sha)) {
-    throw new CliError("::error::Invalid main write incident SHA.", 65);
+    throw new CliError(`::error::Invalid ${branch} write incident SHA.`, 65);
   }
-  return `Main write incident: ${sha.slice(0, 12)}`;
+  return `${prefix} ${sha.slice(0, 12)}`;
 }
 
 export async function shouldCreateIncident(
   reader: Reader,
   repository: string,
-  sha: string
+  sha: string,
+  branch: ManagedBranch = "main"
 ): Promise<boolean> {
-  const title = incidentTitle(sha);
-  const incidents = await findIncidents(reader, repository, "all");
+  const title = incidentTitle(sha, branch);
+  const incidents = await findIncidents(reader, repository, "all", branch);
   return !incidents.some((incident) => getJsonString(incident, "title") === title);
 }

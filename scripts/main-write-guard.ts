@@ -27,7 +27,7 @@ import {
   statusAwareReader,
 } from "./github-api.ts";
 import { assertNoOpenMainWriteIncidents } from "./main-write-incidents.ts";
-import { resolveManagedBranchMerge } from "./managed-branch-provenance.ts";
+import { managedBranchWriteContext, resolveManagedBranchMerge } from "./managed-branch-provenance.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { originalStatusDescription, signedStatusDescription } from "./status-attestation.ts";
@@ -153,9 +153,10 @@ export async function hasVerifiedMainWriteGuard(
 ): Promise<boolean> {
   const controlRepository = getControlRepository();
   const selfRunId = currentControlRunId();
+  const context = managedBranchWriteContext("main");
   const statuses = getJsonArray(value, "statuses")
     .filter(isJsonRecord)
-    .filter((item) => getJsonString(item, "context") === "Main Write Guard")
+    .filter((item) => getJsonString(item, "context") === context)
     .filter(
       (item) =>
         selfRunId === null ||
@@ -173,7 +174,7 @@ export async function hasVerifiedMainWriteGuard(
       continue;
     }
     if (
-      await hasVerifiedControlStatus(reader, { statuses: [status] }, "Main Write Guard", {
+      await hasVerifiedControlStatus(reader, { statuses: [status] }, context, {
         controlRepository,
         targetRepository: repository,
         targetSha: sha,
@@ -460,11 +461,12 @@ async function publishStatus(
   description: string
 ): Promise<void> {
   const runUrl = process.env.MAIN_WRITE_RUN_URL ?? "";
+  const context = managedBranchWriteContext("main");
   const signedDescription = signedStatusDescription({
     repository: request.repository,
     sha: request.head_sha,
     state,
-    context: "Main Write Guard",
+    context,
     description,
     targetUrl: runUrl,
   });
@@ -476,7 +478,7 @@ async function publishStatus(
     "-f",
     `state=${state}`,
     "-f",
-    "context=Main Write Guard",
+    `context=${context}`,
     "-f",
     `description=${signedDescription}`,
   ];

@@ -3,6 +3,16 @@ import { CliError } from "./runtime-command.ts";
 
 export type ManagedBranch = "main" | "dev";
 
+export function managedBranchLabel(branch: ManagedBranch): "Main" | "Dev" {
+  if (branch === "main") return "Main";
+  if (branch === "dev") return "Dev";
+  throw new CliError("Invalid managed branch.", 65);
+}
+
+export function managedBranchWriteContext(branch: ManagedBranch): string {
+  return `${managedBranchLabel(branch)} Write Guard`;
+}
+
 const shaPattern = /^[0-9a-f]{40}$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 

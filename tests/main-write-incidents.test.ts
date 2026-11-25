@@ -3,6 +3,8 @@ import { test } from "node:test";
 import { GithubHttpError } from "../scripts/github-api.ts";
 import {
   assertNoOpenMainWriteIncidents,
+  assertNoOpenManagedWriteIncidents,
+  findActiveIncidents,
   findIncidents,
   IncidentAccessError,
   incidentTitle,
@@ -216,4 +218,46 @@ test("transient incident-read errors remain distinguishable from missing permiss
     ),
     (error: unknown) => error instanceof GithubHttpError && error.status === 503
   );
+});
+
+test("main and dev incidents and deduplication are isolated even for the same SHA", async () => {
+  const mainIncident = { ...incident, number: 1, title: incidentTitle(sha) };
+  const devIncident = { ...incident, number: 2, title: incidentTitle(sha, "dev") };
+  const repository = "org/private-repo";
+  assert.equal(devIncident.title, `Dev write incident: ${sha.slice(0, 12)}`);
+  const issues = [mainIncident, devIncident];
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      return path.includes("/comments?") ? [] : issues;
+    },
+  };
+  assert.deepEqual(await findActiveIncidents(reader, repository), [mainIncident]);
+  assert.deepEqual(await findActiveIncidents(reader, repository, "dev"), [devIncident]);
+  await assert.rejects(assertNoOpenMainWriteIncidents(reader, repository), /#1/);
+  await assert.rejects(assertNoOpenManagedWriteIncidents(reader, repository, "dev"), /#2/);
+  issues.pop();
+  assert.equal(await shouldCreateIncident(reader, repository, sha), false);
+  assert.equal(await shouldCreateIncident(reader, repository, sha, "dev"), true);
+  await assert.doesNotReject(assertNoOpenManagedWriteIncidents(reader, repository, "dev"));
+  issues.splice(0, 1, devIncident);
+  assert.equal(await shouldCreateIncident(reader, repository, sha), true);
+  assert.equal(await shouldCreateIncident(reader, repository, sha, "dev"), false);
+  await assert.doesNotReject(assertNoOpenMainWriteIncidents(reader, repository));
+});
+
+test("resolving a main incident cannot resolve a dev incident", async () => {
+  const repository = "org/private-repo";
+  const mainIncident = { ...incident, number: 1, title: incidentTitle(sha) };
+  const devIncident = { ...incident, number: 2, title: incidentTitle(sha, "dev") };
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      if (path.includes("/issues/1/comments?")) {
+        return [{ body: "/resolve", author_association: "OWNER" }];
+      }
+      if (path.includes("/issues/2/comments?")) return [];
+      return [mainIncident, devIncident];
+    },
+  };
+  await assert.doesNotReject(assertNoOpenMainWriteIncidents(reader, repository));
+  await assert.rejects(assertNoOpenManagedWriteIncidents(reader, repository, "dev"), /#2/);
 });
