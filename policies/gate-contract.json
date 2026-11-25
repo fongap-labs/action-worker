@@ -5,6 +5,11 @@
     "ci_evidence": "CI Evidence",
     "merge_validation": "validate-merge"
   },
+  "dev_status_contexts": {
+    "pr_governance": "Dev PR Governance",
+    "ci_evidence": "Dev CI Evidence",
+    "merge_validation": "validate-merge-dev"
+  },
   "trusted_workflows": {
     "ci_evidence": [
       ".github/workflows/central-ci-dispatch.yml",

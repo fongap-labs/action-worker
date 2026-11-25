@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  gateContextsForBranch,
   gateRoles,
   loadGateContract,
   parseGateContract,
@@ -60,4 +61,29 @@ test("untrusted publisher paths and empty workflow trust sets are rejected", () 
   assert.ok(paths);
   paths.push(paths[0]!);
   assert.throws(() => parseGateContract(duplicate), /untrusted or duplicate/);
+});
+
+test("branch gate identities are disjoint and legacy callers remain main-only", () => {
+  const contract = loadGateContract();
+  assert.deepEqual(requiredGateContexts(contract), [
+    "PR Governance",
+    "CI Evidence",
+    "validate-merge",
+  ]);
+  assert.deepEqual(requiredGateContexts(contract, "dev"), [
+    "Dev PR Governance",
+    "Dev CI Evidence",
+    "validate-merge-dev",
+  ]);
+  assert.equal(
+    new Set([...requiredGateContexts(contract), ...requiredGateContexts(contract, "dev")]).size,
+    6
+  );
+  assert.throws(() => gateContextsForBranch(contract, "other"), /Invalid gate target branch/);
+  const collision = fixture();
+  (collision.dev_status_contexts as Record<string, string>).merge_validation = "VALIDATE-MERGE";
+  assert.throws(() => parseGateContract(collision), /must be unique/);
+  const missing = fixture();
+  delete (missing.dev_status_contexts as Record<string, unknown>).ci_evidence;
+  assert.throws(() => parseGateContract(missing), /missing or unsupported keys/);
 });

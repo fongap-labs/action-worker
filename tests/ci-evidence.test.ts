@@ -19,6 +19,7 @@ import { prCiScopeDescription, readCurrentPrCiScope } from "../scripts/ci-scope-
 import { managedBranchWriteContext } from "../scripts/managed-branch-provenance.ts";
 import { hasValidStatusAttestation } from "../scripts/status-attestation.ts";
 import { waitForCentralStatus } from "../scripts/wait-ci-evidence.ts";
+import { resolveCiSuccessDescription } from "../scripts/write-commit-status.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const controlRepository = "fongap-labs/action-worker";
@@ -774,4 +775,71 @@ test("signed write guard identities cannot be reused across branches at the same
       false
     );
   }
+});
+
+test("dev CI requires its own signed status and exact PR scope", async () => {
+  const main = {
+    repository: targetRepository,
+    prNumber: 7,
+    targetBranch: "main",
+    baseSha: "b".repeat(40),
+    headSha: targetSha,
+    mergeSha: "c".repeat(40),
+  };
+  const dev = { ...main, targetBranch: "dev" };
+  const mainEvidence = evidenceStatus({ description: prCiScopeDescription(main) });
+  const devEvidence = evidenceStatus({
+    context: "Dev CI Evidence",
+    description: prCiScopeDescription(dev),
+  });
+  for (const [scope, receipt, expected] of [
+    [main, mainEvidence, true],
+    [dev, devEvidence, true],
+    [main, devEvidence, false],
+    [dev, mainEvidence, false],
+    [dev, evidenceStatus({ description: prCiScopeDescription(dev) }), false],
+    [dev, evidenceStatus({ context: "Dev CI Evidence" }), false],
+  ] as const) {
+    assert.equal(
+      await hasVerifiedCiEvidence(runReader([controlRun()]), receipt, {
+        ...noDelay,
+        expectedPrScope: scope,
+      }),
+      expected
+    );
+  }
+  assert.equal(
+    await hasVerifiedControlStatus(
+      runReader([controlRun()]),
+      devEvidence,
+      "Dev CI Evidence",
+      noDelay
+    ),
+    false
+  );
+});
+
+test("CI status producer refuses a mismatched branch and an unscoped dev success", () => {
+  const env = {
+    AW_CI_SCOPE_PR_NUMBER: "7",
+    AW_CI_SCOPE_BRANCH: "dev",
+    AW_CI_SCOPE_BASE_SHA: "b".repeat(40),
+    AW_CI_SCOPE_MERGE_SHA: "c".repeat(40),
+  };
+  assert.match(
+    resolveCiSuccessDescription(targetRepository, targetSha, "Dev CI Evidence", "ok", env),
+    /^scope-v1=/
+  );
+  assert.throws(
+    () => resolveCiSuccessDescription(targetRepository, targetSha, "CI Evidence", "ok", env),
+    /context does not match/
+  );
+  assert.throws(
+    () => resolveCiSuccessDescription(targetRepository, targetSha, "Dev CI Evidence", "ok", {}),
+    /requires an explicit PR snapshot/
+  );
+  assert.equal(
+    resolveCiSuccessDescription(targetRepository, targetSha, "CI Evidence", "ok", {}),
+    "ok"
+  );
 });

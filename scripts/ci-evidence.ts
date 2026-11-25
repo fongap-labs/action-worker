@@ -6,7 +6,7 @@ import {
   isJsonRecord,
   type JsonRecord,
 } from "./github-api.ts";
-import { loadGateContract } from "./governance-gate-contract.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { CliError } from "./runtime-command.ts";
 import {
   hasValidStatusAttestation,
@@ -38,6 +38,7 @@ export function controlRepositoryOf(): string {
 // Workflow provenance is configured by a trusted, versioned policy, never a target PR.
 const gateContract = loadGateContract();
 const ciEvidenceContext = gateContract.status_contexts.ci_evidence;
+const devCiEvidenceContext = gateContract.dev_status_contexts.ci_evidence;
 export const ciEvidenceWorkflowPaths = gateContract.trusted_workflows.ci_evidence;
 export const ciFailureWorkflowPaths = gateContract.trusted_workflows.ci_failure;
 export const prGateWorkflowPaths = gateContract.trusted_workflows.pr_governance;
@@ -230,14 +231,22 @@ export async function hasVerifiedControlStatus(
     return false;
   }
   // A policy-approved no-CI verdict can pass merge admission, but it proves no CI run occurred.
-  if (context === ciEvidenceContext && isCiNotRunVerdict(originalStatusDescription(status))) {
+  if (
+    (context === ciEvidenceContext || context === devCiEvidenceContext) &&
+    isCiNotRunVerdict(originalStatusDescription(status))
+  ) {
     trace("ci-not-run", { context });
+    return false;
+  }
+  if (context === devCiEvidenceContext && !options.expectedPrScope) {
+    trace("pr-scope-mismatch", { context });
     return false;
   }
   if (options.expectedPrScope) {
     const scope = options.expectedPrScope;
     if (
-      context !== ciEvidenceContext ||
+      (scope.targetBranch !== "main" && scope.targetBranch !== "dev") ||
+      context !== gateContextsForBranch(gateContract, scope.targetBranch).ci_evidence ||
       scope.repository.toLowerCase() !== targetRepository.toLowerCase() ||
       scope.headSha !== targetSha ||
       originalStatusDescription(status) !== prCiScopeDescription(scope)
@@ -316,7 +325,10 @@ export async function hasVerifiedCiEvidence(
   response: unknown,
   options: VerifiedCiEvidenceOptions = {}
 ): Promise<boolean> {
-  return hasVerifiedControlStatus(reader, response, ciEvidenceContext, options);
+  const branch = options.expectedPrScope?.targetBranch ?? "main";
+  if (branch !== "main" && branch !== "dev") return false;
+  const context = gateContextsForBranch(gateContract, branch).ci_evidence;
+  return hasVerifiedControlStatus(reader, response, context, options);
 }
 
 /** A retry budget counts only signed failures from completed central dispatcher runs. */
