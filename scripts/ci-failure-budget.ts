@@ -102,16 +102,17 @@ export async function hasActiveCiEvidenceReservation(
   controlRepository: string,
   targetRepository: string,
   targetSha: string,
-  nowMs = Date.now()
+  nowMs = Date.now(),
+  context = "CI Evidence"
 ): Promise<boolean> {
-  const latest = latestCiStatus(response, "CI Evidence");
+  const latest = latestCiStatus(response, context);
   if (
     !latest ||
     getJsonString(latest, "state") !== "pending" ||
     !hasValidStatusAttestation(latest, {
       repository: targetRepository,
       sha: targetSha,
-      context: "CI Evidence",
+      context,
     })
   ) {
     return false;
@@ -145,16 +146,17 @@ export async function hasStaleCiEvidenceFailure(
   controlRepository: string,
   targetRepository: string,
   targetSha: string,
-  currentControlHeadSha: string
+  currentControlHeadSha: string,
+  context = "CI Evidence"
 ): Promise<boolean> {
-  const latest = latestCiStatus(response, "CI Evidence");
+  const latest = latestCiStatus(response, context);
   if (
     !latest ||
     getJsonString(latest, "state") !== "failure" ||
     !hasValidStatusAttestation(latest, {
       repository: targetRepository,
       sha: targetSha,
-      context: "CI Evidence",
+      context,
     }) ||
     !/^[0-9a-f]{40}$/.test(currentControlHeadSha)
   ) {
@@ -184,16 +186,17 @@ export async function hasUnresolvedCiEvidenceFailure(
   controlRepository: string,
   targetRepository: string,
   targetSha: string,
-  currentControlHeadSha: string
+  currentControlHeadSha: string,
+  context = "CI Evidence"
 ): Promise<boolean> {
-  const latest = latestCiStatus(response, "CI Evidence");
+  const latest = latestCiStatus(response, context);
   if (
     !latest ||
     getJsonString(latest, "state") !== "pending" ||
     !hasValidStatusAttestation(latest, {
       repository: targetRepository,
       sha: targetSha,
-      context: "CI Evidence",
+      context,
     })
   ) {
     return false;

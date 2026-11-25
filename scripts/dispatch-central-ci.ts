@@ -5,9 +5,16 @@ import {
   hasStaleCiEvidenceFailure,
   hasUnresolvedCiEvidenceFailure,
 } from "./ci-failure-budget.ts";
-import { readCurrentPrCiScope } from "./ci-scope-receipt.ts";
+import { prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
-import { githubEnvironment, isJsonRecord, runGithubCli, statusAwareReader } from "./github-api.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
+import {
+  getJsonString,
+  githubEnvironment,
+  isJsonRecord,
+  runGithubCli,
+  statusAwareReader,
+} from "./github-api.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import {
   appendLines,
@@ -25,9 +32,9 @@ const shaPattern = /^[0-9a-f]{40}$/;
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args.length !== 6) {
+  if (args.length !== 6 && args.length !== 7) {
     throw new CliError(
-      "Usage: dispatch-central-ci.ts <repository> <pr-number> <request-id> <head-sha> <run-url> <policy-file>",
+      "Usage: dispatch-central-ci.ts <repository> <pr-number> <request-id> <head-sha> <run-url> <policy-file> [main|dev]",
       64
     );
   }
@@ -39,7 +46,9 @@ async function main(): Promise<void> {
     headSha = "",
     runUrl = "",
     policyPath = "",
+    targetBranch = "main",
   ] = args;
+  const branchContext = gateContextsForBranch(loadGateContract(), targetBranch).ci_evidence;
   if (!repositoryPattern.test(repository)) {
     throw new CliError("::error::Invalid central CI repository.", 64);
   }
@@ -63,7 +72,11 @@ async function main(): Promise<void> {
   const policy = await readJson(policyPath);
   const ci = isJsonRecord(policy) && isJsonRecord(policy.ci) ? policy.ci : {};
   const context =
-    typeof ci.status_context === "string" && ci.status_context ? ci.status_context : "CI Evidence";
+    targetBranch === "dev"
+      ? branchContext
+      : typeof ci.status_context === "string" && ci.status_context
+        ? ci.status_context
+        : branchContext;
   const statusToken = requireToken("status");
   const controlToken = requireToken("control");
   const dispatchToken = requireToken("dispatch");
@@ -79,11 +92,24 @@ async function main(): Promise<void> {
     controlToken,
     statusToken
   );
+  if (targetBranch === "dev") {
+    const source = await reader.get(`repos/${repository}`);
+    if (
+      !isJsonRecord(source) ||
+      source.private !== false ||
+      getJsonString(source, "full_name") !== repository
+    ) {
+      throw new CliError("Dev CI dispatch requires a verified public repository.", 75);
+    }
+  }
   const currentStatus = await reader.get(`repos/${repository}/commits/${headSha}/status`);
   const expectedPrScope =
-    latestCiStatus(currentStatus, context)?.state === "success"
-      ? await readCurrentPrCiScope(reader, repository, Number(prNumber), headSha)
+    targetBranch === "dev" || latestCiStatus(currentStatus, context)?.state === "success"
+      ? await readCurrentPrCiScope(reader, repository, Number(prNumber), headSha, targetBranch)
       : undefined;
+  if (targetBranch === "dev" && !expectedPrScope) {
+    throw new CliError("Dev CI dispatch requires a current PR merge snapshot.", 75);
+  }
   if (
     expectedPrScope &&
     (await hasVerifiedCiEvidence(reader, currentStatus, {
@@ -103,7 +129,9 @@ async function main(): Promise<void> {
       reader,
       controlRepository,
       repository,
-      headSha
+      headSha,
+      Date.now(),
+      branchContext
     )
   ) {
     console.log(`Central CI already active or reserved: ${repository}@${headSha}`);
@@ -118,7 +146,8 @@ async function main(): Promise<void> {
       controlRepository,
       repository,
       headSha,
-      process.env.GITHUB_SHA ?? ""
+      process.env.GITHUB_SHA ?? "",
+      branchContext
     )
   ) {
     console.log(
@@ -133,23 +162,35 @@ async function main(): Promise<void> {
     controlRepository,
     repository,
     headSha,
-    process.env.GITHUB_SHA ?? ""
+    process.env.GITHUB_SHA ?? "",
+    branchContext
   );
   if (staleControlFailure) {
     console.log(
       `Previous CI failure used an older control revision; validating with current control: ${repository}@${headSha}`
     );
   } else {
-    const retryDecision = await decideCiFailureRetry(
-      currentStatus,
-      reader,
-      controlRepository,
-      repository,
-      headSha
-    );
-    if (retryDecision !== "retry" && currentStatusHasFailure(currentStatus, repository, headSha)) {
+    const retryDecision =
+      targetBranch === "dev"
+        ? "stop"
+        : await decideCiFailureRetry(currentStatus, reader, controlRepository, repository, headSha);
+    if (
+      retryDecision !== "retry" &&
+      currentStatusHasFailure(currentStatus, repository, headSha, branchContext)
+    ) {
       console.log(`Central CI failure is not eligible for another run: ${repository}@${headSha}`);
       return;
+    }
+  }
+
+  if (targetBranch === "dev") {
+    const fresh = await readCurrentPrCiScope(reader, repository, Number(prNumber), headSha, "dev");
+    if (
+      !fresh ||
+      !expectedPrScope ||
+      prCiScopeDescription(fresh) !== prCiScopeDescription(expectedPrScope)
+    ) {
+      throw new CliError("Dev CI dispatch scope changed before reservation.", 75);
     }
   }
 
@@ -185,6 +226,7 @@ async function main(): Promise<void> {
       repository,
       pr_number: Number(prNumber),
       head_sha: headSha,
+      ...(targetBranch === "dev" ? { target_branch: targetBranch } : {}),
     },
   });
 
@@ -200,11 +242,16 @@ async function main(): Promise<void> {
   console.log(`Central CI dispatched: ${repository}#${prNumber}`);
 }
 
-function currentStatusHasFailure(value: unknown, repository: string, sha: string): boolean {
-  const latest = latestCiStatus(value, "CI Evidence");
+function currentStatusHasFailure(
+  value: unknown,
+  repository: string,
+  sha: string,
+  context: string
+): boolean {
+  const latest = latestCiStatus(value, context);
   return (
     (latest?.state === "failure" || latest?.state === "error") &&
-    hasValidStatusAttestation(latest, { repository, sha, context: "CI Evidence" })
+    hasValidStatusAttestation(latest, { repository, sha, context })
   );
 }
 

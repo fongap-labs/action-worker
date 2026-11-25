@@ -843,3 +843,76 @@ test("CI status producer refuses a mismatched branch and an unscoped dev success
     "ok"
   );
 });
+
+test("dev CI wait verifies its own live snapshot and refuses a retargeted PR", async () => {
+  const scope = {
+    repository: targetRepository,
+    prNumber: 7,
+    targetBranch: "dev",
+    baseSha: "b".repeat(40),
+    headSha: targetSha,
+    mergeSha: "c".repeat(40),
+  };
+  const prefix = `repos/${targetRepository}`;
+  const pull = {
+    state: "open",
+    head: { ref: "fix/example", sha: targetSha, repo: { full_name: targetRepository } },
+    base: { ref: "dev", repo: { full_name: targetRepository } },
+  };
+  const responses = new Map<string, unknown>([
+    [`${prefix}/pulls/7`, pull],
+    [`${prefix}/branches/dev`, { commit: { sha: scope.baseSha } }],
+    [`${prefix}/git/ref/pull/7/merge`, { object: { sha: scope.mergeSha } }],
+    [
+      `${prefix}/git/commits/${scope.mergeSha}`,
+      { sha: scope.mergeSha, parents: [{ sha: scope.baseSha }, { sha: targetSha }] },
+    ],
+    [
+      `${prefix}/commits/${targetSha}/status`,
+      evidenceStatus({ context: "Dev CI Evidence", description: prCiScopeDescription(scope) }),
+    ],
+    [`repos/${controlRepository}/actions/runs/42`, controlRun()],
+  ]);
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.ok(responses.has(path), path);
+      return responses.get(path);
+    },
+  };
+  const wait = (branch: string, number: number | undefined = 7) =>
+    waitForCentralStatus(
+      targetRepository,
+      targetSha,
+      { status_context: "CI Evidence" },
+      reader,
+      controlRepository,
+      5,
+      1,
+      number,
+      branch
+    );
+  assert.deepEqual(await readCurrentPrCiScope(reader, targetRepository, 7, targetSha, "dev"), scope);
+  await wait("dev");
+  await assert.rejects(wait("main"), /obsolete CI wait/);
+  responses.set(`${prefix}/pulls/7`, { ...pull, base: { ...pull.base, ref: "main" } });
+  await assert.rejects(wait("dev"), /obsolete CI wait/);
+  responses.set(`${prefix}/pulls/7`, {
+    ...pull,
+    head: { ...pull.head, repo: { full_name: "other/repo" } },
+  });
+  await assert.rejects(wait("dev"), /obsolete CI wait/);
+  await assert.rejects(
+    waitForCentralStatus(
+      targetRepository,
+      targetSha,
+      {},
+      reader,
+      controlRepository,
+      5,
+      1,
+      undefined,
+      "dev"
+    ),
+    /explicit PR number/
+  );
+});
