@@ -25,7 +25,8 @@ export function resolveCiControlDecision(
   repository: string,
   expectedHeadSha: string,
   pull: unknown,
-  changedFiles: readonly string[]
+  changedFiles: readonly string[],
+  targetBranch = "main"
 ): ControlDecision {
   if (!repositoryPattern.test(repository)) {
     throw new CliError(`Invalid repository: ${repository}.`, 64);
@@ -51,15 +52,22 @@ export function resolveCiControlDecision(
     throw new CliError("PR head changed before CI control resolution.", 75);
   }
 
-  if (!isGovernedPullDirection(pull)) {
+  if (!isGovernedPullDirection(pull, targetBranch)) {
     throw new CliError("PR is outside the admitted main CI branch direction.", 75);
+  }
+  if (targetBranch === "dev" && headRepo !== repository) {
+    throw new CliError("Dev CI requires a same-repository task branch.", 75);
+  }
+  const baseSha = getJsonString(base, "sha");
+  if (targetBranch === "dev" && !shaPattern.test(baseSha)) {
+    throw new CliError("Dev CI requires an immutable base SHA.", 75);
   }
   const controlChanged = changedFiles.some((path) => CONTROL_PATHS.has(path));
   if (!controlChanged) {
     return {
       candidate_control: false,
       control_changed: false,
-      control_ref: baseRef,
+      control_ref: targetBranch === "dev" ? baseSha : baseRef,
     };
   }
 
@@ -118,7 +126,8 @@ async function main(): Promise<void> {
     repository,
     expectedHeadSha,
     pull,
-    await changedFiles(repository, prNumber, token)
+    await changedFiles(repository, prNumber, token),
+    process.env.AW_CI_TARGET_BRANCH ?? "main"
   );
 
   await appendLines(process.env.GITHUB_OUTPUT, [

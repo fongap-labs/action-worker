@@ -13,7 +13,7 @@ permissions:
 concurrency:
   # Isolate revisions; a duplicate request for the same head must never cancel running tests.
   # GitHub keeps one running and one pending run per group, replacing older pending duplicates.
-  group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.head_sha }}
+  group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.head_sha }}${{ github.event.client_payload.target_branch == 'dev' && '-dev' || '' }}
   cancel-in-progress: false
 
 jobs:
@@ -26,6 +26,7 @@ jobs:
       owner: ${{ steps.api_scope.outputs.owner }}
       repository_name: ${{ steps.api_scope.outputs.repository_name }}
       pr_number: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number }}
+      target_branch: ${{ steps.payload.outputs.target_branch || 'main' }}
       base_sha: ${{ steps.merge_ref.outputs.base_sha || steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       diff_base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       head_sha: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
@@ -89,7 +90,7 @@ jobs:
         if: github.event.action == 'run-central-ci'
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
-        run: node scripts/validate-pr-payload.ts "$PAYLOAD"
+        run: node scripts/validate-pr-payload.ts "$PAYLOAD" --central-ci
 
       - name: Resolve central CI API scope
         id: api_scope
@@ -124,11 +125,13 @@ jobs:
           REPOSITORY: ${{ github.event.client_payload.repository }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
           SCHEMA_VERSION: ${{ github.event.client_payload.schema_version }}
+          REQUESTED_BRANCH: ${{ github.event.client_payload.target_branch || 'main' }}
           REQUEST_ID: ${{ github.event.client_payload.request_id }}
         shell: bash
         run: |
           set -Eeuo pipefail
 
+          [ "$REQUESTED_BRANCH" = "main" ] || exit 75
           [ "$SCHEMA_VERSION" = "1" ] || {
             echo "::error::Unsupported schema_version: $SCHEMA_VERSION" >&2
             exit 64
@@ -184,6 +187,12 @@ jobs:
           set -Eeuo pipefail
           echo "is_private=$(gh api "repos/$REPOSITORY" --jq '.private')" >> "$GITHUB_OUTPUT"
 
+      - name: Restrict development CI to the public sandbox
+        if: steps.payload.outputs.target_branch == 'dev'
+        env:
+          IS_PRIVATE: ${{ steps.visibility.outputs.is_private }}
+        run: test "$IS_PRIVATE" = "false"
+
       - name: Validate control credential
         if: github.event.action == 'run-central-ci'
         env:
@@ -210,6 +219,7 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           EXPECTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          AW_CI_TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
         run: node scripts/resolve-ci-control-ref.ts "$REPOSITORY" "$PR_NUMBER" "$EXPECTED_HEAD_SHA"
 
       - name: Resolve CI capabilities
@@ -247,6 +257,7 @@ jobs:
           GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          AW_CI_TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
         run: node scripts/resolve-pr-facts.ts fetch
 
       - name: Pin PR merge snapshot
@@ -257,6 +268,9 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           EXPECTED_HEAD_SHA: ${{ steps.facts.outputs.head_sha }}
+          TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
+          CI_CONTROL_REF: ${{ steps.ci_control.outputs.control_ref }}
+          CANDIDATE_CONTROL: ${{ steps.ci_control.outputs.candidate_control }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -272,7 +286,7 @@ jobs:
             current_head_sha="$(jq -r '.head.sha // empty' <<< "$pull")"
             head_ref="$(jq -r '.head.ref // empty' <<< "$pull")"
             pull_state="$(jq -r '.state // empty' <<< "$pull")"
-            if [[ "$base_ref" != "main" || -z "$head_ref" || "$head_ref" == "main" || "$head_ref" == "dev" || "$pull_state" != "open" || "$current_head_sha" != "$EXPECTED_HEAD_SHA" ]]; then
+            if [[ "$base_ref" != "$TARGET_BRANCH" || -z "$head_ref" || "$head_ref" == "main" || "$head_ref" == "dev" || "$pull_state" != "open" || "$current_head_sha" != "$EXPECTED_HEAD_SHA" ]]; then
               echo "::error::PR target branch or head changed while preparing the CI snapshot." >&2
               exit 75
             fi
@@ -306,6 +320,10 @@ jobs:
             fi
             break
           done
+          if [[ "$TARGET_BRANCH" == "dev" && "$CANDIDATE_CONTROL" != "true" && "$CI_CONTROL_REF" != "$merge_base_sha" ]]; then
+            echo "::error::Dev CI control base changed before snapshot pinning." >&2
+            exit 75
+          fi
           echo "base_sha=$merge_base_sha" >> "$GITHUB_OUTPUT"
           echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
           echo "Pinned PR merge snapshot: $merge_sha (base: $merge_base_sha, head: $merge_head_sha)"
@@ -387,10 +405,13 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.facts.outputs.head_sha }}
+          TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          context="CI Evidence"
+          if [[ "$TARGET_BRANCH" == "dev" ]]; then context="Dev CI Evidence"; fi
           node scripts/write-commit-status.ts "$REPOSITORY" "$HEAD_SHA" pending \
-            "CI Evidence" "Central CI running; awaiting test verdict" "$RUN_URL"
+            "$context" "Central CI running; awaiting test verdict" "$RUN_URL"
 
   native-private-pilot:
     name: Verify native private CI evidence (pilot)
@@ -743,7 +764,7 @@ jobs:
 
       - name: Classify failed CI evidence
         if: >-
-          always() &&
+          always() && needs.prepare.outputs.target_branch == 'main' &&
           (needs.linux.result == 'failure' || needs.security.result == 'failure' ||
           needs.windows.result == 'failure')
         continue-on-error: true
@@ -766,7 +787,7 @@ jobs:
           GH_TOKEN: ${{ steps.verdict_read_app.outputs.token }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           AW_CI_SCOPE_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
-          AW_CI_SCOPE_BRANCH: main
+          AW_CI_SCOPE_BRANCH: ${{ needs.prepare.outputs.target_branch }}
           AW_CI_SCOPE_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
           AW_CI_SCOPE_MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}
           LINUX_RESULT: ${{ needs.linux.result }}
@@ -793,7 +814,7 @@ jobs:
           if [ "$PR_NUMBER" != "0" ]; then
             [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ && -n "$GH_TOKEN" ]] || exit 75
             pull="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
-            if ! jq -e --arg head "$HEAD_SHA" '.state == "open" and .base.ref == "main" and (.head.ref | type == "string" and length > 0 and . != "main" and . != "dev") and .head.sha == $head' <<< "$pull" >/dev/null; then
+            if ! jq -e --arg head "$HEAD_SHA" --arg branch "$AW_CI_SCOPE_BRANCH" '.state == "open" and .base.ref == $branch and (.head.ref | type == "string" and length > 0 and . != "main" and . != "dev") and .head.sha == $head' <<< "$pull" >/dev/null; then
               echo "Central CI PR direction or head changed; no verdict for the stale scope."
               exit 0
             fi
@@ -837,8 +858,10 @@ jobs:
 
           fi
 
+          context="CI Evidence"
+          if [[ "$AW_CI_SCOPE_BRANCH" == "dev" ]]; then context="Dev CI Evidence"; fi
           node scripts/write-commit-status.ts "$REPOSITORY" "$HEAD_SHA" "$state" \
-            "CI Evidence" "$description" "$RUN_URL"
+            "$context" "$description" "$RUN_URL"
           echo "published=true" >> "$GITHUB_OUTPUT"
           if [[ "$state" != "success" ]]; then
             echo "::error::Central CI failed for $REPOSITORY@$HEAD_SHA: linux=$LINUX_RESULT security=$SECURITY_RESULT windows=$WINDOWS_RESULT"
@@ -846,7 +869,7 @@ jobs:
           fi
 
       - name: Dispatch asynchronous CI follow-ups
-        if: success() && steps.ci_publish.outputs.published == 'true'
+        if: success() && steps.ci_publish.outputs.published == 'true' && needs.prepare.outputs.target_branch == 'main'
         uses: ./.github/actions/mint-app-token
         id: followup_dispatch_app
         with:
@@ -857,7 +880,7 @@ jobs:
           permission-contents: write
 
       - name: Send CI follow-up event
-        if: success() && steps.ci_publish.outputs.published == 'true'
+        if: success() && steps.ci_publish.outputs.published == 'true' && needs.prepare.outputs.target_branch == 'main'
         env:
           GH_TOKEN: ${{ steps.followup_dispatch_app.outputs.token }}
           TARGET_REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
@@ -878,7 +901,7 @@ jobs:
       # Resume governance to publish a red PR verdict without waiting for intake.
       - name: Mint failed CI PR identity read token
         id: failed_pr_read_app
-        if: ${{ always() && steps.ci_publish.outputs.published == 'true' && steps.ci_publish.outcome == 'failure' && needs.prepare.outputs.pr_number != '0' }}
+        if: ${{ always() && steps.ci_publish.outputs.published == 'true' && steps.ci_publish.outcome == 'failure' && needs.prepare.outputs.pr_number != '0' && needs.prepare.outputs.target_branch == 'main' }}
         uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
@@ -889,7 +912,7 @@ jobs:
 
       - name: Mint failed CI PR continuation token
         id: failed_pr_dispatch_app
-        if: ${{ always() && steps.ci_publish.outputs.published == 'true' && steps.ci_publish.outcome == 'failure' && needs.prepare.outputs.pr_number != '0' }}
+        if: ${{ always() && steps.ci_publish.outputs.published == 'true' && steps.ci_publish.outcome == 'failure' && needs.prepare.outputs.pr_number != '0' && needs.prepare.outputs.target_branch == 'main' }}
         uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
@@ -899,7 +922,7 @@ jobs:
           permission-contents: write
 
       - name: Resume PR governance after failed CI
-        if: ${{ always() && steps.ci_publish.outputs.published == 'true' && steps.ci_publish.outcome == 'failure' && needs.prepare.outputs.pr_number != '0' }}
+        if: ${{ always() && steps.ci_publish.outputs.published == 'true' && steps.ci_publish.outcome == 'failure' && needs.prepare.outputs.pr_number != '0' && needs.prepare.outputs.target_branch == 'main' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.failed_pr_dispatch_app.outputs.token }}
@@ -993,22 +1016,25 @@ jobs:
           REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          TARGET_BRANCH: ${{ needs.prepare.outputs.target_branch }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
           set -Eeuo pipefail
           [[ "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 0
+          [[ "$TARGET_BRANCH" == "main" || "$TARGET_BRANCH" == "dev" ]] || exit 0
 
           # A failed PREPARE has no Linux/Windows verdict. Only the immutable
           # source revision that remains current may receive its signed red gate.
           if [ "$PR_NUMBER" = "0" ]; then
+            [ "$TARGET_BRANCH" = "main" ] || exit 0
             default_branch="$(gh api "repos/$REPOSITORY" --jq '.default_branch')"
             [ "$default_branch" = "main" ] || exit 0
             encoded_branch="$(jq -rn --arg branch "$default_branch" '$branch | @uri')"
             current_head="$(gh api "repos/$REPOSITORY/commits/$encoded_branch" --jq '.sha')"
           elif [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
             pull="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
-            if ! jq -e '.state == "open" and .base.ref == "main" and (.head.ref | type == "string" and length > 0 and . != "main" and . != "dev")' <<< "$pull" >/dev/null; then
+            if ! jq -e --arg branch "$TARGET_BRANCH" '.state == "open" and .base.ref == $branch and (.head.ref | type == "string" and length > 0 and . != "main" and . != "dev")' <<< "$pull" >/dev/null; then
               echo "Central CI PR direction changed; no failure verdict for the stale scope."
               exit 0
             fi
@@ -1021,13 +1047,15 @@ jobs:
             exit 0
           fi
 
+          context="CI Evidence"
+          if [[ "$TARGET_BRANCH" == "dev" ]]; then context="Dev CI Evidence"; fi
           node scripts/write-commit-status.ts "$REPOSITORY" "$REQUESTED_HEAD_SHA" failure \
-            "CI Evidence" "Central CI stopped before running tests; open the run for the reason" "$RUN_URL"
+            "$context" "Central CI stopped before running tests; open the run for the reason" "$RUN_URL"
           echo "published=true" >> "$GITHUB_OUTPUT"
 
       - name: Mint prepare failure PR continuation token
         id: prepare_pr_dispatch_app
-        if: steps.prepare_publish.outputs.published == 'true' && needs.prepare.outputs.pr_number != '0'
+        if: steps.prepare_publish.outputs.published == 'true' && needs.prepare.outputs.pr_number != '0' && needs.prepare.outputs.target_branch == 'main'
         uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
@@ -1037,7 +1065,7 @@ jobs:
           permission-contents: write
 
       - name: Resume PR governance after CI prepare failure
-        if: steps.prepare_publish.outputs.published == 'true' && needs.prepare.outputs.pr_number != '0'
+        if: steps.prepare_publish.outputs.published == 'true' && needs.prepare.outputs.pr_number != '0' && needs.prepare.outputs.target_branch == 'main'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.prepare_pr_dispatch_app.outputs.token }}

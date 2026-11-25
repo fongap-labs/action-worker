@@ -106,3 +106,21 @@ test("CI control cannot be selected from an unadmitted target or managed source"
     );
   }
 });
+
+test("explicit dev CI uses the immutable dev control and refuses managed branch heads", () => {
+  const repo = "fongap-labs/example";
+  const dev = pull({ baseRef: "dev" });
+  assert.deepEqual(resolveCiControlDecision(repo, headSha, dev, [], "dev"), {
+    candidate_control: false,
+    control_changed: false,
+    control_ref: "b".repeat(40),
+  });
+  for (const options of [
+    { baseRef: "main" },
+    { baseRef: "dev", headRef: "main" },
+    { baseRef: "dev", headRef: "dev" },
+    { baseRef: "dev", headRepo: "outside/fork" },
+  ]) {
+    assert.throws(() => resolveCiControlDecision(repo, headSha, pull(options), [], "dev"));
+  }
+});

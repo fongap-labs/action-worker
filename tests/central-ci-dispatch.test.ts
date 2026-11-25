@@ -265,7 +265,7 @@ test("central CI downstream jobs reconstruct masked repository from validated AP
 
 test("main CI rejects a changed PR direction before pinning or publishing evidence", () => {
   assert.match(workflow, /"\$default_branch" != "main"/);
-  assert.match(workflow, /"\$base_ref" != "main"/);
+  assert.match(workflow, /"\$base_ref" != "\$TARGET_BRANCH"/);
   assert.match(workflow, /"\$head_ref" == "dev"/);
   assert.match(workflow, /Mint CI verdict target read token/);
   assert.match(workflow, /PR direction or head changed; no verdict/);
@@ -278,7 +278,7 @@ test("CI verdict receives the immutable PR snapshot for signed scope receipts", 
     workflow.indexOf("  finalize:"),
     workflow.indexOf("  prepare-failure:")
   );
-  assert.ok(finalize.includes("AW_CI_SCOPE_BRANCH: main"));
+  assert.ok(finalize.includes("AW_CI_SCOPE_BRANCH: ${{ needs.prepare.outputs.target_branch }}"));
   assert.ok(finalize.includes("AW_CI_SCOPE_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}"));
   assert.ok(finalize.includes("AW_CI_SCOPE_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}"));
   assert.ok(finalize.includes("AW_CI_SCOPE_MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}"));
@@ -293,4 +293,21 @@ test("PR CI reuse, wait and final merge require the current signed snapshot", ()
   assert.match(wait, /CI merge snapshot changed during verification/);
   assert.match(merge, /await assertCurrentMergeCiScope\(/);
   assert.match(merge, /originalStatusDescription\(status\) !== prCiScopeDescription\(scope\)/);
+});
+
+test("dev CI runs only in the public sandbox and cannot resume main governance", () => {
+  assert.ok(workflow.includes('run: node scripts/validate-pr-payload.ts "$PAYLOAD" --central-ci'));
+  assert.ok(workflow.includes("Restrict development CI to the public sandbox"));
+  assert.ok(workflow.includes('test "$IS_PRIVATE" = "false"'));
+  assert.ok(workflow.includes("Dev CI control base changed before snapshot pinning"));
+  assert.match(workflow, /context="Dev CI Evidence"/);
+  for (const name of [
+    "Dispatch asynchronous CI follow-ups",
+    "Send CI follow-up event",
+    "Resume PR governance after failed CI",
+    "Resume PR governance after CI prepare failure",
+  ]) {
+    const step = workflow.slice(workflow.indexOf(`- name: ${name}`));
+    assert.ok(step.split("\n").slice(0, 3).join("\n").includes("target_branch == 'main'"));
+  }
 });

@@ -13,12 +13,14 @@ export function isManagedBranchRef(ref: string): boolean {
 
 // The existing main-only admission path cannot authorize transfers from a managed branch.
 // Its commit statuses are SHA-scoped and must not overwrite protected branch evidence.
-export function isGovernedPullDirection(pull: unknown): boolean {
-  if (!isJsonRecord(pull)) return false;
+export function isGovernedPullDirection(pull: unknown, targetBranch = "main"): boolean {
+  if (!isJsonRecord(pull) || !isManagedBranchRef(targetBranch)) return false;
   const base = isJsonRecord(pull.base) ? pull.base : {};
   const head = isJsonRecord(pull.head) ? pull.head : {};
   const headRef = getJsonString(head, "ref");
-  return getJsonString(base, "ref") === "main" && headRef !== "" && !isManagedBranchRef(headRef);
+  return (
+    getJsonString(base, "ref") === targetBranch && headRef !== "" && !isManagedBranchRef(headRef)
+  );
 }
 
 // Governance only works on open pull requests. The advisory AI review may also run for a pull
@@ -51,13 +53,14 @@ export async function fetchPullFacts(
   repository: string,
   prNumber: string,
   token: string,
-  isMergedAllowed = false
+  isMergedAllowed = false,
+  targetBranch = "main"
 ): Promise<PullFacts> {
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
   if (!isJsonRecord(pull) || !pullAllowsFacts(pull, isMergedAllowed)) {
     throw new CliError("::error::Target PR is not open.", 65);
   }
-  if (!isGovernedPullDirection(pull)) {
+  if (!isGovernedPullDirection(pull, targetBranch)) {
     throw new CliError(
       "::error::PR governance requires an ordinary task branch targeting main; managed branch heads require a separate authorization path.",
       65
@@ -95,7 +98,13 @@ async function main(): Promise<void> {
   }
   if (stage === "fetch") {
     await writeFacts(
-      await fetchPullFacts(repository, prNumber, token, process.env.ALLOW_MERGED_PR === "true")
+      await fetchPullFacts(
+        repository,
+        prNumber,
+        token,
+        process.env.ALLOW_MERGED_PR === "true",
+        process.env.AW_CI_TARGET_BRANCH ?? "main"
+      )
     );
     return;
   }
