@@ -1,5 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
-import { isJsonRecord } from "./github-api.ts";
+import { isClosedDevProtection } from "./dev-bootstrap-authorization.ts";
+import { assertTrustedDevWrite } from "./dev-write-guard.ts";
+import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
 
 type RulesetPayload = {
@@ -99,6 +101,87 @@ export function rulesetsForRepository(
       }),
     };
   });
+}
+
+/** Keep the default closed policy intact. Only explicit repository enrollment derives a dev gate. */
+export function managedRepositoryRulesets(
+  policy: unknown,
+  repository: string,
+  controlRepository: string
+): RulesetPayload[] {
+  const rulesets = rulesetPayloads(policy);
+  const closed = rulesets.find((rule) => rule.name === "Protect Dev Branch");
+  if (!closed || !isClosedDevProtection(closed)) {
+    throw new CliError("Default dev protection must remain closed.", 65);
+  }
+  const enrolled = isJsonRecord(policy) ? policy.dev_merge_repositories : undefined;
+  if (
+    !Array.isArray(enrolled) ||
+    enrolled.some(
+      (name) =>
+        typeof name !== "string" ||
+        !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(name) ||
+        name === controlRepository
+    ) ||
+    new Set(enrolled).size !== enrolled.length
+  ) {
+    throw new CliError("Invalid development repository enrollment.", 65);
+  }
+  const scoped = rulesetsForRepository(rulesets, repository, controlRepository);
+  if (!enrolled.includes(repository)) return scoped;
+  const main = scoped.find((rule) => rule.name === "Protect Main Branch");
+  if (!main) throw new CliError("Main protection template is missing.", 65);
+  return scoped.map((rule) => {
+    if (rule.name !== "Protect Dev Branch") return rule;
+    return {
+      ...main,
+      name: rule.name,
+      conditions: rule.conditions,
+      rules: [
+        { type: "creation" },
+        ...main.rules.map((item) => {
+          if (!isJsonRecord(item) || item.type !== "required_status_checks") return item;
+          if (!isJsonRecord(item.parameters)) {
+            throw new CliError("Main protection check template is invalid.", 65);
+          }
+          return {
+            ...item,
+            parameters: {
+              ...item.parameters,
+              required_status_checks: [{ context: "validate-merge-dev", integration_id: 5609149 }],
+            },
+          };
+        }),
+      ],
+    };
+  });
+}
+
+async function requireInitializedDev(
+  repository: string,
+  controlRepository: string,
+  token: string
+): Promise<void> {
+  const reader = statusAwareReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    token,
+    token
+  );
+  const metadata = await reader.get(`repos/${repository}`);
+  if (
+    !isJsonRecord(metadata) ||
+    metadata.full_name !== repository ||
+    metadata.private !== false ||
+    metadata.default_branch !== "main"
+  ) {
+    throw new CliError("Development enrollment requires a public managed main repository.", 75);
+  }
+  const branch = await reader.get(`repos/${repository}/branches/dev`);
+  const sha = isJsonRecord(branch) ? getJsonString(branch.commit, "sha") : "";
+  if (!/^[0-9a-f]{40}$/.test(sha)) {
+    throw new CliError("Development enrollment requires an initialized dev branch.", 75);
+  }
+  await assertTrustedDevWrite(reader, repository, sha, controlRepository);
 }
 
 function rulesetSnapshot(value: unknown): RulesetPayload {
@@ -216,9 +299,14 @@ async function main(): Promise<void> {
 
   let payload: Record<string, unknown>;
   let rulesets: RulesetPayload[];
+  const controlRepository = process.env.GITHUB_REPOSITORY ?? "fongap-labs/action-worker";
   try {
     payload = settingsPayload(await readJson(policyPath));
-    rulesets = rulesetPayloads(await readJson(rulesetPolicyPath));
+    rulesets = managedRepositoryRulesets(
+      await readJson(rulesetPolicyPath),
+      repository,
+      controlRepository
+    );
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       throw new CliError(
@@ -239,6 +327,10 @@ async function main(): Promise<void> {
     throw new CliError("GH_TOKEN is required", 2);
   }
 
+  const dev = rulesets.find((rule) => rule.name === "Protect Dev Branch");
+  if (!isClosedDevProtection(dev)) {
+    await requireInitializedDev(repository, controlRepository, token);
+  }
   const response = await ghJson("PATCH", `repos/${repository}`, token, payload);
   if (!isJsonRecord(response)) {
     throw new CliError("repository settings response is invalid");
@@ -256,13 +348,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
-  await applyRulesets(
-    repository,
-    token,
-    response.private === true,
-    rulesetsForRepository(rulesets, repository, controlRepository)
-  );
+  await applyRulesets(repository, token, response.private === true, rulesets);
   console.log(`repository settings applied: ${repository}`);
 }
 
