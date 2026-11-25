@@ -5,8 +5,8 @@ import {
   resolveDependencyRepairFacts,
   selectDependencyRepair,
 } from "./dependency-repair.ts";
-import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
@@ -361,7 +361,10 @@ export async function scanOpenPullRequests(
         );
         if (action === "in-flight") {
           result.in_flight += 1;
-        } else if (action === "processed" || statuses.get("Dev PR Governance")?.state === "failure") {
+        } else if (
+          action === "processed" ||
+          statuses.get("Dev PR Governance")?.state === "failure"
+        ) {
           result.already_processed += 1;
         } else if (
           await reserveOrBlock(
