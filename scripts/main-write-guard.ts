@@ -364,8 +364,13 @@ export async function validateMainWriteProvenance(
     };
   }
 
-  const { pr_number: prNumber, pr_head_sha: prHeadSha } =
-    await resolveManagedBranchMerge(reader, repository, "main", mainSha, commit);
+  const { pr_number: prNumber, pr_head_sha: prHeadSha } = await resolveManagedBranchMerge(
+    reader,
+    repository,
+    "main",
+    mainSha,
+    commit
+  );
 
   if (isCentralStatusRequired) {
     await requireCentralPrEvidence(reader, repository, prHeadSha);
