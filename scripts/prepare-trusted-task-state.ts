@@ -57,7 +57,9 @@ export async function prepareTrustedTaskState(
       targetBranch
     );
   }
-  if (!(await verifyTaskStateDirectory(previous, options.repository, options.project, targetBranch))) {
+  if (
+    !(await verifyTaskStateDirectory(previous, options.repository, options.project, targetBranch))
+  ) {
     throw new CliError("Historical task state has no trusted matching manifest.", 66);
   }
   const identity: TransferIdentity = {

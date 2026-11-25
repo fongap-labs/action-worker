@@ -552,7 +552,10 @@ async function main(): Promise<void> {
       const key = keyFromEnvironment();
       if (key === null) throw new CliError("AW_ARTIFACT_KEY is required to open a task log.", 64);
       const sealed = await readFile(sealedFile);
-      await writeFile(outFile, openBytes(key, "task-log", repository, project, sealed, targetBranch));
+      await writeFile(
+        outFile,
+        openBytes(key, "task-log", repository, project, sealed, targetBranch)
+      );
       return;
     }
     default:
