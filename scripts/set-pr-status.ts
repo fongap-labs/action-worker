@@ -36,13 +36,17 @@ async function main(): Promise<void> {
   if (!["pending", "success", "failure", "error"].includes(state)) {
     throw new CliError(`::error::Invalid commit status state: ${state}.`, 64);
   }
+  const receipt = process.env.AW_DEV_GOVERNANCE_RECEIPT ?? "";
+  if (branch === "dev" && state === "success" && !/^dev-v1=[A-Za-z0-9_-]{43}$/.test(receipt)) {
+    throw new CliError("Dev governance success requires an exact snapshot receipt.", 65);
+  }
   const token = requireToken("status");
   const signedDescription = signedStatusDescription({
     repository,
     sha,
     state: state as "pending" | "success" | "failure" | "error",
     context,
-    description,
+    description: branch === "dev" && state === "success" ? receipt : description,
     targetUrl,
   });
   const command = [

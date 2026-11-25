@@ -43,6 +43,16 @@ export function prCiScopeDescription(scope: PrCiScope): string {
   return `scope-v1=${digest}`;
 }
 
+export function devGovernanceReceipt(scope: PrCiScope, titleFingerprint: string): string {
+  if (scope.targetBranch !== "dev" || !/^[0-9a-f]{64}$/.test(titleFingerprint)) {
+    throw new CliError("Invalid dev governance receipt scope.", 65);
+  }
+  const digest = createHash("sha256")
+    .update(JSON.stringify(["dev-governance-v1", prCiScopeDescription(scope), titleFingerprint]))
+    .digest("base64url");
+  return `dev-v1=${digest}`;
+}
+
 /** Resolve the live, independently observed merge snapshot, not a caller-supplied SHA. */
 export async function readCurrentPrCiScope(
   reader: { get(path: string): Promise<unknown> },

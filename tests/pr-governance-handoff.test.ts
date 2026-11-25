@@ -109,3 +109,13 @@ test("development governance validates but cannot invoke main merge or refresh",
     /verify-dev-governance/
   );
 });
+
+test("dev merge admission has read-only credentials and is never the automatic merge job", () => {
+  const content = readFileSync(".github/workflows/handle-pr-dispatch.yml", "utf8");
+  const steps = workflow(".github/workflows/handle-pr-dispatch.yml").jobs.govern!.steps;
+  const check = step(steps, "Verify dev merge admission without write access");
+  assert.match(check.if ?? "", /target_branch == 'dev'/);
+  assert.equal(check.run, "node scripts/dev-merge-admission.ts");
+  assert.match(content, /approved:.*target_branch == 'main'/);
+  assert.equal(content.split("AW_DEV_GOVERNANCE_RECEIPT:").length - 1, 2);
+});
