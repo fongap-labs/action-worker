@@ -1,3 +1,4 @@
+import { betaReleaseEnabled, readBetaReleasePolicy } from "./beta-release-authorization.ts";
 import {
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
@@ -452,11 +453,16 @@ async function main(): Promise<void> {
   }
   const version = normalizeReleaseVersion(request.requested_version);
   const artifactName = branchReleaseArtifactName(branch, manifest.artifact_name);
+  const betaReleaseAuthorized =
+    branch === "dev" &&
+    manifest.target_repository === request.source_repository &&
+    betaReleaseEnabled(readBetaReleasePolicy(), request.source_repository);
 
   await appendLines(process.env.GITHUB_OUTPUT, [
     `source_repository=${request.source_repository}`,
     `source_sha=${request.source_sha}`,
     `source_branch=${branch}`,
+    `beta_release_enabled=${betaReleaseAuthorized}`,
     `product=${product}`,
     `manifest_path=${manifest_path}`,
     `product_root=${product_root}`,

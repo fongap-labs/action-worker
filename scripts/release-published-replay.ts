@@ -16,6 +16,7 @@ export type PublishedReleaseReplay = {
   artifactRunId: number;
   requestId: string;
   isPrerelease: boolean;
+  sourceBranch?: "dev";
   assets: readonly ReleaseAsset[];
 };
 
@@ -47,6 +48,7 @@ export function assertMatchingPublishedRelease(
     getJsonString(tagObject, "type") !== "commit" ||
     !/^[0-9a-f]{40}$/.test(releaseSha) ||
     getJsonString(tagObject, "sha") !== releaseSha ||
+    (request.sourceBranch === "dev" && releaseSha !== request.sourceSha) ||
     getJsonString(release, "tag_name") !== request.tag ||
     release.draft !== false ||
     release.prerelease !== request.isPrerelease ||
@@ -62,11 +64,16 @@ export function assertMatchingPublishedRelease(
     `Source: https://github.com/${request.sourceRepository}/commit/${request.sourceSha}`,
     `Artifact run: https://github.com/${request.artifactRepository}/actions/runs/${request.artifactRunId}`,
     `Request: ${request.requestId}`,
-    "Central CI Evidence: success",
+    request.sourceBranch === "dev" ? "Dev CI Evidence: success" : "Central CI Evidence: success",
   ];
   if (
     requiredProvenance.some((line) => !body.includes(line)) ||
-    !body.some((line) => /^Main Write Guard: success via PR #[1-9][0-9]*$/.test(line))
+    !body.some((line) =>
+      (request.sourceBranch === "dev"
+        ? /^Dev Write Guard: success via PR #[1-9][0-9]*$/
+        : /^Main Write Guard: success via PR #[1-9][0-9]*$/
+      ).test(line)
+    )
   ) {
     conflict(request.tag);
   }

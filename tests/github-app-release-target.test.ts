@@ -176,3 +176,40 @@ test("a dev build provenance cannot be admitted to the existing formal publicati
     /provenance does not match/
   );
 });
+
+test("Beta target accepts only explicit same-repository dev provenance and reserved artifacts", () => {
+  const beta = { ...request, source_branch: "dev", artifact_name: "dev-beta-release" };
+  const target = {
+    ...manifest,
+    target_repository: request.source_repository,
+    version: "1.2.3-beta.1",
+    prerelease: true,
+  };
+  const source = { ...provenance, source_branch: "dev" };
+  const allowed = { ...policy, [request.source_repository]: ["release-source", "release-target"] };
+  const resolve = (req: unknown, man: unknown, prov: unknown) =>
+    releaseTargetFromArtifact(req, man, prov, allowed, "fongap-labs/action-worker");
+  assert.equal(resolve(beta, target, source).target_repository, request.source_repository);
+  assert.throws(() => resolve(beta, target, provenance));
+  assert.throws(() => resolve(beta, { ...target, prerelease: false }, source));
+  assert.throws(() =>
+    resolve(beta, { ...target, target_repository: manifest.target_repository }, source)
+  );
+  assert.throws(() => resolve({ ...beta, artifact_name: "release" }, target, source));
+});
+
+test("Beta release writer never receives the formal App credentials", async () => {
+  const content = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
+  type ReleaseStep = { id?: string; if?: string; with?: Record<string, string> };
+  const workflow = parse(content) as {
+    jobs: { release: { steps: ReleaseStep[] } };
+  };
+  const steps = workflow.jobs.release.steps;
+  const main = steps.find((step) => step.id === "release_write_app");
+  const beta = steps.find((step) => step.id === "beta_write_app");
+  assert.equal(main?.if, "steps.release_target.outputs.source_branch == 'main'");
+  assert.equal(beta?.if, "steps.release_target.outputs.source_branch == 'dev'");
+  assert.equal(beta?.with?.["client-id"], "${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID }}");
+  assert.equal(beta?.with?.["private-key"], "${{ secrets.AW_BETA_RELEASE_APP_PRIVATE_KEY }}");
+  assert.equal(beta?.with?.repositories, "${{ steps.release_target.outputs.repository_name }}");
+});

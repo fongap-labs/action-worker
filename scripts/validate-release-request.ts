@@ -1,3 +1,4 @@
+import { assertBranchReleaseVersion } from "./branch-publication-policy.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson } from "./runtime-command.ts";
@@ -35,7 +36,7 @@ export function validateReleaseProvenance(request: unknown, provenance: unknown)
       ],
       ["source_branch"]
     ) ||
-    (provenance.source_branch !== undefined && provenance.source_branch !== "main") ||
+    (provenance.source_branch ?? "main") !== (request.source_branch ?? "main") ||
     provenance.schema_version !== "1" ||
     provenance.source_repository !== request.source_repository ||
     provenance.source_sha !== request.source_sha ||
@@ -53,15 +54,22 @@ export function validateRelease(
 ): void {
   if (
     !isJsonRecord(request) ||
-    !isExactKeys(request, [
-      "artifact_name",
-      "artifact_repository",
-      "artifact_run_id",
-      "request_id",
-      "schema_version",
-      "source_repository",
-      "source_sha",
-    ]) ||
+    !isExactKeys(
+      request,
+      [
+        "artifact_name",
+        "artifact_repository",
+        "artifact_run_id",
+        "request_id",
+        "schema_version",
+        "source_repository",
+        "source_sha",
+      ],
+      ["source_branch"]
+    ) ||
+    (request.source_branch !== undefined &&
+      request.source_branch !== "main" &&
+      request.source_branch !== "dev") ||
     request.schema_version !== "2" ||
     typeof request.request_id !== "string" ||
     !requestPattern.test(request.request_id) ||
@@ -79,6 +87,9 @@ export function validateRelease(
     !/^[A-Za-z0-9._-]+$/.test(request.artifact_name)
   ) {
     throw new CliError("release dispatch payload is invalid.", 64);
+  }
+  if (request.artifact_name.startsWith("dev-beta-") !== (request.source_branch === "dev")) {
+    throw new CliError("Release artifact namespace does not match the source branch.", 65);
   }
   validateRepositoryCapability(request.source_repository, repositoryPolicy, "release-source");
   if (manifest === undefined) {
@@ -159,6 +170,14 @@ export function validateRelease(
     ) {
       throw new CliError("release manifest is invalid.", 64);
     }
+  }
+  assertBranchReleaseVersion(
+    String(request.source_branch ?? "main"),
+    manifest.version,
+    manifest.prerelease === true
+  );
+  if (request.source_branch === "dev" && manifest.target_repository !== request.source_repository) {
+    throw new CliError("Beta publication requires the source repository as target.", 65);
   }
   validateRepositoryCapability(manifest.target_repository, repositoryPolicy, "release-target");
 }
