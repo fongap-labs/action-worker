@@ -2,8 +2,8 @@ import { writeFile } from "node:fs/promises";
 import { hasVerifiedCiEvidence, type JsonReader, trustedCiStatus } from "./ci-evidence.ts";
 import { prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
 import { requireStatusToken } from "./control-token.ts";
-import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { getJsonNumber, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
 import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
@@ -169,7 +169,13 @@ export async function waitForCentralStatus(
         );
       }
       if (expectedPrScope && prNumber !== undefined) {
-        const current = await readCurrentPrCiScope(reader, repository, prNumber, headSha, targetBranch);
+        const current = await readCurrentPrCiScope(
+          reader,
+          repository,
+          prNumber,
+          headSha,
+          targetBranch
+        );
         if (!current || prCiScopeDescription(current) !== prCiScopeDescription(expectedPrScope)) {
           throw new CliError("::error::CI merge snapshot changed during verification.", 75);
         }

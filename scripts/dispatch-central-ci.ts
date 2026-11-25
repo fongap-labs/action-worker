@@ -7,7 +7,6 @@ import {
 } from "./ci-failure-budget.ts";
 import { prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
-import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import {
   getJsonString,
   githubEnvironment,
@@ -15,6 +14,7 @@ import {
   runGithubCli,
   statusAwareReader,
 } from "./github-api.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import {
   appendLines,

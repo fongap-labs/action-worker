@@ -891,7 +891,10 @@ test("dev CI wait verifies its own live snapshot and refuses a retargeted PR", a
       number,
       branch
     );
-  assert.deepEqual(await readCurrentPrCiScope(reader, targetRepository, 7, targetSha, "dev"), scope);
+  assert.deepEqual(
+    await readCurrentPrCiScope(reader, targetRepository, 7, targetSha, "dev"),
+    scope
+  );
   await wait("dev");
   await assert.rejects(wait("main"), /obsolete CI wait/);
   responses.set(`${prefix}/pulls/7`, { ...pull, base: { ...pull.base, ref: "main" } });
