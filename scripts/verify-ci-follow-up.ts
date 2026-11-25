@@ -2,6 +2,7 @@ import { hasVerifiedCiEvidence, latestCiStatus, trustedControlRunId } from "./ci
 import { requireStatusToken } from "./control-token.ts";
 import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
+import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
 
@@ -54,6 +55,7 @@ export function isCurrentFollowUpTarget(request: FollowUpRequest, target: unknow
   }
   return (
     getJsonString(target, "state") === "open" &&
+    isGovernedPullDirection(target) &&
     isJsonRecord(target.head) &&
     getJsonString(target.head, "sha") === request.head_sha
   );
@@ -128,8 +130,9 @@ async function main(): Promise<void> {
   } else {
     const source = await reader.get(`repos/${request.repository}`);
     const branch = getJsonString(source, "default_branch");
-    if (!branch) {
-      throw new CliError("CI follow-up cannot determine the source default branch.", 65);
+    if (branch !== "main") {
+      await skipStaleFollowUp(request);
+      return;
     }
     const currentCommit = await reader.get(
       `repos/${request.repository}/commits/${encodeURIComponent(branch)}`

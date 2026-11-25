@@ -3,6 +3,7 @@ import { hasVerifiedCiEvidence, type JsonReader, trustedCiStatus } from "./ci-ev
 import { requireStatusToken } from "./control-token.ts";
 import { getJsonNumber, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
+import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 function policyNumber(value: Record<string, unknown>, key: string, fallback: number): number {
@@ -34,10 +35,14 @@ export async function assertCurrentPullHead(
     throw new CliError("::error::Cannot verify the current pull request revision.", 65);
   }
   const currentHead = getJsonString(pull.head, "sha");
-  if (getJsonString(pull, "state") !== "open" || currentHead !== headSha) {
+  if (
+    getJsonString(pull, "state") !== "open" ||
+    currentHead !== headSha ||
+    !isGovernedPullDirection(pull)
+  ) {
     throw new CliError(
       `::error::Abandoning obsolete CI wait for ${repository}#${prNumber}: ` +
-        `expected head ${headSha}, current head ${currentHead || "<missing>"}.`,
+        `expected admitted main direction and head ${headSha}, current head ${currentHead || "<missing>"}.`,
       75
     );
   }

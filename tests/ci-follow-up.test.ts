@@ -102,7 +102,10 @@ test("superseded main commits and stale PRs are not current follow-up targets", 
   assert.equal(isCurrentFollowUpTarget(mainRequest, { sha }), true);
   assert.equal(isCurrentFollowUpTarget(mainRequest, { sha: "b".repeat(40) }), false);
   assert.equal(isCurrentFollowUpTarget(mainRequest, {}), false);
-  assert.equal(isCurrentFollowUpTarget(request, { state: "open", head: { sha } }), true);
+  const pull = { state: "open", base: { ref: "main" }, head: { sha, ref: "fix/example" } };
+  assert.equal(isCurrentFollowUpTarget(request, pull), true);
+  assert.equal(isCurrentFollowUpTarget(request, { ...pull, base: { ref: "dev" } }), false);
+  assert.equal(isCurrentFollowUpTarget(request, { ...pull, head: { sha, ref: "dev" } }), false);
   assert.equal(isCurrentFollowUpTarget(request, { state: "closed", head: { sha } }), false);
   assert.equal(
     isCurrentFollowUpTarget(request, { state: "open", head: { sha: "b".repeat(40) } }),

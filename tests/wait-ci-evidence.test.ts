@@ -57,7 +57,11 @@ test("CI polling accepts an open pull request at the expected head", async () =>
     assertCurrentPullHead(
       {
         async get(): Promise<unknown> {
-          return { state: "open", head: { sha: original } };
+          return {
+            state: "open",
+            base: { ref: "main" },
+            head: { sha: original, ref: "fix/example" },
+          };
         },
       },
       repository,
@@ -146,5 +150,27 @@ test("PR governance and advisory review pass their exact PR number to CI evidenc
     assert.equal(waits.length, 1, file);
     assert.equal(waits[0]!.run, expectedCommand, file);
     assert.equal(waits[0]!.env?.PR_NUMBER, numberExpression, file);
+  }
+});
+
+test("CI polling rejects retargeted PRs even when the head SHA is unchanged", async () => {
+  for (const [base, head] of [
+    ["dev", "fix/example"],
+    ["main", "dev"],
+    ["main", "main"],
+  ]) {
+    await assert.rejects(
+      assertCurrentPullHead(
+        {
+          async get(): Promise<unknown> {
+            return { state: "open", base: { ref: base }, head: { sha: original, ref: head } };
+          },
+        },
+        repository,
+        7,
+        original
+      ),
+      /Abandoning obsolete CI wait/
+    );
   }
 });

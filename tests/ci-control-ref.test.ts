@@ -9,6 +9,7 @@ function pull(
     association?: string;
     baseRef?: string;
     headRepo?: string;
+    headRef?: string;
     headSha?: string;
     state?: string;
   } = {}
@@ -23,6 +24,7 @@ function pull(
     },
     head: {
       sha: options.headSha ?? headSha,
+      ref: options.headRef ?? "fix/example",
       repo: { full_name: options.headRepo ?? "fongap-labs/example" },
     },
   };
@@ -94,4 +96,13 @@ test("candidate CI control resolution fails closed on stale head SHA", () => {
       ]),
     /head changed/
   );
+});
+
+test("CI control cannot be selected from an unadmitted target or managed source", () => {
+  for (const options of [{ baseRef: "dev" }, { headRef: "dev" }, { headRef: "main" }]) {
+    assert.throws(
+      () => resolveCiControlDecision("fongap-labs/example", headSha, pull(options), []),
+      /outside the admitted main CI branch direction/
+    );
+  }
 });

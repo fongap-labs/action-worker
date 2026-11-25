@@ -262,3 +262,13 @@ test("central CI downstream jobs reconstruct masked repository from validated AP
   assert.ok(workflow.includes("owner: ${{ steps.api_scope.outputs.owner }}"));
   assert.ok(workflow.includes("repository_name: ${{ steps.api_scope.outputs.repository_name }}"));
 });
+
+test("main CI rejects a changed PR direction before pinning or publishing evidence", () => {
+  assert.match(workflow, /"\$default_branch" != "main"/);
+  assert.match(workflow, /"\$base_ref" != "main"/);
+  assert.match(workflow, /"\$head_ref" == "dev"/);
+  assert.match(workflow, /Mint CI verdict target read token/);
+  assert.match(workflow, /PR direction or head changed; no verdict/);
+  assert.match(workflow, /PR direction changed; no failure verdict/);
+  assert.match(workflow, /if: success\(\) && steps\.ci_publish\.outputs\.published == 'true'/);
+});
