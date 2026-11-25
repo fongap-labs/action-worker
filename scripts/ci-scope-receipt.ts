@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { getGithubJsonIfExists, getJsonString, isJsonRecord } from "./github-api.ts";
-import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
+import { isGovernedPullDirection, isManagedBranchRef } from "./resolve-pr-facts.ts";
 import { CliError } from "./runtime-command.ts";
 
 export type PrCiScope = {
@@ -50,6 +50,44 @@ export async function readCurrentPrCiScope(
   prNumber: number,
   headSha: string
 ): Promise<PrCiScope | undefined> {
+  return readPrSnapshot(reader, repository, prNumber, headSha, isGovernedPullDirection);
+}
+
+export async function readCurrentTransferScope(
+  reader: { get(path: string): Promise<unknown> },
+  repository: string,
+  prNumber: number,
+  headSha: string
+): Promise<PrCiScope | undefined> {
+  return readPrSnapshot(
+    reader,
+    repository,
+    prNumber,
+    headSha,
+    (pull) => {
+      const head = isJsonRecord(pull.head) ? pull.head : {};
+      const base = isJsonRecord(pull.base) ? pull.base : {};
+      const source = getJsonString(head, "ref");
+      const target = getJsonString(base, "ref");
+      return (
+        isManagedBranchRef(source) &&
+        isManagedBranchRef(target) &&
+        source !== target &&
+        getJsonString(head.repo, "full_name") === repository
+      );
+    },
+    true
+  );
+}
+
+async function readPrSnapshot(
+  reader: { get(path: string): Promise<unknown> },
+  repository: string,
+  prNumber: number,
+  headSha: string,
+  isDirectionAllowed: (pull: Record<string, unknown>) => boolean,
+  isTransfer = false
+): Promise<PrCiScope | undefined> {
   if (
     !repositoryPattern.test(repository) ||
     !Number.isSafeInteger(prNumber) ||
@@ -62,7 +100,7 @@ export async function readCurrentPrCiScope(
   if (
     !isJsonRecord(pull) ||
     pull.state !== "open" ||
-    !isGovernedPullDirection(pull) ||
+    !isDirectionAllowed(pull) ||
     getJsonString(pull.head, "sha") !== headSha ||
     !isJsonRecord(pull.base) ||
     getJsonString(pull.base.repo, "full_name") !== repository
@@ -70,6 +108,13 @@ export async function readCurrentPrCiScope(
     throw new CliError("PR CI scope no longer matches the admitted pull request.", 75);
   }
   const targetBranch = getJsonString(pull.base, "ref");
+  if (isTransfer) {
+    const source = targetBranch === "main" ? "dev" : "main";
+    const sourceBranch = await reader.get(`repos/${repository}/branches/${source}`);
+    if (!isJsonRecord(sourceBranch) || getJsonString(sourceBranch.commit, "sha") !== headSha) {
+      return undefined;
+    }
+  }
   const branch = await reader.get(`repos/${repository}/branches/${targetBranch}`);
   const baseSha = isJsonRecord(branch) ? getJsonString(branch.commit, "sha") : "";
   const mergeRef = await getGithubJsonIfExists(
