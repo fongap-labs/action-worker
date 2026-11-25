@@ -11,6 +11,7 @@ import {
   mainWriteEvidenceError,
   validateMainWriteProvenance,
 } from "../scripts/main-write-guard.ts";
+import { resolveManagedBranchMerge } from "../scripts/managed-branch-provenance.ts";
 import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const repository = "fongap-labs/dsh-plugin";
@@ -414,5 +415,45 @@ test("exact Delta history target enters the strict migration verifier, not the P
   assert.ok(
     !reads.some((path) => path.endsWith("/pulls?per_page=100")),
     "migration cannot be mistaken for an ordinary merged PR"
+  );
+});
+
+test("managed branch attribution never accepts a merge into the other branch", async () => {
+  const commit = { sha: mainSha, commit: { message: "fix: example (#44)" } };
+  const devPr = { ...goodPr, base: { ref: "dev" } };
+  for (const [target, pr] of [
+    ["main", goodPr],
+    ["dev", devPr],
+  ] as const) {
+    const { reader } = fixture("fix: example (#44)", [pr]);
+    assert.deepEqual(await resolveManagedBranchMerge(reader, repository, target, mainSha, commit), {
+      pr_number: 44,
+      pr_head_sha: headSha,
+    });
+    const other = target === "main" ? "dev" : "main";
+    await assert.rejects(
+      resolveManagedBranchMerge(reader, repository, other, mainSha, commit),
+      /not uniquely attributable/
+    );
+  }
+});
+
+test("dev attribution rejects a main fallback and ambiguous dev merges", async () => {
+  const commit = { sha: mainSha, commit: { message: "fix: example (#44)" } };
+  const devPr = { ...goodPr, base: { ref: "dev" } };
+  const fallback = fixture("fix: example (#44)", [], goodPr);
+  await assert.rejects(
+    resolveManagedBranchMerge(fallback.reader, repository, "dev", mainSha, commit),
+    /not uniquely attributable/
+  );
+  const ambiguous = fixture("fix: example (#44)", [devPr, devPr]);
+  await assert.rejects(
+    resolveManagedBranchMerge(ambiguous.reader, repository, "dev", mainSha, commit),
+    /not uniquely attributable/
+  );
+  const valid = fixture("fix: example (#44)", [], devPr);
+  assert.deepEqual(
+    await resolveManagedBranchMerge(valid.reader, repository, "dev", mainSha, commit),
+    { pr_number: 44, pr_head_sha: headSha }
   );
 });
