@@ -57,7 +57,9 @@ test("development protection requires strict independent status and no bypass", 
               ...rule,
               parameters: {
                 strict_required_status_checks_policy: true,
-                required_status_checks: [{ context: "validate-merge-dev", integration_id: 5609149 }],
+                required_status_checks: [
+                  { context: "validate-merge-dev", integration_id: 5609149 },
+                ],
               },
             }
           : rule
@@ -89,7 +91,10 @@ test("dev enrollment only derives a protected gate for the selected repository",
     identity.controlRepository
   );
   assert.equal(
-    protectedMergeRuleset(selected.find((rule) => rule.name === "Protect Dev Branch"), "dev"),
+    protectedMergeRuleset(
+      selected.find((rule) => rule.name === "Protect Dev Branch"),
+      "dev"
+    ),
     true
   );
   assert.equal(
