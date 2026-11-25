@@ -3,6 +3,7 @@ import { constants as fsConstants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { taskStateBranch } from "./task-state.ts";
 
 const pinnedImage = /^ghcr\.io\/fongap-labs\/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$/;
 const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
@@ -20,6 +21,7 @@ export type PrivateTaskContainerSettings = {
   repository: string;
   project: string;
   bootstrapRef: string;
+  targetBranch?: "main" | "dev";
   requestId: string;
   userId: number;
   groupId: number;
@@ -52,6 +54,7 @@ export function privateTaskDockerArguments(settings: PrivateTaskContainerSetting
   )
     reject();
 
+  const targetBranch = taskStateBranch(settings.targetBranch ?? "main");
   const args = [
     "run",
     "--rm",
@@ -86,6 +89,7 @@ export function privateTaskDockerArguments(settings: PrivateTaskContainerSetting
     `PROJECT=${settings.project}`,
     "-e",
     `BOOTSTRAP_REF=${settings.bootstrapRef}`,
+    ...(targetBranch === "dev" ? ["-e", "AW_TASK_TARGET_BRANCH=dev"] : []),
     "-e",
     `REQUEST_ID=${settings.requestId}`,
     "-e",
@@ -183,6 +187,7 @@ async function main(): Promise<void> {
     repository: process.env.TASK_SOURCE_REPOSITORY ?? "",
     project: process.env.PROJECT ?? "",
     bootstrapRef: process.env.BOOTSTRAP_REF ?? "",
+    targetBranch: taskStateBranch(process.env.AW_TASK_TARGET_BRANCH ?? "main"),
     requestId: process.env.REQUEST_ID ?? "",
     userId,
     groupId,

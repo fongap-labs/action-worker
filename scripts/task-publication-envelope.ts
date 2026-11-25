@@ -15,6 +15,7 @@ import { dirname, join, relative, sep } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { taskStateBranch } from "./task-state.ts";
 
 const maxFileBytes = 50 * 1024 * 1024;
 const maxTotalBytes = 100 * 1024 * 1024;
@@ -37,10 +38,19 @@ export type PublicationIdentity = {
   project: string;
   bootstrap_ref: string;
   request_id: string;
+  target_branch?: "main" | "dev";
 };
 
 function aad(identity: PublicationIdentity): Buffer {
-  return Buffer.from(JSON.stringify({ schema_version: "1", ...identity }));
+  const { target_branch, ...legacyIdentity } = identity;
+  const branch = taskStateBranch(target_branch ?? "main");
+  return Buffer.from(
+    JSON.stringify({
+      schema_version: "1",
+      ...legacyIdentity,
+      ...(branch === "dev" ? { target_branch: branch } : {}),
+    })
+  );
 }
 
 function validPath(path: string): boolean {
@@ -269,6 +279,7 @@ async function main(): Promise<void> {
     project: process.env.PROJECT ?? "",
     bootstrap_ref: process.env.BOOTSTRAP_REF ?? "",
     request_id: process.env.REQUEST_ID ?? "",
+    target_branch: taskStateBranch(process.env.AW_TASK_TARGET_BRANCH ?? "main"),
   };
   if (operation === "check-keys") {
     const publicKey = process.env.AW_PUBLICATION_PUBLIC_KEY ?? "";

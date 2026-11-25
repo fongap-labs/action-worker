@@ -16,7 +16,8 @@ export async function stampPrivateTaskOutput(
   directory: string,
   repository: string,
   project: string,
-  bootstrapRef: string
+  bootstrapRef: string,
+  targetBranch = "main"
 ): Promise<void> {
   if (
     !isAbsolute(directory) ||
@@ -41,7 +42,7 @@ export async function stampPrivateTaskOutput(
     0o600
   );
   try {
-    const manifest = buildTaskStateManifest(repository, project, bootstrapRef);
+    const manifest = buildTaskStateManifest(repository, project, bootstrapRef, targetBranch);
     await handle.writeFile(`${JSON.stringify(manifest)}\n`, "utf8");
   } finally {
     await handle.close();
@@ -54,7 +55,8 @@ async function main(): Promise<void> {
     directory,
     process.env.TASK_SOURCE_REPOSITORY ?? "",
     process.env.PROJECT ?? "",
-    process.env.BOOTSTRAP_REF ?? ""
+    process.env.BOOTSTRAP_REF ?? "",
+    process.env.AW_TASK_TARGET_BRANCH ?? "main"
   );
   console.log("Isolated private output passed state integrity checks.");
 }

@@ -179,3 +179,35 @@ test("private historical state is not replaced with a new key when the old key i
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("trusted dev preparation produces a branch-bound state envelope", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aw-prepare-dev-state-"));
+  try {
+    const key = keys();
+    const prepared = await prepareTrustedTaskState({
+      ...options(root, key.publicKey, join(root, "unused"), [], true),
+      targetBranch: "dev",
+    });
+    const identity = {
+      repository,
+      project,
+      bootstrap_ref: bootstrapRef,
+      request_id: "request-1",
+      run_id: "42000001",
+      run_attempt: "1",
+      purpose: "state-to-task" as const,
+    };
+    assert.throws(() => openTaskTransfer(prepared.envelope, identity, key.privateKey));
+    const opened = openTaskTransfer(
+      prepared.envelope,
+      { ...identity, target_branch: "dev" },
+      key.privateKey
+    );
+    const target = join(root, "unpacked");
+    await unpackTaskTransferFiles(opened, target);
+    const manifest = JSON.parse(await readFile(join(target, "manifest.json"), "utf8"));
+    assert.equal(manifest.target_branch, "dev");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

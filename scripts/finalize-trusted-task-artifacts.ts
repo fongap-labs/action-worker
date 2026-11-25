@@ -8,6 +8,7 @@ import {
   sealedLogFile,
   sealedStateFile,
   sealStateDirectory,
+  taskStateBranch,
 } from "./task-state.ts";
 import { runTaskTransferCommand } from "./task-transfer-job.ts";
 
@@ -17,6 +18,7 @@ export type TaskFinalizationOptions = {
   repository: string;
   project: string;
   bootstrapRef: string;
+  targetBranch?: "main" | "dev";
   requestId: string;
   runId: string;
   runAttempt: string;
@@ -42,7 +44,9 @@ export async function finalizeTrustedTaskArtifacts(
   if (options.encryptedStatePath === null && options.encryptedLogPath === null) {
     throw new CliError("Trusted finalization received no encrypted task result.", 77);
   }
+  const targetBranch = taskStateBranch(options.targetBranch ?? "main");
   const trustedEnv: Environment = {
+    AW_TASK_TARGET_BRANCH: targetBranch,
     TASK_SOURCE_REPOSITORY: options.repository,
     PROJECT: options.project,
     BOOTSTRAP_REF: options.bootstrapRef,
@@ -72,7 +76,8 @@ export async function finalizeTrustedTaskArtifacts(
         current,
         options.repository,
         options.project,
-        join(sealed, sealedStateFile)
+        join(sealed, sealedStateFile),
+        targetBranch
       );
       stateUploadPath = sealed;
     } else {
@@ -103,7 +108,8 @@ export async function finalizeTrustedTaskArtifacts(
       "task-log",
       options.repository,
       options.project,
-      bytes
+      bytes,
+      targetBranch
     );
     await writeFile(join(sealed, sealedLogFile), ciphertext, { flag: "wx", mode: 0o600 });
     await rm(log, { force: true });
@@ -126,6 +132,7 @@ async function main(): Promise<void> {
       repository: process.env.TASK_SOURCE_REPOSITORY ?? "",
       project: process.env.PROJECT ?? "",
       bootstrapRef: process.env.BOOTSTRAP_REF ?? "",
+      targetBranch: taskStateBranch(process.env.AW_TASK_TARGET_BRANCH ?? "main"),
       requestId: process.env.REQUEST_ID ?? "",
       runId: process.env.GITHUB_RUN_ID ?? "",
       runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? "",

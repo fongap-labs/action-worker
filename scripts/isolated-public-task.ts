@@ -171,6 +171,7 @@ export async function finalizeIsolatedPublicState(
 
 async function main(): Promise<void> {
   const [command = "", arg = "", destination = ""] = process.argv.slice(2);
+  if ((process.env.AW_TASK_TARGET_BRANCH ?? "main") !== "main") fail();
   const repository = process.env.TASK_SOURCE_REPOSITORY ?? "";
   const project = process.env.PROJECT ?? "";
   const sha = (process.env.BOOTSTRAP_REF ?? "").toLowerCase();

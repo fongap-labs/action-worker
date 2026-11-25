@@ -6,6 +6,10 @@ on:
 
 permissions: {}
 
+# The request is validated before any execution job or source credential is admitted.
+env:
+  AW_TASK_TARGET_BRANCH: ${{ github.event.client_payload.target_branch || 'main' }}
+
 # Serialize the complete state lifecycle, not only execution. Colons separate
 # repository/project because neither validated identity permits ':'.
 # Any external writer must still adopt the same protocol before pilot activation.
@@ -293,6 +297,13 @@ jobs:
           path: task-source
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Verify checked-out task source identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$AW_TASK_TARGET_BRANCH" = "main"
+          test "$(git -C task-source rev-parse HEAD)" = "$BOOTSTRAP_REF"
 
       - name: Export repository variables
         env:
