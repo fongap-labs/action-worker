@@ -704,12 +704,39 @@ test("main branch ruleset requires fongap-bot to publish the merge gate", async 
   ]);
 });
 
+test("dev remains locked until independent branch governance is admitted", async () => {
+  const value = JSON.parse(await readFile("policies/rulesets.json", "utf8")) as unknown;
+  const rulesets = rulesetPayloads(value);
+  const dev = rulesets.find((ruleset) => ruleset.name === "Protect Dev Branch");
+  assert.ok(dev);
+  assert.deepEqual(dev, {
+    name: "Protect Dev Branch",
+    target: "branch",
+    enforcement: "active",
+    bypass_actors: [],
+    conditions: { ref_name: { exclude: [], include: ["refs/heads/dev"] } },
+    rules: [
+      { type: "creation" },
+      { type: "deletion" },
+      { type: "non_fast_forward" },
+      { type: "update" },
+    ],
+  });
+  for (const repository of ["fongap-labs/action-worker", "fongap-labs/delta"]) {
+    const scoped = rulesetsForRepository(rulesets, repository, "fongap-labs/action-worker");
+    assert.deepEqual(
+      scoped.find((ruleset) => ruleset.name === "Protect Dev Branch"),
+      dev
+    );
+  }
+});
+
 test("control repository keeps its original merge gate without a second approval channel", async () => {
   const value = JSON.parse(await readFile("policies/rulesets.json", "utf8")) as unknown;
   const rulesets = rulesetPayloads(value);
   assert.deepEqual(
     rulesets.map((ruleset) => ruleset.name),
-    ["Protect Main Branch", "Protect Legacy Branches"]
+    ["Protect Main Branch", "Protect Legacy Branches", "Protect Dev Branch"]
   );
   const control = rulesetsForRepository(
     rulesets,

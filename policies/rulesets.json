@@ -76,6 +76,32 @@
           "type": "update"
         }
       ]
+    },
+    {
+      "name": "Protect Dev Branch",
+      "target": "branch",
+      "enforcement": "active",
+      "bypass_actors": [],
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": ["refs/heads/dev"]
+        }
+      },
+      "rules": [
+        {
+          "type": "creation"
+        },
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        },
+        {
+          "type": "update"
+        }
+      ]
     }
   ]
 }

@@ -154,7 +154,7 @@ async function applyRulesets(
 ): Promise<void> {
   if (isPrivate) {
     console.warn(
-      `::warning::Main branch protection is NOT enforced for private repository ${repository}: GitHub Free organization rulesets are unavailable. The post-merge audit cannot prevent a merge. Upgrade the GitHub plan to enable enforceable required checks.`
+      `::warning::Managed branch protection is NOT enforced for private repository ${repository}: GitHub Free organization rulesets are unavailable. The post-merge audit cannot prevent a merge. Upgrade the GitHub plan to enable enforceable required checks.`
     );
     return;
   }
