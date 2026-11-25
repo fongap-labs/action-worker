@@ -2,7 +2,7 @@ import { constants as fsConstants } from "node:fs";
 import { mkdir, open, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
-import { verifyTaskStateDirectory } from "./task-state.ts";
+import { taskStateBranch, verifyTaskStateDirectory } from "./task-state.ts";
 import {
   openTaskTransfer,
   sealTaskTransfer,
@@ -28,6 +28,7 @@ function identityFrom(env: Environment, purpose: TransferPurpose): TransferIdent
     run_id: env.GITHUB_RUN_ID ?? "",
     run_attempt: env.GITHUB_RUN_ATTEMPT ?? "",
     purpose,
+    target_branch: taskStateBranch(env.AW_TASK_TARGET_BRANCH ?? "main"),
   };
 }
 
@@ -94,7 +95,14 @@ async function writeExclusive(path: string, bytes: Buffer): Promise<void> {
 }
 
 async function requireStateManifest(path: string, identity: TransferIdentity): Promise<void> {
-  if (!(await verifyTaskStateDirectory(path, identity.repository, identity.project))) {
+  if (
+    !(await verifyTaskStateDirectory(
+      path,
+      identity.repository,
+      identity.project,
+      identity.target_branch
+    ))
+  ) {
     throw new CliError("Task transfer source state manifest does not match its identity.", 66);
   }
   if (identity.purpose === "state-from-task") {

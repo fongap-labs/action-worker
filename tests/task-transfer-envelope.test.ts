@@ -49,6 +49,7 @@ test("task transfer rejects cross-project, run and purpose replay", () => {
     { ...identity, run_attempt: "2" },
     { ...identity, purpose: "state-to-task" },
     { ...identity, purpose: "log-from-task" },
+    { ...identity, target_branch: "dev" },
   ];
   for (const other of wrong) {
     assert.throws(() => openTaskTransfer(encrypted, other, pair.privateKey), /authentication/);
@@ -120,4 +121,13 @@ test("task transfer rejects malformed context before encryption", () => {
       sealTaskTransfer(Buffer.from("data"), { ...identity, project: "../other" }, pair.publicKey),
     /identity/
   );
+});
+
+test("dev transfer cannot be opened using the main identity", () => {
+  const pair = keypair();
+  const plain = Buffer.from("branch-specific state");
+  const dev: TransferIdentity = { ...identity, target_branch: "dev" };
+  const sealed = sealTaskTransfer(plain, dev, pair.publicKey);
+  assert.deepEqual(openTaskTransfer(sealed, dev, pair.privateKey), plain);
+  assert.throws(() => openTaskTransfer(sealed, identity, pair.privateKey), /authentication/);
 });

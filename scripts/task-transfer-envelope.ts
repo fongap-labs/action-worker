@@ -10,6 +10,7 @@ import {
 } from "node:crypto";
 import { isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
+import { taskStateBranch } from "./task-state.ts";
 
 // This primitive does not authorize any job, key distribution or artifact download.
 // Callers must enforce the isolated runner contract before using it in production.
@@ -27,6 +28,7 @@ export type TransferIdentity = {
   run_id: string;
   run_attempt: string;
   purpose: TransferPurpose;
+  target_branch?: "main" | "dev";
 };
 
 function validateIdentity(identity: TransferIdentity): void {
@@ -45,6 +47,7 @@ function validateIdentity(identity: TransferIdentity): void {
 
 function authenticatedIdentity(identity: TransferIdentity): Buffer {
   validateIdentity(identity);
+  const branch = taskStateBranch(identity.target_branch ?? "main");
   return Buffer.from(
     JSON.stringify({
       domain: "action-worker-task-transfer-v1",
@@ -55,6 +58,7 @@ function authenticatedIdentity(identity: TransferIdentity): Buffer {
       run_id: identity.run_id,
       run_attempt: identity.run_attempt,
       purpose: identity.purpose,
+      ...(branch === "dev" ? { target_branch: branch } : {}),
     }),
     "utf8"
   );

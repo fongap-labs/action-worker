@@ -46,7 +46,7 @@ function requireText(value: string, label: string): void {
   }
 }
 
-function taskStateBranch(branch: string): "main" | "dev" {
+export function taskStateBranch(branch: string): "main" | "dev" {
   if (branch === "main" || branch === "dev") return branch;
   throw new CliError("Task state target branch is invalid.", 64);
 }
@@ -432,20 +432,21 @@ export function taskLogView(
 
 async function main(): Promise<void> {
   const [command = "", ...args] = process.argv.slice(2);
+  const targetBranch = taskStateBranch(process.env.AW_TASK_TARGET_BRANCH ?? "main");
   switch (command) {
     case "name": {
       const [repository = "", project = ""] = args;
-      console.log(taskStateArtifactName(repository, project));
+      console.log(taskStateArtifactName(repository, project, targetBranch));
       return;
     }
     case "write": {
       const [directory = "", repository = "", project = "", ref = ""] = args;
-      await writeTaskStateManifest(directory, repository, project, ref);
+      await writeTaskStateManifest(directory, repository, project, ref, targetBranch);
       return;
     }
     case "verify": {
       const [directory = "", repository = "", project = ""] = args;
-      if (!(await verifyTaskStateDirectory(directory, repository, project))) {
+      if (!(await verifyTaskStateDirectory(directory, repository, project, targetBranch))) {
         process.exitCode = 1;
       }
       return;
@@ -469,6 +470,7 @@ async function main(): Promise<void> {
           stateRoot,
           repository,
           project,
+          targetBranch,
           isPrivate: visibility !== "public",
           key: keyFromEnvironment(),
           reader: new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
@@ -513,7 +515,8 @@ async function main(): Promise<void> {
             join(stateRoot, "current"),
             repository,
             project,
-            join(uploadPath, sealedStateFile)
+            join(uploadPath, sealedStateFile),
+            targetBranch
           );
         }
       }
@@ -529,7 +532,14 @@ async function main(): Promise<void> {
         console.log("::notice::Set the AW_ARTIFACT_KEY secret to keep failed private task logs.");
       } else {
         await mkdir(outDirectory, { recursive: true });
-        const sealed = sealBytes(key, "task-log", repository, project, await readFile(logFile));
+        const sealed = sealBytes(
+          key,
+          "task-log",
+          repository,
+          project,
+          await readFile(logFile),
+          targetBranch
+        );
         await writeFile(join(outDirectory, sealedLogFile), sealed);
         uploadPath = outDirectory;
       }
@@ -542,7 +552,7 @@ async function main(): Promise<void> {
       const key = keyFromEnvironment();
       if (key === null) throw new CliError("AW_ARTIFACT_KEY is required to open a task log.", 64);
       const sealed = await readFile(sealedFile);
-      await writeFile(outFile, openBytes(key, "task-log", repository, project, sealed));
+      await writeFile(outFile, openBytes(key, "task-log", repository, project, sealed, targetBranch));
       return;
     }
     default:

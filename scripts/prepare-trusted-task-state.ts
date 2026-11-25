@@ -7,6 +7,7 @@ import {
   artifactKey,
   type RestoreOptions,
   restoreTaskState,
+  taskStateBranch,
   verifyTaskStateDirectory,
   writeTaskStateManifest,
 } from "./task-state.ts";
@@ -36,6 +37,7 @@ export async function prepareTrustedTaskState(
   if (options.isPrivate && options.key === null) {
     throw new CliError("Private state recovery requires the existing protected artifact key.", 77);
   }
+  const targetBranch = taskStateBranch(options.targetBranch ?? "main");
   const stateRoot = join(options.workRoot, "task-state");
   await mkdir(join(stateRoot, "previous"), { recursive: true, mode: 0o700 });
   await mkdir(join(stateRoot, "current"), { recursive: true, mode: 0o700 });
@@ -51,10 +53,11 @@ export async function prepareTrustedTaskState(
       previous,
       options.repository,
       options.project,
-      options.bootstrapRef
+      options.bootstrapRef,
+      targetBranch
     );
   }
-  if (!(await verifyTaskStateDirectory(previous, options.repository, options.project))) {
+  if (!(await verifyTaskStateDirectory(previous, options.repository, options.project, targetBranch))) {
     throw new CliError("Historical task state has no trusted matching manifest.", 66);
   }
   const identity: TransferIdentity = {
@@ -65,6 +68,7 @@ export async function prepareTrustedTaskState(
     run_id: options.runId,
     run_attempt: options.runAttempt,
     purpose: "state-to-task",
+    target_branch: targetBranch,
   };
   const bytes = await packTaskTransferFiles(previous);
   const envelope = sealTaskTransfer(bytes, identity, options.inboundPublicKey);
@@ -89,6 +93,7 @@ async function main(): Promise<void> {
       repository,
       project,
       bootstrapRef: process.env.BOOTSTRAP_REF ?? "",
+      targetBranch: taskStateBranch(process.env.AW_TASK_TARGET_BRANCH ?? "main"),
       requestId: process.env.REQUEST_ID ?? "",
       runId: process.env.GITHUB_RUN_ID ?? "",
       runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? "",

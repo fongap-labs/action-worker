@@ -73,6 +73,15 @@ test("task publication is confidential across the runner boundary and bound to s
       await readFile(join(opened, "payload", "nested", "sensitive.txt"), "utf8"),
       "private-results"
     );
+    const dev = { ...identity, target_branch: "dev" as const };
+    await assert.rejects(
+      openTaskPublication(sealed, dev, pair.privateKey, join(root, "wrong-branch"))
+    );
+    const devSealed = await sealTaskPublication(input, dev, pair.publicKey);
+    await assert.rejects(
+      openTaskPublication(devSealed, identity, pair.privateKey, join(root, "wrong-main"))
+    );
+    await openTaskPublication(devSealed, dev, pair.privateKey, join(root, "dev"));
     const altered = JSON.parse(sealed.toString("utf8")) as Record<string, string>;
     altered.tag = Buffer.alloc(16).toString("base64");
     await assert.rejects(

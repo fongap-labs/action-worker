@@ -191,3 +191,31 @@ test("bad run identity and missing original key are rejected before state output
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("trusted finalization rejects a dev result under main and reseals it for dev", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aw-finalize-dev-state-"));
+  try {
+    const key = pair();
+    const source = join(root, "output");
+    await writeTaskStateManifest(source, repository, project, ref, "dev");
+    const encrypted = join(root, "outbound.seal");
+    await runTaskTransferCommand("seal-state", "state-from-task", source, encrypted, {
+      ...transferEnv(key.publicKey),
+      AW_TASK_TARGET_BRANCH: "dev",
+    });
+    const settings = finalizeSettings(root, key.privateKey, encrypted, null);
+    await assert.rejects(finalizeTrustedTaskArtifacts(settings), /authentication/);
+    const result = await finalizeTrustedTaskArtifacts({ ...settings, targetBranch: "dev" });
+    assert.ok(result.stateUploadPath);
+    const file = join(result.stateUploadPath, sealedStateFile);
+    await assert.rejects(
+      openStateFile(originalKey, file, repository, project, join(root, "wrong"), true)
+    );
+    const previous = join(root, "previous");
+    await openStateFile(originalKey, file, repository, project, previous, true, "dev");
+    const manifest = JSON.parse(await readFile(join(previous, "manifest.json"), "utf8"));
+    assert.equal(manifest.target_branch, "dev");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
