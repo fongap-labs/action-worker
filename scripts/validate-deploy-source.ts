@@ -182,9 +182,7 @@ async function main(): Promise<void> {
   ) {
     throw new CliError("Beta deployment requires trusted manual control and a public source.", 75);
   }
-  const defaultCommit = await reader.get(
-    `repos/${request.source_repository}/commits/${branch}`
-  );
+  const defaultCommit = await reader.get(`repos/${request.source_repository}/commits/${branch}`);
   const defaultSha = getJsonString(defaultCommit, "sha");
   if (!shaPattern.test(defaultSha)) {
     throw new CliError("::error::Deploy source default HEAD is invalid.", 65);

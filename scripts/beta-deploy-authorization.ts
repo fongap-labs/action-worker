@@ -17,15 +17,26 @@ export function readBetaDeployPolicy(): unknown {
   ) as unknown;
 }
 
+const reservedNames = new Set([
+  "PATH",
+  "HOME",
+  "SHELL",
+  "ENV",
+  "IFS",
+  "GH_TOKEN",
+  "TMPDIR",
+  "LANG",
+  "LC_ALL",
+  "TZ",
+]);
+
 function safeName(name: string): boolean {
   return (
     /^[A-Z][A-Z0-9_]{0,99}$/.test(name) &&
     !/^(?:AW_|GITHUB_|RUNNER_|ACTIONS_|DEPLOY_|BETA_|LD_|DYLD_|BASH_|GIT_|NODE_|NPM_CONFIG_)/.test(
       name
     ) &&
-    !["PATH", "HOME", "SHELL", "ENV", "IFS", "GH_TOKEN", "TMPDIR", "LANG", "LC_ALL", "TZ"].includes(
-      name
-    )
+    !reservedNames.has(name)
   );
 }
 

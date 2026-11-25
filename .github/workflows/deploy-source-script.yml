@@ -187,7 +187,7 @@ jobs:
             unset auth
           fi
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
-            echo "::error::source_sha must be a full 40-character lowercase commit SHA, or empty to deploy the current default-branch HEAD: got '$SOURCE_SHA'." >&2
+            echo "::error::source_sha must be a full 40-character lowercase commit SHA, or empty to deploy the selected branch HEAD: got '$SOURCE_SHA'." >&2
             exit 64
           }
           {
@@ -210,7 +210,8 @@ jobs:
                 source_sha: $source_sha,
                 source_branch: $source_branch,
                 product: $product,
-                environment: $environment
+                environment: $environment,
+                trigger: "manual"
               }'
           )"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"

@@ -49,7 +49,8 @@ export function selectDeployCredentialEnvironment(
         !environmentPattern.test(logical) ||
         !authorizedEnvironments[routeKey]?.includes(logical) ||
         typeof actual !== "string" ||
-        (!opsPattern.test(actual) || actual.startsWith("beta-"))
+        !opsPattern.test(actual) ||
+        actual.startsWith("beta-")
       ) {
         throw new CliError("Deployment credential Environment route is invalid.", 65);
       }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   betaDeployCredentialPlan,
@@ -88,4 +89,19 @@ test("Beta Environment must actually exist and have reviewers", async () => {
     );
   await assert.rejects(verify([]), /requires configured reviewers/);
   await verify([{ type: "required_reviewers", reviewers: [{ id: 1 }] }]);
+});
+
+test("manual Beta dispatch carries its trigger and never starts production audit", () => {
+  const workflow = readFileSync(".github/workflows/deploy-source-script.yml", "utf8");
+  const manual = workflow
+    .split("- name: Resolve manual deploy request")[1]
+    ?.split("- name: Mint deploy source CI status token")[0];
+  assert.match(manual ?? "", /source_branch: \$source_branch/);
+  assert.match(manual ?? "", /trigger: "manual"/);
+  assert.match(
+    workflow,
+    /- name: Attest the source main write\n\s+if: steps\.manual_request\.outputs\.source_branch != 'dev'/
+  );
+  const audit = workflow.split("  record_production_deployment:")[1];
+  assert.match(audit ?? "", /needs\.prepare\.outputs\.environment == 'production'/);
 });
