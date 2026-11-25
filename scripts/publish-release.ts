@@ -3,6 +3,10 @@ import { access, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertBranchReleaseVersion,
+  assertMainPublicationBranch,
+} from "./branch-publication-policy.ts";
 import { prepareReleaseNotes, type ReleasePolicy } from "./changelog-release-notes.ts";
 import {
   assertExactMergedChangelogResume,
@@ -409,6 +413,7 @@ async function main(): Promise<void> {
 
   const sourceRepoJson = await getGithubJson(`repos/${sourceRepository}`, controlToken);
   const defaultBranch = getJsonString(sourceRepoJson, "default_branch");
+  assertMainPublicationBranch(defaultBranch);
   const defaultCommit = await getGithubJson(
     `repos/${sourceRepository}/commits/${defaultBranch}`,
     controlToken
@@ -536,6 +541,7 @@ async function main(): Promise<void> {
     }
 
     const manifest = asManifest(await readJson(manifestPath));
+    assertBranchReleaseVersion(defaultBranch, manifest.version, manifest.prerelease ?? false);
     const actualFiles = await listRootFiles(artifactDir, [
       "release-manifest.json",
       "release-provenance.json",
@@ -576,6 +582,7 @@ async function main(): Promise<void> {
 
     const targetRepoJson = await getGithubJson(`repos/${targetRepository}`, controlToken);
     const targetBranch = getJsonString(targetRepoJson, "default_branch");
+    assertMainPublicationBranch(targetBranch);
     const targetCommit = await getGithubJson(
       `repos/${targetRepository}/commits/${targetBranch}`,
       controlToken

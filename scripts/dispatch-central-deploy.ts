@@ -1,3 +1,4 @@
+import { assertMainPublicationBranch } from "./branch-publication-policy.ts";
 import { requireToken } from "./control-token.ts";
 import {
   type DeployAdapter,
@@ -300,6 +301,7 @@ async function main(): Promise<void> {
   );
   const repositoryJson = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryJson, "default_branch");
+  assertMainPublicationBranch(defaultBranch);
   const defaultCommit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
   const defaultSha = getJsonString(defaultCommit, "sha");
   if (!shaPattern.test(defaultSha)) {

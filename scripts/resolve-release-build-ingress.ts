@@ -1,3 +1,7 @@
+import {
+  assertBranchReleaseVersion,
+  assertMainPublicationBranch,
+} from "./branch-publication-policy.ts";
 import { bumpForChanges, loadReleaseSpan, nextVersion } from "./compute-release-version.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
@@ -69,8 +73,9 @@ export async function resolveManualReleaseBuild(
   }
   if (onVisibility) onVisibility(sourceRepositoryVisibility(repo));
   const defaultBranch = getJsonString(repo, "default_branch");
-  if (!defaultBranch) {
-    throw new CliError("Repository default branch is unavailable.", 65);
+  assertMainPublicationBranch(defaultBranch);
+  if (requestedVersionRaw !== "") {
+    assertBranchReleaseVersion(defaultBranch, normalizeReleaseVersion(requestedVersionRaw), false);
   }
   const commit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
   const sourceSha = getJsonString(commit, "sha");
@@ -132,10 +137,13 @@ async function main(): Promise<void> {
       )
     );
     enforcePluginsManualVersion(request.source_repository, request.requested_version, eventName);
+    assertBranchReleaseVersion("main", request.requested_version, false);
     const token = process.env.AW_CONTROL_TOKEN ?? "";
     if (!token) throw new CliError("AW_CONTROL_TOKEN is required.", 77);
     const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
-    isPrivate = sourceRepositoryVisibility(await reader.get(`repos/${request.source_repository}`));
+    const repository = await reader.get(`repos/${request.source_repository}`);
+    assertMainPublicationBranch(getJsonString(repository, "default_branch"));
+    isPrivate = sourceRepositoryVisibility(repository);
   } else if (eventName === "workflow_dispatch") {
     const token = process.env.AW_CONTROL_TOKEN ?? "";
     const policy = parseJson(

@@ -215,7 +215,7 @@ test("an empty requested version refuses a span without release-worthy changes",
 test("an entered version never reads the commit span", async () => {
   // Only the repository, its head and the manifest are served: any read of the tags, the compare or
   // the commit list would fail the reader, as a span of more than 50 commits fails the real one.
-  for (const entered of ["1.2.3", "v0.1.1-beta.3"]) {
+  for (const entered of ["1.2.3", "v0.1.1"]) {
     const reader = rootLayoutReader(
       manifestJson(),
       {
@@ -370,4 +370,20 @@ test("plugins repository refuses automatic release versions and non-manual dispa
   assert.doesNotThrow(() =>
     enforcePluginsManualVersion("fongap-labs/example", "", "repository_dispatch")
   );
+});
+
+test("main release ingress rejects Beta and a changed default branch before reading source", async () => {
+  for (const [branch, version, expected] of [
+    ["main", "1.2.3-beta.1", /Release channel mismatch/],
+    ["dev", "1.2.3", /requires the managed main branch/],
+  ] as const) {
+    const reader = rootLayoutReader(manifestJson(), {
+      "repos/fongap-labs/example": { default_branch: branch },
+    });
+    await assert.rejects(
+      resolveManualReleaseBuild("fongap-labs/example", version, policy(), reader, "123", "1"),
+      expected
+    );
+    assert.deepEqual(reader.calls, ["repos/fongap-labs/example"]);
+  }
 });

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { assertMainPublicationBranch } from "./branch-publication-policy.ts";
 import { hasVerifiedCiEvidence, type JsonReader, latestCiStatus } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import { latestCronSlot, minuteFloor, parseCronSchedule, slotKey } from "./cron-schedule.ts";
@@ -136,9 +137,7 @@ export async function scheduledDeployTargets(
 async function defaultHead(reader: ContentReader, repository: string): Promise<string> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
-  if (!defaultBranch) {
-    throw new CliError(`Repository default branch is unavailable: ${repository}.`, 65);
-  }
+  assertMainPublicationBranch(defaultBranch);
   const commit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
   const sha = getJsonString(commit, "sha");
   if (!shaPattern.test(sha)) {

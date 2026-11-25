@@ -1,3 +1,7 @@
+import {
+  assertBranchDeployEnvironment,
+  assertMainPublicationBranch,
+} from "./branch-publication-policy.ts";
 import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
 import {
   type DeployAdapter,
@@ -144,6 +148,8 @@ async function main(): Promise<void> {
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const repository = await reader.get(`repos/${request.source_repository}`);
   const defaultBranch = getJsonString(repository, "default_branch");
+  assertMainPublicationBranch(defaultBranch);
+  if (request.environment) assertBranchDeployEnvironment(defaultBranch, request.environment);
   const defaultCommit = await reader.get(
     `repos/${request.source_repository}/commits/${defaultBranch}`
   );
@@ -190,6 +196,7 @@ async function main(): Promise<void> {
       65
     );
   }
+  assertBranchDeployEnvironment(defaultBranch, manifest.environment);
   assertDeployTrigger(trigger, manifest);
 
   // A manual deploy requests central CI for the commit just before this step, so wait for it.

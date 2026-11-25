@@ -142,3 +142,23 @@ test("release script refuses missing App writer and enforces artifact target mat
     /rollbackRelease\(\s*targetRepository,\s*tag,\s*releaseId,\s*isReleaseCreated,\s*isPublishAttempted,\s*releaseWriteToken\s*\)/
   );
 });
+
+test("the current release target gate refuses Beta and inconsistent prerelease flags", () => {
+  for (const candidate of [
+    { ...manifest, version: "1.2.3-beta.1", prerelease: true },
+    { ...manifest, version: "1.2.3-beta.1", prerelease: false },
+    { ...manifest, prerelease: true },
+  ]) {
+    assert.throws(
+      () =>
+        releaseTargetFromArtifact(
+          request,
+          candidate,
+          provenance,
+          policy,
+          "fongap-labs/action-worker"
+        ),
+      /Release channel mismatch/
+    );
+  }
+});

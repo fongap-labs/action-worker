@@ -1,3 +1,7 @@
+import {
+  assertBranchReleaseVersion,
+  assertMainPublicationBranch,
+} from "./branch-publication-policy.ts";
 import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
 import { isPinPublished, type JsonReader, readFileAt } from "./follow-github.ts";
 import { isPinValueOf, parseFollowManifest, pinValueAt } from "./follow-pins.ts";
@@ -374,6 +378,8 @@ async function main(): Promise<void> {
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const repository = await reader.get(`repos/${request.source_repository}`);
   const defaultBranch = getJsonString(repository, "default_branch");
+  assertMainPublicationBranch(defaultBranch);
+  assertBranchReleaseVersion(defaultBranch, request.requested_version, false);
   const commit = await reader.get(`repos/${request.source_repository}/commits/${defaultBranch}`);
   const defaultSha = getJsonString(commit, "sha");
   if (request.source_sha !== defaultSha) {
