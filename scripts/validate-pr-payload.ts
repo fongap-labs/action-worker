@@ -39,7 +39,8 @@ export function validatePayload(value: unknown, canAllowDevCi = false): void {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const canAllowDevCi = args.length === 2 && args[1] === "--central-ci";
+  const canAllowDevCi =
+    args.length === 2 && ["--central-ci", "--pr-governance"].includes(args[1] ?? "");
   if (args.length !== 1 && !canAllowDevCi) {
     throw new CliError("Usage: validate-pr-payload.ts <payload-json>", 64);
   }

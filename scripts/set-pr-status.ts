@@ -1,6 +1,6 @@
 import { requireToken } from "./control-token.ts";
 import { runGithubCli } from "./github-api.ts";
-import { loadGateContract } from "./governance-gate-contract.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 import { retryTransientStatusWrite } from "./status-write-retry.ts";
@@ -14,7 +14,19 @@ async function main(): Promise<void> {
     );
   }
   const [repository = "", sha = "", state = "", description = "", targetUrl = ""] = args;
-  const context = process.env.PR_STATUS_CONTEXT ?? loadGateContract().status_contexts.pr_governance;
+  const contract = loadGateContract();
+  const branch = process.env.AW_PR_TARGET_BRANCH ?? "main";
+  const contexts = gateContextsForBranch(contract, branch);
+  const requested = process.env.PR_STATUS_CONTEXT ?? contract.status_contexts.pr_governance;
+  let context = requested;
+  if (branch === "dev") {
+    if (requested === contract.status_contexts.pr_governance) context = contexts.pr_governance;
+    else if (requested === contract.status_contexts.merge_validation) {
+      context = contexts.merge_validation;
+    } else {
+      throw new CliError("Invalid dev PR status role.", 65);
+    }
+  }
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
     throw new CliError(`::error::Invalid repository: ${repository}.`, 64);
   }

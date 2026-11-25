@@ -115,7 +115,7 @@ test("CI evidence polling clips jitter at the remaining time budget", () => {
   }
 });
 
-test("PR governance and advisory review pass their exact PR number to CI evidence polling", () => {
+test("PR governance and advisory review pass their exact PR number and branch to CI evidence polling", () => {
   const expectedCommand =
     'node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json" "$PR_NUMBER"';
   for (const { file, job, numberExpression } of [
@@ -148,8 +148,14 @@ test("PR governance and advisory review pass their exact PR number to CI evidenc
         step.run?.startsWith("node scripts/wait-ci-evidence.ts")
     );
     assert.equal(waits.length, 1, file);
-    assert.equal(waits[0]!.run, expectedCommand, file);
+    const command = job === "govern" ? `${expectedCommand} "$TARGET_BRANCH"` : expectedCommand;
+    assert.equal(waits[0]!.run, command, file);
     assert.equal(waits[0]!.env?.PR_NUMBER, numberExpression, file);
+    assert.equal(
+      waits[0]!.env?.TARGET_BRANCH,
+      job === "govern" ? "${{ steps.payload.outputs.target_branch }}" : undefined,
+      file
+    );
   }
 });
 

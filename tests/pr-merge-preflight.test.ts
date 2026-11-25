@@ -102,3 +102,24 @@ test("PR Governance checks conflicts before dispatching full CI", () => {
   assert.match(workflow, /update-branch/);
   assert.match(workflow, /expected_head_sha=\$HEAD_SHA/);
 });
+
+test("dev preflight never automatically refreshes a task branch", () => {
+  const base = { sha: baseSha, ref: "dev", repo: { full_name: repository } };
+  const head = { sha: headSha, ref: "feat/example", repo: { full_name: repository } };
+  assert.equal(
+    classifyPrMergeability(pull({ base, head }), repository, prNumber, headSha, baseSha, "dev"),
+    "ready"
+  );
+  assert.throws(
+    () =>
+      classifyPrMergeability(
+        pull({ base, head, mergeable_state: "behind" }),
+        repository,
+        prNumber,
+        headSha,
+        baseSha,
+        "dev"
+      ),
+    /within its own task branch/
+  );
+});

@@ -6,6 +6,7 @@ import {
   selectDependencyRepair,
 } from "./dependency-repair.ts";
 import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
@@ -19,11 +20,16 @@ type GithubGet = {
   get(path: string): Promise<unknown>;
 };
 
-type Dispatch = (repository: string, prNumber: number, headSha: string) => Promise<void>;
+type Dispatch = (
+  repository: string,
+  prNumber: number,
+  headSha: string,
+  targetBranch?: "main" | "dev"
+) => Promise<void>;
 type Reserve = (
   repository: string,
   headSha: string,
-  context: "PR Governance" | "Dependency Repair",
+  context: "PR Governance" | "Dependency Repair" | "Dev PR Governance",
   description: string
 ) => Promise<void>;
 
@@ -64,7 +70,7 @@ async function reserveOrBlock(
   result: IntakeResult,
   repository: string,
   headSha: string,
-  context: "PR Governance" | "Dependency Repair",
+  context: "PR Governance" | "Dependency Repair" | "Dev PR Governance",
   description: string
 ): Promise<boolean> {
   if (!reserve) return true;
@@ -160,11 +166,13 @@ async function needsDispatch(
   statuses: Map<string, StatusFact>,
   reader: GithubGet,
   controlRepository: string,
-  currentTitle: string
+  currentTitle: string,
+  targetBranch = "main"
 ): Promise<"dispatch" | "in-flight" | "processed"> {
-  const governance = statuses.get("PR Governance");
-  const evidence = statuses.get("CI Evidence");
-  const mergeGate = statuses.get("validate-merge");
+  const contexts = gateContextsForBranch(loadGateContract(), targetBranch);
+  const governance = statuses.get(contexts.pr_governance);
+  const evidence = statuses.get(contexts.ci_evidence);
+  const mergeGate = statuses.get(contexts.merge_validation);
   const facts = [governance, evidence, mergeGate].filter(
     (item): item is StatusFact => item !== undefined
   );
@@ -326,6 +334,53 @@ export async function scanOpenPullRequests(
     for (const pull of pulls) {
       const headRef = getJsonString(pull.pull.head, "ref");
       const baseRef = getJsonString(pull.pull.base, "ref");
+      const baseRepo = isJsonRecord(pull.pull.base) ? pull.pull.base.repo : undefined;
+      const headRepo = isJsonRecord(pull.pull.head) ? pull.pull.head.repo : undefined;
+      if (
+        baseRef === "dev" &&
+        headRef !== "" &&
+        !isManagedBranchRef(headRef) &&
+        isJsonRecord(baseRepo) &&
+        baseRepo.private === false &&
+        baseRepo.full_name === repository &&
+        getJsonString(headRepo, "full_name") === repository &&
+        evaluatePrTrust(pull.pull, [], pull.headSha).trusted
+      ) {
+        const statuses = statusMap(
+          await reader.get(`repos/${repository}/commits/${pull.headSha}/status`),
+          controlRepository,
+          repository,
+          pull.headSha
+        );
+        const action = await needsDispatch(
+          statuses,
+          reader,
+          controlRepository,
+          getJsonString(pull.pull, "title"),
+          "dev"
+        );
+        if (action === "in-flight") {
+          result.in_flight += 1;
+        } else if (
+          action === "processed" ||
+          statuses.get("Dev PR Governance")?.state === "failure"
+        ) {
+          result.already_processed += 1;
+        } else if (
+          await reserveOrBlock(
+            reserve,
+            result,
+            repository,
+            pull.headSha,
+            "Dev PR Governance",
+            "Development PR governance queued by central intake"
+          )
+        ) {
+          await dispatch(repository, pull.number, pull.headSha, "dev");
+          result.dispatched += 1;
+        }
+        continue;
+      }
       if (isManagedBranchRef(headRef) || (baseRef !== "" && baseRef !== "main")) {
         result.blocked_unauthorized += 1;
         console.warn(
@@ -459,7 +514,7 @@ async function reserveStatus(
   token: string,
   repository: string,
   headSha: string,
-  context: "PR Governance" | "Dependency Repair",
+  context: "PR Governance" | "Dependency Repair" | "Dev PR Governance",
   description: string
 ): Promise<void> {
   const runId = process.env.GITHUB_RUN_ID ?? "";
@@ -477,7 +532,8 @@ async function dispatchEvent(
   eventType: string,
   repository: string,
   prNumber: number,
-  headSha: string
+  headSha: string,
+  targetBranch = "main"
 ): Promise<void> {
   const safeRepository = repository.replace(/[^A-Za-z0-9_.-]/g, "-");
   const body = {
@@ -488,6 +544,7 @@ async function dispatchEvent(
       repository,
       pr_number: prNumber,
       head_sha: headSha,
+      ...(targetBranch === "dev" ? { target_branch: targetBranch } : {}),
     },
   };
 
@@ -524,14 +581,15 @@ async function main(): Promise<void> {
   const result = await scanOpenPullRequests(
     policy,
     reader,
-    async (repository, prNumber, headSha) => {
+    async (repository, prNumber, headSha, targetBranch) => {
       await dispatchEvent(
         controlRepository,
         dispatchToken,
         "run-pr-governance",
         repository,
         prNumber,
-        headSha
+        headSha,
+        targetBranch
       );
     },
     controlRepository,
