@@ -34,3 +34,15 @@ export function assertMainPublicationBranch(branch: string): void {
     throw new CliError("Publication requires the managed main branch; dev is not enabled.", 75);
   }
 }
+
+/** Artifact names are scoped to their channel, with the dev prefix reserved. */
+export function branchReleaseArtifactName(branch: string, name: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) || name.startsWith("dev-beta-")) {
+    throw new CliError("Release artifact name is invalid or reserved.", 65);
+  }
+  const result = branch === "dev" ? `dev-beta-${name}` : name;
+  if ((branch !== "main" && branch !== "dev") || result.length > 128) {
+    throw new CliError("Release artifact channel or name length is invalid.", 65);
+  }
+  return result;
+}

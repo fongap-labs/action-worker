@@ -4,6 +4,7 @@ import {
   assertBranchDeployEnvironment,
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
+  branchReleaseArtifactName,
 } from "../scripts/branch-publication-policy.ts";
 
 test("release version and prerelease identity must match the managed branch", () => {
@@ -40,4 +41,11 @@ test("production and beta destinations are disjoint; existing execution remains 
   for (const branch of ["dev", "master", ""]) {
     assert.throws(() => assertMainPublicationBranch(branch));
   }
+});
+
+test("Beta build artifacts cannot use the formal artifact namespace", () => {
+  assert.equal(branchReleaseArtifactName("main", "example"), "example");
+  assert.equal(branchReleaseArtifactName("dev", "example"), "dev-beta-example");
+  assert.throws(() => branchReleaseArtifactName("main", "dev-beta-example"));
+  assert.throws(() => branchReleaseArtifactName("dev", "x".repeat(128)));
 });

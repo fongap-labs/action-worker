@@ -387,3 +387,51 @@ test("main release ingress rejects Beta and a changed default branch before read
     assert.deepEqual(reader.calls, ["repos/fongap-labs/example"]);
   }
 });
+
+test("explicit public dev Beta ingress selects only dev and never falls back to main", async () => {
+  const reader = rootLayoutReader(
+    manifestJson(),
+    {
+      "repos/fongap-labs/example": { default_branch: "main", private: false },
+      "repos/fongap-labs/example/commits/dev": { sha },
+    },
+    sha
+  );
+  const request = await resolveManualReleaseBuild(
+    "fongap-labs/example",
+    "1.2.3-beta.1",
+    policy(),
+    reader,
+    "123",
+    "1",
+    "",
+    undefined,
+    "dev"
+  );
+  assert.equal(request.source_branch, "dev");
+  assert.equal(request.source_sha, sha);
+  assert.ok(!reader.calls.includes("repos/fongap-labs/example/commits/main"));
+  for (const [isPrivate, version] of [
+    [true, "1.2.3-beta.1"],
+    [false, ""],
+    [false, "1.2.3"],
+  ] as const) {
+    const denied = rootLayoutReader(manifestJson(), {
+      "repos/fongap-labs/example": { default_branch: "main", private: isPrivate },
+    });
+    await assert.rejects(
+      resolveManualReleaseBuild(
+        "fongap-labs/example",
+        version,
+        policy(),
+        denied,
+        "123",
+        "1",
+        "",
+        undefined,
+        "dev"
+      )
+    );
+    assert.deepEqual(denied.calls, ["repos/fongap-labs/example"]);
+  }
+});

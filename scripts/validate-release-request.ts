@@ -24,13 +24,12 @@ export function validateReleaseProvenance(request: unknown, provenance: unknown)
   if (
     !isJsonRecord(request) ||
     !isJsonRecord(provenance) ||
-    !isExactKeys(provenance, [
-      "artifact_repository",
-      "artifact_run_id",
-      "schema_version",
-      "source_repository",
-      "source_sha",
-    ]) ||
+    !isExactKeys(
+      provenance,
+      ["artifact_repository", "artifact_run_id", "schema_version", "source_repository", "source_sha"],
+      ["source_branch"]
+    ) ||
+    (provenance.source_branch !== undefined && provenance.source_branch !== "main") ||
     provenance.schema_version !== "1" ||
     provenance.source_repository !== request.source_repository ||
     provenance.source_sha !== request.source_sha ||
