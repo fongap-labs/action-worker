@@ -87,12 +87,21 @@ export function validateDispatch(value: unknown): {
 }
 
 /** Serialize only an opaque per-project group across Jobs; masked source names cannot be job outputs. */
-export function taskConcurrencyGroup(repository: string, project: string): string {
+export function taskConcurrencyGroup(
+  repository: string,
+  project: string,
+  targetBranch = "main"
+): string {
   if (!repositoryPattern.test(repository) || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(project)) {
     throw new CliError("::error::Task concurrency identity is invalid.", 64);
   }
+  if (targetBranch !== "main" && targetBranch !== "dev") {
+    throw new CliError("::error::Task concurrency target branch is invalid.", 64);
+  }
+  const identity = [repository.toLowerCase(), project];
+  if (targetBranch === "dev") identity.push(targetBranch);
   return createHash("sha256")
-    .update(JSON.stringify([repository.toLowerCase(), project]))
+    .update(JSON.stringify(identity))
     .digest("hex")
     .slice(0, 32);
 }

@@ -37,6 +37,7 @@ export type TaskStateManifest = {
   repository: string;
   project: string;
   bootstrap_ref: string;
+  target_branch?: "dev";
 };
 
 function requireText(value: string, label: string): void {
@@ -45,43 +46,70 @@ function requireText(value: string, label: string): void {
   }
 }
 
-export function taskStateArtifactName(repository: string, project: string): string {
+function taskStateBranch(branch: string): "main" | "dev" {
+  if (branch === "main" || branch === "dev") return branch;
+  throw new CliError("Task state target branch is invalid.", 64);
+}
+
+export function taskStateArtifactName(
+  repository: string,
+  project: string,
+  targetBranch = "main"
+): string {
   requireText(repository, "repository");
   requireText(project, "project");
   const digest = createHash("sha256").update(`${repository}\0${project}`, "utf8").digest("hex");
-  return `task-state-${digest.slice(0, 32)}`;
+  const prefix = taskStateBranch(targetBranch) === "main" ? "task-state" : "task-state-dev";
+  return `${prefix}-${digest.slice(0, 32)}`;
 }
 
 export function buildTaskStateManifest(
   repository: string,
   project: string,
-  bootstrapRef: string
+  bootstrapRef: string,
+  targetBranch = "main"
 ): TaskStateManifest {
   requireText(repository, "repository");
   requireText(project, "project");
-  return { repository, project, bootstrap_ref: bootstrapRef };
+  const branch = taskStateBranch(targetBranch);
+  return {
+    repository,
+    project,
+    bootstrap_ref: bootstrapRef,
+    ...(branch === "dev" ? { target_branch: branch } : {}),
+  };
 }
 
 // True only when the manifest is valid JSON naming exactly this repository and project.
 export function taskStateManifestMatches(
   raw: string,
   repository: string,
-  project: string
+  project: string,
+  targetBranch = "main"
 ): boolean {
+  const branch = taskStateBranch(targetBranch);
   let value: unknown;
   try {
     value = JSON.parse(raw);
   } catch {
     return false;
   }
-  return isJsonRecord(value) && value.repository === repository && value.project === project;
+  return (
+    isJsonRecord(value) &&
+    value.repository === repository &&
+    value.project === project &&
+    (branch === "main"
+      ? value.target_branch === undefined || value.target_branch === "main"
+      : value.target_branch === "dev")
+  );
 }
 
 export async function writeTaskStateManifest(
   directory: string,
   repository: string,
   project: string,
-  bootstrapRef: string
+  bootstrapRef: string,
+  targetBranch = "main"
 ): Promise<void> {
   await mkdir(directory, { recursive: true });
   // A task may control the previous/current state tree. Never follow a
@@ -96,7 +124,7 @@ export async function writeTaskStateManifest(
   ) {
     throw new CliError("Task state manifest destination is not a trusted directory.", 66);
   }
-  const manifest = buildTaskStateManifest(repository, project, bootstrapRef);
+  const manifest = buildTaskStateManifest(repository, project, bootstrapRef, targetBranch);
   const handle = await open(
     join(directory, taskStateManifestFile),
     fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_NOFOLLOW,
@@ -112,13 +140,16 @@ export async function writeTaskStateManifest(
 export async function verifyTaskStateDirectory(
   directory: string,
   repository: string,
-  project: string
+  project: string,
+  targetBranch = "main"
 ): Promise<boolean> {
+  taskStateBranch(targetBranch);
   try {
     return taskStateManifestMatches(
       await readFile(join(directory, taskStateManifestFile), "utf8"),
       repository,
-      project
+      project,
+      targetBranch
     );
   } catch {
     return false;
@@ -144,10 +175,18 @@ export function artifactKey(raw: string): Buffer {
   return key;
 }
 
-function sealLabel(kind: SealKind, repository: string, project: string): Buffer {
+function sealLabel(
+  kind: SealKind,
+  repository: string,
+  project: string,
+  targetBranch: string
+): Buffer {
   requireText(repository, "repository");
   requireText(project, "project");
-  return Buffer.from([kind, repository, project].join("\0"), "utf8");
+  const branch = taskStateBranch(targetBranch);
+  const identity = [kind, repository, project];
+  if (branch === "dev") identity.push(branch);
+  return Buffer.from(identity.join("\0"), "utf8");
 }
 
 export function sealBytes(
@@ -155,11 +194,12 @@ export function sealBytes(
   kind: SealKind,
   repository: string,
   project: string,
-  plain: Buffer
+  plain: Buffer,
+  targetBranch = "main"
 ): Buffer {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
-  cipher.setAAD(sealLabel(kind, repository, project));
+  cipher.setAAD(sealLabel(kind, repository, project, targetBranch));
   const body = Buffer.concat([cipher.update(plain), cipher.final()]);
   return Buffer.concat([sealMagic, iv, cipher.getAuthTag(), body]);
 }
@@ -169,7 +209,8 @@ export function openBytes(
   kind: SealKind,
   repository: string,
   project: string,
-  sealed: Buffer
+  sealed: Buffer,
+  targetBranch = "main"
 ): Buffer {
   const headerLength = sealMagic.length + 12 + 16;
   if (sealed.length < headerLength || !sealed.subarray(0, sealMagic.length).equals(sealMagic)) {
@@ -178,7 +219,7 @@ export function openBytes(
   const iv = sealed.subarray(sealMagic.length, sealMagic.length + 12);
   const tag = sealed.subarray(sealMagic.length + 12, headerLength);
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
-  decipher.setAAD(sealLabel(kind, repository, project));
+  decipher.setAAD(sealLabel(kind, repository, project, targetBranch));
   decipher.setAuthTag(tag);
   try {
     return Buffer.concat([decipher.update(sealed.subarray(headerLength)), decipher.final()]);
@@ -207,7 +248,8 @@ export async function sealStateDirectory(
   directory: string,
   repository: string,
   project: string,
-  outFile: string
+  outFile: string,
+  targetBranch = "main"
 ): Promise<void> {
   await withTempDirectory(async (temp) => {
     const archive = join(temp, "state.tar.gz");
@@ -216,7 +258,7 @@ export async function sealStateDirectory(
     });
     await writeFile(
       outFile,
-      sealBytes(key, "task-state", repository, project, await readFile(archive))
+      sealBytes(key, "task-state", repository, project, await readFile(archive), targetBranch)
     );
   });
 }
@@ -227,9 +269,17 @@ export async function openStateFile(
   repository: string,
   project: string,
   directory: string,
-  shouldValidateArchive = false
+  shouldValidateArchive = false,
+  targetBranch = "main"
 ): Promise<void> {
-  const plain = openBytes(key, "task-state", repository, project, await readFile(sealedFile));
+  const plain = openBytes(
+    key,
+    "task-state",
+    repository,
+    project,
+    await readFile(sealedFile),
+    targetBranch
+  );
   if (shouldValidateArchive) inspectLegacyStateArchive(plain);
   await withTempDirectory(async (temp) => {
     const archive = join(temp, "state.tar.gz");
@@ -286,17 +336,21 @@ export type RestoreOptions = {
   controlRepository: string;
   download: (runId: number, name: string, destination: string) => Promise<void>;
   shouldValidateArchive?: boolean;
+  targetBranch?: "main" | "dev";
 };
 
 export async function restoreTaskState(options: RestoreOptions): Promise<string> {
   const { stateRoot, repository, project, isPrivate, key, reader, controlRepository } = options;
+  const targetBranch = taskStateBranch(options.targetBranch ?? "main");
   if (isPrivate && key === null) {
     return "No previous task state: a private task source needs AW_ARTIFACT_KEY.";
   }
   const candidate = join(stateRoot, "candidate");
   const opened = join(stateRoot, "opened");
-  const names = [taskStateArtifactName(repository, project)];
-  if (!isPrivate) names.push(legacyTaskStateArtifactName(repository, project));
+  const names = [taskStateArtifactName(repository, project, targetBranch)];
+  if (!isPrivate && targetBranch === "main") {
+    names.push(legacyTaskStateArtifactName(repository, project));
+  }
 
   for (const name of names) {
     const isLegacy = name !== names[0];
@@ -313,7 +367,8 @@ export async function restoreTaskState(options: RestoreOptions): Promise<string>
             repository,
             project,
             opened,
-            options.shouldValidateArchive ?? false
+            options.shouldValidateArchive ?? false,
+            targetBranch
           );
         }
       } catch {
@@ -323,7 +378,10 @@ export async function restoreTaskState(options: RestoreOptions): Promise<string>
         continue;
       }
       const source = isPrivate ? opened : candidate;
-      if (!isLegacy && !(await verifyTaskStateDirectory(source, repository, project))) {
+      if (
+        !isLegacy &&
+        !(await verifyTaskStateDirectory(source, repository, project, targetBranch))
+      ) {
         if (options.shouldValidateArchive) {
           throw new CliError("Trusted task state restoration found a mismatched manifest.", 66);
         }
