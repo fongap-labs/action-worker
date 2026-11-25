@@ -15,6 +15,7 @@ export type WorkflowTrustRole = (typeof workflowTrustRoles)[number];
 export type GateContract = {
   schema_version: 1;
   status_contexts: Record<GateRole, string>;
+  dev_status_contexts: Record<GateRole, string>;
   trusted_workflows: Record<WorkflowTrustRole, readonly string[]>;
   advisory: { merge_blocked_label: string };
 };
@@ -55,7 +56,11 @@ function nonemptyString(value: unknown, field: string): string {
 
 export function parseGateContract(raw: unknown): GateContract {
   const root = object(raw, "root");
-  exactKeys(root, ["schema_version", "status_contexts", "trusted_workflows", "advisory"], "root");
+  exactKeys(
+    root,
+    ["schema_version", "status_contexts", "dev_status_contexts", "trusted_workflows", "advisory"],
+    "root"
+  );
   if (root.schema_version !== 1) {
     throw new CliError("Invalid gate contract schema version.", 65);
   }
@@ -66,7 +71,14 @@ export function parseGateContract(raw: unknown): GateContract {
   for (const role of gateRoles) {
     contexts[role] = nonemptyString(declaredContexts[role], `status_contexts.${role}`);
   }
-  if (new Set(Object.values(contexts)).size !== gateRoles.length) {
+  const declaredDevContexts = object(root.dev_status_contexts, "dev_status_contexts");
+  exactKeys(declaredDevContexts, gateRoles, "dev_status_contexts");
+  const devContexts = {} as Record<GateRole, string>;
+  for (const role of gateRoles) {
+    devContexts[role] = nonemptyString(declaredDevContexts[role], `dev_status_contexts.${role}`);
+  }
+  const allContexts = [...Object.values(contexts), ...Object.values(devContexts)];
+  if (new Set(allContexts.map((context) => context.toLowerCase())).size !== allContexts.length) {
     throw new CliError("Invalid gate contract: status contexts must be unique.", 65);
   }
 
@@ -105,6 +117,7 @@ export function parseGateContract(raw: unknown): GateContract {
   return {
     schema_version: 1,
     status_contexts: contexts,
+    dev_status_contexts: devContexts,
     trusted_workflows: workflows,
     advisory: { merge_blocked_label: mergeBlockedLabel },
   };
@@ -124,6 +137,16 @@ export function loadGateContract(): GateContract {
   return parseGateContract(parsed);
 }
 
-export function requiredGateContexts(contract: GateContract): readonly string[] {
-  return gateRoles.map((role) => contract.status_contexts[role]);
+export function gateContextsForBranch(
+  contract: GateContract,
+  branch: string
+): Record<GateRole, string> {
+  if (branch === "main") return contract.status_contexts;
+  if (branch === "dev") return contract.dev_status_contexts;
+  throw new CliError("Invalid gate target branch.", 65);
+}
+
+export function requiredGateContexts(contract: GateContract, branch = "main"): readonly string[] {
+  const contexts = gateContextsForBranch(contract, branch);
+  return gateRoles.map((role) => contexts[role]);
 }
