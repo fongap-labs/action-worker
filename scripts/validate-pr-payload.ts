@@ -6,19 +6,19 @@ const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const requestPattern = /^[A-Za-z0-9._:-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 
-export function validatePayload(value: unknown, allowDevCi = false): void {
+export function validatePayload(value: unknown, canAllowDevCi = false): void {
   if (!isJsonRecord(value)) {
     throw new CliError("::error::PR dispatch payload does not match contracts/pr-task.json.", 64);
   }
   const keys = Object.keys(value).sort();
   const required = ["pr_number", "repository", "request_id", "schema_version"];
-  const allowed = [...required, "head_sha", ...(allowDevCi ? ["target_branch"] : [])].sort();
+  const allowed = [...required, "head_sha", ...(canAllowDevCi ? ["target_branch"] : [])].sort();
   const isValid =
     required.every((key) => keys.includes(key)) &&
     keys.every((key) => allowed.includes(key)) &&
     value.schema_version === "1" &&
     (value.target_branch === undefined ||
-      (allowDevCi &&
+      (canAllowDevCi &&
         (value.target_branch === "main" || value.target_branch === "dev") &&
         typeof value.head_sha === "string")) &&
     typeof value.request_id === "string" &&
@@ -39,8 +39,8 @@ export function validatePayload(value: unknown, allowDevCi = false): void {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const allowDevCi = args.length === 2 && args[1] === "--central-ci";
-  if (args.length !== 1 && !allowDevCi) {
+  const canAllowDevCi = args.length === 2 && args[1] === "--central-ci";
+  if (args.length !== 1 && !canAllowDevCi) {
     throw new CliError("Usage: validate-pr-payload.ts <payload-json>", 64);
   }
   const value = parseJson(
@@ -48,7 +48,7 @@ async function main(): Promise<void> {
     "::error::PR dispatch payload does not match contracts/pr-task.json.",
     64
   );
-  validatePayload(value, allowDevCi);
+  validatePayload(value, canAllowDevCi);
   const payload = value as Record<string, unknown>;
   const repositoryPolicy = readRepositoryPolicyText();
   if (!repositoryPolicy) {
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
     `repository=${String(payload.repository)}`,
     `pr_number=${String(payload.pr_number)}`,
     `request_id=${String(payload.request_id)}`,
-    ...(allowDevCi ? [`target_branch=${String(payload.target_branch ?? "main")}`] : []),
+    ...(canAllowDevCi ? [`target_branch=${String(payload.target_branch ?? "main")}`] : []),
   ]);
   console.log("PR dispatch payload validated.");
 }
