@@ -51,7 +51,7 @@ test("central PR intake redispatches when the PR title no longer matches its suc
   assert.equal(result.already_processed, 0);
 });
 
-test("ordinary intake does not dispatch or reserve statuses for managed branch transfers", async () => {
+test("ordinary intake withholds managed branch transfers and status reservations", async () => {
   const repository = "fongap-labs/example";
   const result = await scanOpenPullRequests(
     { [repository]: ["pr"] },

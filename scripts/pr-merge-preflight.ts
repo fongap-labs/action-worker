@@ -37,7 +37,10 @@ export function classifyPrMergeability(
     throw new CliError("::error::PR head or main changed before CI; resolve the new snapshot.", 75);
   }
   if (isManagedBranchRef(getJsonString(head, "ref"))) {
-    throw new CliError("::error::Managed branch transfer requires separate human authorization.", 75);
+    throw new CliError(
+      "::error::Managed branch transfer requires separate human authorization.",
+      75
+    );
   }
   if (pull.draft === true) return "ready";
   if (pull.mergeable === false || pull.mergeable_state === "dirty") {
