@@ -154,7 +154,11 @@ test("PR governance and advisory review pass their exact PR number to CI evidenc
 });
 
 test("CI polling rejects retargeted PRs even when the head SHA is unchanged", async () => {
-  for (const [base, head] of [["dev", "fix/example"], ["main", "dev"], ["main", "main"]]) {
+  for (const [base, head] of [
+    ["dev", "fix/example"],
+    ["main", "dev"],
+    ["main", "main"],
+  ]) {
     await assert.rejects(
       assertCurrentPullHead(
         {
