@@ -55,6 +55,13 @@ Decision: code-change | no-change | needs-clarification
 
 If the decision is not `code-change`, do not write the code.
 
+### Managed branch execution
+
+- Read the task target branch and immutable source SHA before editing; omitted targets mean main under the central contract. Never infer a target from the current checkout or retarget a task when the target is unavailable.
+- Keep task branches, worktrees, state, evidence and credentials bound to their declared target. Do not use the other managed branch as a source or fallback.
+- A main/dev difference is information, not authority. Do not merge, cherry-pick, rebase, copy changes across managed branches or delete either managed branch without the separate maintainer-authorized operation. Ordinary task and PR execution must not perform that operation.
+- main is stable/production only; dev is Beta only. An unavailable or disabled channel must stop, not redirect to the other branch.
+
 ## 4. Define success before editing
 
 Convert the task into verifiable outcomes.
