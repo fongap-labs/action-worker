@@ -5,6 +5,7 @@ import {
   hasStaleCiEvidenceFailure,
   hasUnresolvedCiEvidenceFailure,
 } from "./ci-failure-budget.ts";
+import { readCurrentPrCiScope } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
 import { githubEnvironment, isJsonRecord, runGithubCli, statusAwareReader } from "./github-api.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
@@ -79,12 +80,18 @@ async function main(): Promise<void> {
     statusToken
   );
   const currentStatus = await reader.get(`repos/${repository}/commits/${headSha}/status`);
+  const expectedPrScope =
+    latestCiStatus(currentStatus, context)?.state === "success"
+      ? await readCurrentPrCiScope(reader, repository, Number(prNumber), headSha)
+      : undefined;
   if (
-    await hasVerifiedCiEvidence(reader, currentStatus, {
+    expectedPrScope &&
+    (await hasVerifiedCiEvidence(reader, currentStatus, {
       controlRepository,
       targetRepository: repository,
       targetSha: headSha,
-    })
+      expectedPrScope,
+    }))
   ) {
     console.log(`Central CI already satisfied: ${repository}@${headSha}`);
     return;

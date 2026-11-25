@@ -283,3 +283,14 @@ test("CI verdict receives the immutable PR snapshot for signed scope receipts", 
   assert.ok(finalize.includes("AW_CI_SCOPE_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}"));
   assert.ok(finalize.includes("AW_CI_SCOPE_MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}"));
 });
+
+test("PR CI reuse, wait and final merge require the current signed snapshot", () => {
+  const wait = readFileSync("scripts/wait-ci-evidence.ts", "utf8");
+  const merge = readFileSync("scripts/auto-merge-pr.ts", "utf8");
+  assert.match(dispatcher, /expectedPrScope &&/);
+  assert.match(dispatcher, /readCurrentPrCiScope\(/);
+  assert.match(wait, /expectedPrScope,/);
+  assert.match(wait, /CI merge snapshot changed during verification/);
+  assert.match(merge, /await assertCurrentMergeCiScope\(/);
+  assert.match(merge, /originalStatusDescription\(status\) !== prCiScopeDescription\(scope\)/);
+});

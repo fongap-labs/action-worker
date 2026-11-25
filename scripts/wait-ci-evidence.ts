@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { hasVerifiedCiEvidence, type JsonReader, trustedCiStatus } from "./ci-evidence.ts";
+import { prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
 import { requireStatusToken } from "./control-token.ts";
 import { getJsonNumber, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
@@ -132,10 +133,18 @@ export async function waitForCentralStatus(
     // is confirmed as a successful CI Evidence run; wait for that run within the CI deadline.
     if (state === "success") {
       const pollMs = pollSeconds * 1000;
+      const expectedPrScope =
+        prNumber === undefined
+          ? undefined
+          : await readCurrentPrCiScope(reader, repository, prNumber, headSha);
+      if (prNumber !== undefined && !expectedPrScope) {
+        throw new CliError("::error::CI merge snapshot is not current; revalidate first.", 75);
+      }
       const verified = await hasVerifiedCiEvidence(reader, response, {
         controlRepository,
         targetRepository: repository,
         targetSha: headSha,
+        expectedPrScope,
         runAttempts: Math.max(1, Math.ceil((deadline - Date.now()) / pollMs)),
         retryDelayMs: pollMs,
       });
@@ -144,6 +153,12 @@ export async function waitForCentralStatus(
           `::error::CI Evidence for ${repository}@${headSha} was not produced by a successful Action Worker CI run.`,
           65
         );
+      }
+      if (expectedPrScope && prNumber !== undefined) {
+        const current = await readCurrentPrCiScope(reader, repository, prNumber, headSha);
+        if (!current || prCiScopeDescription(current) !== prCiScopeDescription(expectedPrScope)) {
+          throw new CliError("::error::CI merge snapshot changed during verification.", 75);
+        }
       }
     }
 

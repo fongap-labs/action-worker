@@ -1,4 +1,5 @@
-import { defaultControlRepository } from "./ci-evidence.ts";
+import { defaultControlRepository, type JsonReader } from "./ci-evidence.ts";
+import { prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
 import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { loadGateContract, requiredGateContexts } from "./governance-gate-contract.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
@@ -272,6 +273,31 @@ export function isOpenDraftPull(pull: unknown, prNumber: number): boolean {
   );
 }
 
+/** Final write admission: a signed head alone is never sufficient for a new merge. */
+export async function assertCurrentMergeCiScope(
+  reader: JsonReader,
+  statuses: unknown,
+  repository: string,
+  prNumber: number,
+  headSha: string,
+  baseSha: string
+): Promise<void> {
+  const scope = await readCurrentPrCiScope(reader, repository, prNumber, headSha);
+  const status = latestAttestedStatus(statuses, {
+    repository,
+    sha: headSha,
+    context: ciEvidenceContext,
+  });
+  if (
+    !scope ||
+    scope.baseSha !== baseSha ||
+    status?.state !== "success" ||
+    originalStatusDescription(status) !== prCiScopeDescription(scope)
+  ) {
+    throw new CliError("Automatic merge refused: CI snapshot scope changed; revalidate first.", 75);
+  }
+}
+
 async function main(): Promise<void> {
   const [repository = "", number = "", headSha = "", baseSha = "", governanceRunUrl = ""] =
     process.argv.slice(2);
@@ -351,6 +377,14 @@ async function main(): Promise<void> {
     );
     return;
   }
+  await assertCurrentMergeCiScope(
+    { get: (path) => getGithubJson(path, readToken) },
+    statuses,
+    repository,
+    Number(number),
+    headSha,
+    baseSha
+  );
   // GitHub still applies protected branch rules. Matching the exact PR head
   // prevents a newer revision from being merged by this older governance run.
   try {

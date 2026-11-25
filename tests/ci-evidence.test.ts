@@ -15,7 +15,7 @@ import {
   trustedControlRunId,
   verificationRecorder,
 } from "../scripts/ci-evidence.ts";
-import { prCiScopeDescription } from "../scripts/ci-scope-receipt.ts";
+import { prCiScopeDescription, readCurrentPrCiScope } from "../scripts/ci-scope-receipt.ts";
 import { waitForCentralStatus } from "../scripts/wait-ci-evidence.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
@@ -710,5 +710,45 @@ test("signed PR CI scope binds the target branch and every immutable snapshot fi
   assert.throws(
     () => prCiScopeDescription({ ...scope, targetBranch: "other" }),
     /Invalid PR CI snapshot/
+  );
+});
+
+test("live CI scope rejects stale merge parents and unadmitted PR direction", async () => {
+  const scope = {
+    repository: targetRepository,
+    prNumber: 7,
+    targetBranch: "main",
+    baseSha: "b".repeat(40),
+    headSha: targetSha,
+    mergeSha: "c".repeat(40),
+  };
+  const prefix = `repos/${targetRepository}`;
+  const pull = {
+    state: "open",
+    head: { ref: "fix/example", sha: scope.headSha },
+    base: { ref: "main", repo: { full_name: targetRepository } },
+  };
+  const responses = new Map<string, unknown>([
+    [`${prefix}/pulls/7`, pull],
+    [`${prefix}/branches/main`, { commit: { sha: scope.baseSha } }],
+    [`${prefix}/git/ref/pull/7/merge`, { object: { sha: scope.mergeSha } }],
+    [
+      `${prefix}/git/commits/${scope.mergeSha}`,
+      { sha: scope.mergeSha, parents: [{ sha: scope.baseSha }, { sha: scope.headSha }] },
+    ],
+  ]);
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.ok(responses.has(path), path);
+      return responses.get(path);
+    },
+  };
+  assert.deepEqual(await readCurrentPrCiScope(reader, targetRepository, 7, targetSha), scope);
+  responses.set(`${prefix}/branches/main`, { commit: { sha: "d".repeat(40) } });
+  assert.equal(await readCurrentPrCiScope(reader, targetRepository, 7, targetSha), undefined);
+  responses.set(`${prefix}/pulls/7`, { ...pull, base: { ...pull.base, ref: "dev" } });
+  await assert.rejects(
+    readCurrentPrCiScope(reader, targetRepository, 7, targetSha),
+    /no longer matches/
   );
 });
