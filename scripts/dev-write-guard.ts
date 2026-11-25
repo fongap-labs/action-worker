@@ -30,7 +30,10 @@ export async function hasVerifiedDevWriteGuard(
   controlRepository: string
 ): Promise<boolean> {
   const status = latestAttestedStatus(statuses, { repository, sha, context });
-  if (!/^scope-v1=[A-Za-z0-9_-]{43}$/.test(originalStatusDescription(status))) return false;
+  const description = originalStatusDescription(status);
+  if (!/^scope-v1=[A-Za-z0-9_-]{43}$/.test(description) && description !== `init-v1=${sha}`) {
+    return false;
+  }
   return hasVerifiedControlStatus(reader, statuses, context, {
     controlRepository,
     targetRepository: repository,

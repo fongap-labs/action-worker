@@ -1,0 +1,151 @@
+name: 人工 · 分支授权
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Branch authorization operation
+        type: choice
+        options: [initialize-dev, transfer]
+        required: true
+      repository:
+        description: Managed owner/repository
+        type: string
+        required: true
+      source_sha:
+        description: Full immutable source SHA
+        type: string
+        required: true
+      pr_number:
+        description: Transfer PR number (0 for initialization)
+        type: number
+        default: 0
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: branch-authorization-${{ inputs.repository }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main'
+    name: Plan exact branch authorization
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Resolve managed PR scope
+        id: api_scope
+        env:
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint scoped read token
+        id: app_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+          permission-issues: read
+
+      - name: Show exact approval comment
+        env:
+          OPERATION: ${{ inputs.operation }}
+          REPOSITORY: ${{ inputs.repository }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          AW_STATUS_API_TOKEN: ${{ steps.app_read.outputs.token }}
+        run: node scripts/branch-authorization.ts plan
+
+  authorize:
+    if: github.ref == 'refs/heads/main'
+    needs: plan
+    name: Verify explicit maintainer approval
+    environment: branch-transfer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Resolve managed PR scope
+        id: api_scope
+        env:
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint scoped read token
+        id: app_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+          permission-issues: read
+
+      - name: Verify approval before issuing initialization receipt
+        env:
+          OPERATION: ${{ inputs.operation }}
+          REPOSITORY: ${{ inputs.repository }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          AW_STATUS_API_TOKEN: ${{ steps.app_read.outputs.token }}
+        run: node scripts/branch-authorization.ts verify
+
+      - name: Mint initialization receipt token
+        if: inputs.operation == 'initialize-dev'
+        id: receipt_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Record approved authorization
+        env:
+          OPERATION: ${{ inputs.operation }}
+          REPOSITORY: ${{ inputs.repository }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          AW_STATUS_API_TOKEN: ${{ steps.receipt_app.outputs.token || steps.app_read.outputs.token }}
+        run: node scripts/branch-authorization.ts approve
