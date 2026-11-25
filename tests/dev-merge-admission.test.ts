@@ -166,10 +166,7 @@ test("recorded development write requires signed receipt and a trusted dev paren
     target_url: auditUrl,
     created_at: "2026-11-25T09:00:00Z",
   };
-  const governance = f.entries.get(`repos/${control}/actions/runs/51`) as Record<
-    string,
-    unknown
-  >;
+  const governance = f.entries.get(`repos/${control}/actions/runs/51`) as Record<string, unknown>;
   f.entries.set(`repos/${control}/actions/runs/51`, {
     ...governance,
     updated_at: "2026-11-25T10:03:00Z",
