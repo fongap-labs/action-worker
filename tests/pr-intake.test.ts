@@ -51,6 +51,29 @@ test("central PR intake redispatches when the PR title no longer matches its suc
   assert.equal(result.already_processed, 0);
 });
 
+test("ordinary intake does not dispatch or reserve statuses for managed branch transfers", async () => {
+  const repository = "fongap-labs/example";
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        assert.match(path, /\/pulls\?/);
+        return [
+          { number: 1, head: { sha: shaA, ref: "dev" }, base: { ref: "main" } },
+          { number: 2, head: { sha: shaB, ref: "main" }, base: { ref: "dev" } },
+          { number: 3, head: { sha: shaC, ref: "feat/example" }, base: { ref: "dev" } },
+        ];
+      },
+    },
+    async () => assert.fail("unexpected dispatch"),
+    "fongap-labs/action-worker",
+    async () => assert.fail("unexpected repair dispatch"),
+    async () => assert.fail("unexpected status reservation")
+  );
+  assert.equal(result.blocked_unauthorized, 3);
+  assert.equal(result.dispatched, 0);
+});
+
 test("central PR intake scans every managed repository independent of visibility", async () => {
   const responses = new Map<string, unknown>([
     [

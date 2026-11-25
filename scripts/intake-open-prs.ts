@@ -5,12 +5,13 @@ import {
   resolveDependencyRepairFacts,
   selectDependencyRepair,
 } from "./dependency-repair.ts";
-import { githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { evaluatePrTrust } from "./pr-trust.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
+import { isManagedBranchRef } from "./resolve-pr-facts.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { hasValidStatusAttestation, originalStatusDescription } from "./status-attestation.ts";
 
@@ -323,6 +324,15 @@ export async function scanOpenPullRequests(
     const pulls = await openPullRequests(reader, repository);
     result.open_pull_requests += pulls.length;
     for (const pull of pulls) {
+      const headRef = getJsonString(pull.pull.head, "ref");
+      const baseRef = getJsonString(pull.pull.base, "ref");
+      if (isManagedBranchRef(headRef) || (baseRef !== "" && baseRef !== "main")) {
+        result.blocked_unauthorized += 1;
+        console.warn(
+          `::warning::PR ${repository}#${pull.number} is outside ordinary main governance; dispatch withheld.`
+        );
+        continue;
+      }
       const statuses = statusMap(
         await reader.get(`repos/${repository}/commits/${pull.headSha}/status`),
         controlRepository,
@@ -360,6 +370,7 @@ export async function scanOpenPullRequests(
             detail.mergeable_state === "behind" &&
             head.sha === pull.headSha &&
             base.ref === "main" &&
+            !isManagedBranchRef(getJsonString(head, "ref")) &&
             headRepo.full_name === repository &&
             baseRepo.full_name === repository
           ) {

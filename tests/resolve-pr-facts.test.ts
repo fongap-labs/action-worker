@@ -8,6 +8,9 @@ test("PR governance only attests feature branches targeting main", () => {
   const valid = { base: { ref: "main" }, head: { ref: "fix/issue" } };
   assert.equal(isGovernedPullDirection(valid), true);
   assert.equal(isGovernedPullDirection({ base: { ref: "main" }, head: { ref: "main" } }), false);
+  assert.equal(isGovernedPullDirection({ base: { ref: "main" }, head: { ref: "dev" } }), false);
+  assert.equal(isGovernedPullDirection({ base: { ref: "dev" }, head: { ref: "main" } }), false);
+  assert.equal(isGovernedPullDirection({ base: { ref: "dev" }, head: { ref: "feat/example" } }), false);
   assert.equal(
     isGovernedPullDirection({ base: { ref: "fix/issue" }, head: { ref: "main" } }),
     false

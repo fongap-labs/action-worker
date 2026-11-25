@@ -92,6 +92,49 @@ test("signed current-head CI success authorizes zero-review automatic squash mer
   assert.doesNotThrow(() => verify(pull(), statuses()));
 });
 
+test("managed branch transfers cannot reuse signed ordinary merge gates", () => {
+  for (const ref of ["main", "dev"]) {
+    const candidate = {
+      ...pull(),
+      mergeable_state: "behind",
+      head: { sha: headSha, ref, repo: { full_name: repository } },
+      base: { sha: baseSha, ref: "main", repo: { full_name: repository } },
+    };
+    assert.throws(() => verify(candidate, statuses()), /human authorization/);
+    assert.equal(mustRefreshBehindBranch(candidate, repository), false);
+    assert.equal(
+      authorizeAdvancedBaseRefresh(
+        { ...candidate, base: { ...candidate.base, sha: "d".repeat(40) } },
+        statuses(),
+        repository,
+        number,
+        headSha,
+        baseSha,
+        runUrl
+      ),
+      false
+    );
+    assert.equal(
+      isApprovedCompletedMerge(
+        {
+          ...candidate,
+          state: "closed",
+          merged: true,
+          merged_at: "2026-11-12T03:55:19Z",
+          merge_commit_sha: "c".repeat(40),
+        },
+        statuses(),
+        repository,
+        number,
+        headSha,
+        baseSha,
+        runUrl
+      ),
+      false
+    );
+  }
+});
+
 test("trusted governance run URL follows the configured control repository", () => {
   const control = "example-org/control-plane";
   const url = "https://github.com/" + control + "/actions/runs/123";

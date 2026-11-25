@@ -44,6 +44,23 @@ test("pre-existing merge conflicts fail before expensive CI", () => {
   );
 });
 
+test("managed branch heads cannot enter ordinary merge or refresh preflight", () => {
+  for (const ref of ["main", "dev"]) {
+    for (const mergeableState of ["clean", "behind"]) {
+      assert.throws(
+        () =>
+          classify(
+            pull({
+              head: { sha: headSha, ref, repo: { full_name: repository } },
+              mergeable_state: mergeableState,
+            })
+          ),
+        /human authorization/
+      );
+    }
+  }
+});
+
 test("unknown GitHub mergeability is never treated as clean", () => {
   assert.equal(classify(pull({ mergeable: null, mergeable_state: "unknown" })), "retry");
   assert.equal(classify(pull({ mergeable_state: "unknown" })), "retry");
