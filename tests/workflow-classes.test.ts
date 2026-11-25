@@ -36,6 +36,8 @@ const classes = {
   operation: ["ai-gateway-ops.yml"],
   // Protected, manual-only recovery; no repository_dispatch bypass of explicit confirmation.
   recovery: ["status-signing-recovery.yml"],
+  // Explicit maintainer approval for branch initialization or transfer; never merges code.
+  branchAuthorization: ["authorize-branch-transfer.yml"],
   // The one reconciler. It sweeps every managed repository and dispatches the work it finds.
   intake: ["intake.yml"],
   // Started by an event another workflow or a managed repository sends; never by a person or a
@@ -87,6 +89,7 @@ const allowedTriggers: Record<WorkflowClass, readonly string[]> = {
   admission: ["workflow_dispatch"],
   operation: ["workflow_dispatch"],
   recovery: ["workflow_dispatch"],
+  branchAuthorization: ["workflow_dispatch"],
   intake: ["push", "repository_dispatch", "schedule"],
   handler: ["repository_dispatch"],
   maintenance: ["pull_request", "push", "schedule", "workflow_run"],
@@ -182,6 +185,24 @@ test("only approved entry, diagnostics and private operations expose manual disp
     }
     if (kind === "diagnostic") {
       assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} is manual-only`);
+      continue;
+    }
+    if (kind === "branchAuthorization") {
+      assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], file);
+      assert.deepEqual(Object.keys(workflow.jobs ?? {}), ["plan", "authorize"]);
+      const job = workflow.jobs?.authorize as Job & {
+        environment?: { name: string; deployment: boolean };
+        if?: string;
+        needs?: string;
+      };
+      assert.deepEqual(job.environment, { name: "branch-transfer", deployment: false });
+      assert.equal(job.needs, "plan");
+      assert.match(job.if ?? "", /github\.repository == 'fongap-labs\/action-worker'/);
+      assert.match(job.if ?? "", /github\.ref == 'refs\/heads\/main'/);
+      const source = await readFile(`${workflowDirectory}/${file}`, "utf8");
+      assert.doesNotMatch(source, /repository_dispatch:|permission-contents: write/);
+      assert.match(source, /scripts\/authorize-branch-operation\.ts verify/);
+      assert.match(source, /scripts\/authorize-branch-operation\.ts approve/);
       continue;
     }
     if (kind === "recovery") {

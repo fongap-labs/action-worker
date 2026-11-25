@@ -5,7 +5,7 @@ import {
   bootstrapApprovalComment,
   isClosedDevProtection,
   verifyAuthorizedDevBootstrap,
-} from "../scripts/dev-bootstrap.ts";
+} from "../scripts/dev-bootstrap-authorization.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/example";
@@ -44,7 +44,7 @@ test("unsigned, expired and changed bootstrap evidence cannot establish dev trus
         id: 42,
         repository: { full_name: control },
         head_branch: "main",
-        path: ".github/workflows/branch-authorization.yml",
+        path: ".github/workflows/authorize-branch-transfer.yml",
         status: "completed",
         conclusion: "success",
         run_started_at: "2026-11-25T10:59:00Z",

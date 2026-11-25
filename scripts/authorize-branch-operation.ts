@@ -10,7 +10,7 @@ import {
   branchAuthorizationWorkflow,
   devBootstrapContext,
   verifyBootstrapSource,
-} from "./dev-bootstrap.ts";
+} from "./dev-bootstrap-authorization.ts";
 import { statusAwareReader } from "./github-api.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";

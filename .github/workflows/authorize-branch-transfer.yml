@@ -1,4 +1,4 @@
-name: 人工 · 分支授权
+name: 手动 · 分支授权
 
 on:
   workflow_dispatch:
@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   plan:
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
     name: Plan exact branch authorization
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -76,13 +76,15 @@ jobs:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_STATUS_API_TOKEN: ${{ steps.app_read.outputs.token }}
-        run: node scripts/branch-authorization.ts plan
+        run: node scripts/authorize-branch-operation.ts plan
 
   authorize:
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
     needs: plan
     name: Verify explicit maintainer approval
-    environment: branch-transfer
+    environment:
+      name: branch-transfer
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -126,7 +128,7 @@ jobs:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_STATUS_API_TOKEN: ${{ steps.app_read.outputs.token }}
-        run: node scripts/branch-authorization.ts verify
+        run: node scripts/authorize-branch-operation.ts verify
 
       - name: Mint initialization receipt token
         if: inputs.operation == 'initialize-dev'
@@ -148,4 +150,4 @@ jobs:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_STATUS_API_TOKEN: ${{ steps.receipt_app.outputs.token || steps.app_read.outputs.token }}
-        run: node scripts/branch-authorization.ts approve
+        run: node scripts/authorize-branch-operation.ts approve

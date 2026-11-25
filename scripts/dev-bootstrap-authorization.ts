@@ -9,7 +9,7 @@ import { assertNoOpenManagedWriteIncidents } from "./main-write-incidents.ts";
 import { CliError } from "./runtime-command.ts";
 import { latestAttestedStatus, originalStatusDescription } from "./status-attestation.ts";
 
-export const branchAuthorizationWorkflow = ".github/workflows/branch-authorization.yml";
+export const branchAuthorizationWorkflow = ".github/workflows/authorize-branch-transfer.yml";
 export const devBootstrapContext = "Dev Bootstrap Authorization";
 const shaPattern = /^[0-9a-f]{40}$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -59,16 +59,16 @@ export function isClosedDevProtection(value: unknown): boolean {
 }
 
 async function assertClosedDevProtection(reader: JsonReader, repository: string): Promise<void> {
-  const rules = await reader.get(`repos/${repository}/rulesets?includes_parents=false&per_page=100`);
+  const rules = await reader.get(
+    `repos/${repository}/rulesets?includes_parents=false&per_page=100`
+  );
   if (!Array.isArray(rules)) throw new CliError("Development rulesets unavailable.", 75);
   const matches = rules.filter((rule) => getJsonString(rule, "name") === "Protect Dev Branch");
   const rule = matches[0];
   if (!isJsonRecord(rule) || matches.length !== 1 || !Number.isSafeInteger(rule.id)) {
     throw new CliError("Closed development ruleset is missing.", 75);
   }
-  const detail = await reader.get(
-    `repos/${repository}/rulesets/${rule.id}?includes_parents=false`
-  );
+  const detail = await reader.get(`repos/${repository}/rulesets/${rule.id}?includes_parents=false`);
   if (!isClosedDevProtection(detail)) {
     throw new CliError("Development initialization requires closed live protection.", 75);
   }
@@ -79,7 +79,7 @@ export async function verifyBootstrapSource(
   repository: string,
   sha: string,
   controlRepository: string,
-  requireExistingDev: boolean
+  isExistingDevRequired: boolean
 ): Promise<void> {
   if (
     !repositoryPattern.test(repository) ||
@@ -105,7 +105,7 @@ export async function verifyBootstrapSource(
   if (
     !isJsonRecord(main) ||
     getJsonString(main.commit, "sha") !== sha ||
-    (requireExistingDev
+    (isExistingDevRequired
       ? !isJsonRecord(dev) || getJsonString(dev.commit, "sha") !== sha
       : dev !== undefined)
   ) {

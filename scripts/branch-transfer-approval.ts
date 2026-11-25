@@ -55,7 +55,9 @@ export async function assertExactBranchApproval(
   runId: number,
   attempt: number,
   comment: string,
-  workflow: ".github/workflows/handle-pr-dispatch.yml" | ".github/workflows/branch-authorization.yml"
+  workflow:
+    | ".github/workflows/handle-pr-dispatch.yml"
+    | ".github/workflows/authorize-branch-transfer.yml"
 ): Promise<void> {
   if (!repositoryPattern.test(controlRepository)) {
     throw new CliError("Invalid trusted control repository.", 65);
@@ -115,8 +117,9 @@ export async function assertBranchTransferApproval(
   scope: PrCiScope,
   runId: number,
   attempt: number,
-  workflow: ".github/workflows/handle-pr-dispatch.yml" | ".github/workflows/branch-authorization.yml" =
-    ".github/workflows/handle-pr-dispatch.yml"
+  workflow:
+    | ".github/workflows/handle-pr-dispatch.yml"
+    | ".github/workflows/authorize-branch-transfer.yml" = ".github/workflows/handle-pr-dispatch.yml"
 ): Promise<void> {
   await assertExactBranchApproval(
     reader,
