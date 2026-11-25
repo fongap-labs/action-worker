@@ -1,5 +1,6 @@
 import { readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { assertBranchReleaseVersion } from "./branch-publication-policy.ts";
 import { sha256File } from "./lib/stream-file-hash.ts";
 import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 import {
@@ -66,6 +67,8 @@ async function main(): Promise<void> {
     process.argv.slice(2)
   );
 
+  const branch = process.env.RELEASE_SOURCE_BRANCH || "main";
+  assertBranchReleaseVersion(branch, version, branch === "dev");
   const manifest = parseReleaseBuildManifest(await readJson(manifestPath));
   const expected = [
     ...manifest.builds.flatMap((build) => build.assets),
@@ -102,6 +105,7 @@ async function main(): Promise<void> {
     schema_version: "1",
     source_repository: sourceRepository,
     source_sha: sourceSha,
+    ...(branch === "dev" ? { source_branch: "dev" } : {}),
     artifact_repository: artifactRepository,
     artifact_run_id: artifactRunId,
   };

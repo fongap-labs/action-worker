@@ -119,3 +119,19 @@ test("release build request names an optional product, validated as a product di
     assert.throws(() => parseReleaseBuildRequest({ ...request, product }));
   }
 });
+
+test("release build requests bind the explicit source branch to their version", () => {
+  const request = {
+    schema_version: "1",
+    request_id: "release-build-1",
+    source_repository: "fongap-labs/example",
+    source_sha: "a".repeat(40),
+    requested_version: "1.2.3-beta.1",
+    source_branch: "dev",
+  };
+  assert.deepEqual(parseReleaseBuildRequest(request), request);
+  for (const source_branch of ["main", "other", undefined]) {
+    assert.throws(() => parseReleaseBuildRequest({ ...request, source_branch }));
+  }
+  assert.throws(() => parseReleaseBuildRequest({ ...request, requested_version: "1.2.3" }));
+});

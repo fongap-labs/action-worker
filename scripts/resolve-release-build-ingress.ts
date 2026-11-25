@@ -63,7 +63,8 @@ export async function resolveManualReleaseBuild(
   runId: string,
   runAttempt: string,
   product = "",
-  onVisibility?: (isPrivate: boolean) => void
+  onVisibility?: (isPrivate: boolean) => void,
+  sourceBranch = "main"
 ): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
   enforcePluginsManualVersion(repository, requestedVersionRaw, "workflow_dispatch");
   validateRepositoryCapability(repository, policy, "release-source");
@@ -74,16 +75,27 @@ export async function resolveManualReleaseBuild(
   if (onVisibility) onVisibility(sourceRepositoryVisibility(repo));
   const defaultBranch = getJsonString(repo, "default_branch");
   assertMainPublicationBranch(defaultBranch);
-  if (requestedVersionRaw !== "") {
-    assertBranchReleaseVersion(defaultBranch, normalizeReleaseVersion(requestedVersionRaw), false);
+  if (sourceBranch !== "main" && sourceBranch !== "dev") {
+    throw new CliError("Invalid release source branch.", 64);
   }
-  const commit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
+  if (sourceBranch === "dev" && (repo.private !== false || requestedVersionRaw === "")) {
+    throw new CliError("Dev Beta build requires a public source and explicit version.", 65);
+  }
+  if (requestedVersionRaw !== "") {
+    assertBranchReleaseVersion(
+      sourceBranch,
+      normalizeReleaseVersion(requestedVersionRaw),
+      sourceBranch === "dev"
+    );
+  }
+  const commit = await reader.get(`repos/${repository}/commits/${sourceBranch}`);
   const sourceSha = getJsonString(commit, "sha");
   const request = {
     schema_version: "1",
     request_id: `manual:${repository.replace("/", "-")}:${runId}:${runAttempt}`,
     source_repository: repository,
     source_sha: sourceSha,
+    ...(sourceBranch === "dev" ? { source_branch: "dev" as const } : {}),
     // The placeholder only lets product resolution read the manifest; a computed or entered
     // version replaces it before the request parses.
     requested_version:
@@ -137,6 +149,7 @@ async function main(): Promise<void> {
       )
     );
     enforcePluginsManualVersion(request.source_repository, request.requested_version, eventName);
+    assertMainPublicationBranch(request.source_branch ?? "main");
     assertBranchReleaseVersion("main", request.requested_version, false);
     const token = process.env.AW_CONTROL_TOKEN ?? "";
     if (!token) throw new CliError("AW_CONTROL_TOKEN is required.", 77);
@@ -164,7 +177,8 @@ async function main(): Promise<void> {
       process.env.RELEASE_PRODUCT ?? "",
       (visibility) => {
         isPrivate = visibility;
-      }
+      },
+      process.env.RELEASE_SOURCE_BRANCH || "main"
     );
   } else {
     throw new CliError(`Unsupported release ingress event: ${eventName}.`, 64);
@@ -178,6 +192,7 @@ async function main(): Promise<void> {
     `request_json=${encoded}`,
     `source_repository=${request.source_repository}`,
     `source_sha=${request.source_sha}`,
+    `source_branch=${request.source_branch ?? "main"}`,
     `is_private=${isPrivate}`,
   ];
   const notes = request.release_notes ?? "";

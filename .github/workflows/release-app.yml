@@ -10,9 +10,15 @@ on:
         required: true
         type: string
       requested_version:
-        description: 发布正式版 X.Y.Z（如 v1.2.3）。Beta 必须来自 dev，当前尚未开放。plugins 仓库必须手动填写；其他仓库留空可按提交历史推算
+        description: main 正式版 X.Y.Z；dev Beta 仅构建 X.Y.Z-beta.N，暂不发布。plugins 仓库必须手动填写；其他仓库留空可按提交历史推算
         required: false
         type: string
+      source_branch:
+        description: 源分支（dev 仅允许 Beta 构建，不发布）
+        required: false
+        type: choice
+        default: main
+        options: [main, dev]
       product:
         description: 产品目录名（多产品仓库位于 projects/<产品>/ 下，必填；单产品仓库清单在 .github/ 根下，留空）
         required: false
@@ -37,6 +43,7 @@ jobs:
     outputs:
       source_repository: ${{ steps.request.outputs.source_repository }}
       source_sha: ${{ steps.request.outputs.source_sha }}
+      source_branch: ${{ steps.request.outputs.source_branch }}
       is_private: ${{ steps.ingress.outputs.is_private }}
       version: ${{ steps.request.outputs.version }}
       artifact_name: ${{ steps.request.outputs.artifact_name }}
@@ -92,15 +99,18 @@ jobs:
           RELEASE_SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           RELEASE_REQUESTED_VERSION: ${{ inputs.requested_version }}
           RELEASE_PRODUCT: ${{ inputs.product }}
+          RELEASE_SOURCE_BRANCH: ${{ inputs.source_branch }}
         run: node scripts/resolve-release-build-ingress.ts
 
       - name: Resolve release source status scope
+        if: steps.ingress.outputs.source_branch == 'main'
         id: api_scope
         env:
           TARGET_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
       - name: Mint release source status token
+        if: steps.ingress.outputs.source_branch == 'main'
         id: status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -111,6 +121,7 @@ jobs:
           permission-statuses: write
 
       - name: Mint central CI dispatch token
+        if: steps.ingress.outputs.source_branch == 'main'
         id: dispatch_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -123,6 +134,7 @@ jobs:
       # Intake may not have reached this source yet, so a release asks for central CI on its own
       # source now; the validation below waits for the verdict.
       - name: Request central CI for the source
+        if: steps.ingress.outputs.source_branch == 'main'
         env:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
@@ -136,12 +148,14 @@ jobs:
       # same way Intake does, so the release does not wait for the next Intake run. The validation
       # stays the authority and reports an untrusted write.
       - name: Resolve source audit API scope
+        if: steps.ingress.outputs.source_branch == 'main'
         id: audit_scope
         env:
           TARGET_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
       - name: Mint source audit status token
+        if: steps.ingress.outputs.source_branch == 'main'
         id: audit_status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -152,6 +166,7 @@ jobs:
           permission-statuses: write
 
       - name: Mint source audit issue token
+        if: steps.ingress.outputs.source_branch == 'main'
         id: audit_issue_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -162,6 +177,7 @@ jobs:
           permission-issues: write
 
       - name: Attest the source main write
+        if: steps.ingress.outputs.source_branch == 'main'
         env:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
@@ -626,6 +642,7 @@ jobs:
           SOURCE_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_SOURCE_BRANCH: ${{ needs.prepare.outputs.source_branch }}
           RELEASE_MANIFEST_PATH: ${{ needs.prepare.outputs.manifest_path }}
         run: |
           node scripts/package-release-build.ts \
@@ -644,6 +661,7 @@ jobs:
           retention-days: 7
 
       - name: Mint release governance dispatch token
+        if: needs.prepare.outputs.source_branch == 'main'
         id: dispatch_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -654,6 +672,7 @@ jobs:
           permission-contents: write
 
       - name: Dispatch Release Governance
+        if: needs.prepare.outputs.source_branch == 'main'
         env:
           GH_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           SOURCE_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}

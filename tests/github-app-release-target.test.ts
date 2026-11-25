@@ -162,3 +162,17 @@ test("the current release target gate refuses Beta and inconsistent prerelease f
     );
   }
 });
+
+test("a dev build provenance cannot be admitted to the existing formal publication path", () => {
+  assert.throws(
+    () =>
+      releaseTargetFromArtifact(
+        request,
+        manifest,
+        { ...provenance, source_branch: "dev" },
+        policy,
+        "fongap-labs/action-worker"
+      ),
+    /provenance does not match/
+  );
+});

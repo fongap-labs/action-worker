@@ -8,7 +8,7 @@
 
 | 目的 | 工作流 | 手动输入 | 自动触发 |
 |------|--------|----------|----------|
-| 发布由源仓库构建的应用 | `手动 · 发布应用` (`release-app.yml`) | `source_repository` (owner/name)、`requested_version` (正式版 `X.Y.Z`，可留空=自动计算正式版；dev Beta 尚未开放)、`product` (多产品时必填) | `run-release-build` 分发事件 |
+| 发布由源仓库构建的应用 | `手动 · 发布应用` (`release-app.yml`) | `source_repository` (owner/name)、`requested_version` (正式版 `X.Y.Z`，可留空=自动计算正式版；dev Beta 仅允许手动构建，暂不发布)、`product` (多产品时必填) | `run-release-build` 分发事件 |
 | 补发已发布 Release 中的 npm 包 | `手动 · 补发 npm 包` (`release-npm.yml`) | `repository` (owner/name)、`tag` | `run-npm-republish` 分发事件 |
 | 发布上游镜像的第三方工具 | `自动 · 工具发布` (`release-tool.yml`) | 无 | 定时，每 6 小时 |
 | 部署某个源提交 | `手动 · 部署服务` (`deploy-source-script.yml`) | `source_repository` (owner/name)、`source_sha` (可选，留空=当前 HEAD) | 中央 CI 通过且部署清单声明 push 触发 |
@@ -23,7 +23,7 @@
 
 1. 目标改动已通过 PR 合并进 `main`
 2. `source_repository` 写成 `owner/name`，且该仓库在 `AW_REPOSITORY_POLICY` 中具备对应能力（`release-source` / `deploy`）
-3. 发布时 `requested_version` 手动填写正式版如 `v1.2.3`。主分支禁止 Beta，开发分支仅允许 `X.Y.Z-beta.N`，但其发布入口及独立凭据尚未开放。留空由 Action Worker 按上次正式版之后的 Conventional Commits 自动计算下一个正式版
+3. 发布时 `requested_version` 手动填写正式版如 `v1.2.3`。主分支禁止 Beta，开发分支仅允许 `X.Y.Z-beta.N`，现有发布应用工作流支持手动选择公开仓库 dev 的可信提交，仅构建并上传 `dev-beta-` 前缀的独立产物；要求独立写入审计、真实 dev PR CI 及全部构建证明。不得触发正式发布、npm 或部署，私有 dev 及 Beta 发布凭据尚未开放。留空由 Action Worker 按上次正式版之后的 Conventional Commits 自动计算下一个正式版
 
 ---
 

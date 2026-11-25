@@ -1,8 +1,14 @@
 import {
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
+  branchReleaseArtifactName,
 } from "./branch-publication-policy.ts";
-import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
+import {
+  centralCiWait,
+  defaultControlRepository,
+  requireVerifiedCiEvidence,
+} from "./ci-evidence.ts";
+import { assertTrustedDevWrite, verifyRecordedDevWrite } from "./dev-write-guard.ts";
 import { isPinPublished, type JsonReader, readFileAt } from "./follow-github.ts";
 import { isPinValueOf, parseFollowManifest, pinValueAt } from "./follow-pins.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
@@ -222,6 +228,7 @@ export type ReleaseBuildRequest = {
   source_repository: string;
   source_sha: string;
   requested_version: string;
+  source_branch?: "main" | "dev";
   // Optional: the product under projects/. Required only when the source repository has several.
   product?: string;
   // Optional: release notes the ingress computed from the release span. The packaged manifest only
@@ -235,7 +242,7 @@ export function parseReleaseBuildRequest(value: unknown): ReleaseBuildRequest {
     !exactKeys(
       value,
       ["request_id", "requested_version", "schema_version", "source_repository", "source_sha"],
-      ["product", "release_notes"]
+      ["product", "release_notes", "source_branch"]
     ) ||
     value.schema_version !== "1" ||
     typeof value.request_id !== "string" ||
@@ -246,6 +253,9 @@ export function parseReleaseBuildRequest(value: unknown): ReleaseBuildRequest {
     !/^[0-9a-f]{40}$/.test(value.source_sha) ||
     typeof value.requested_version !== "string" ||
     !RELEASE_VERSION_PATTERN.test(value.requested_version.replace(/^v/, "")) ||
+    (value.source_branch !== undefined &&
+      value.source_branch !== "main" &&
+      value.source_branch !== "dev") ||
     (value.product !== undefined &&
       (typeof value.product !== "string" || !isProductName(value.product))) ||
     (value.release_notes !== undefined && typeof value.release_notes !== "string") ||
@@ -253,6 +263,8 @@ export function parseReleaseBuildRequest(value: unknown): ReleaseBuildRequest {
   ) {
     throw new CliError("Release build dispatch payload is invalid.", 64);
   }
+  const branch = value.source_branch ?? "main";
+  assertBranchReleaseVersion(String(branch), value.requested_version, branch === "dev");
   return value as ReleaseBuildRequest;
 }
 
@@ -379,12 +391,22 @@ async function main(): Promise<void> {
   const repository = await reader.get(`repos/${request.source_repository}`);
   const defaultBranch = getJsonString(repository, "default_branch");
   assertMainPublicationBranch(defaultBranch);
-  assertBranchReleaseVersion(defaultBranch, request.requested_version, false);
-  const commit = await reader.get(`repos/${request.source_repository}/commits/${defaultBranch}`);
+  const branch = request.source_branch ?? "main";
+  assertBranchReleaseVersion(branch, request.requested_version, branch === "dev");
+  if (
+    branch === "dev" &&
+    (process.env.GITHUB_EVENT_NAME !== "workflow_dispatch" ||
+      process.env.GITHUB_REF !== "refs/heads/main" ||
+      !isJsonRecord(repository) ||
+      repository.private !== false)
+  ) {
+    throw new CliError("Dev Beta build requires trusted manual control and a public source.", 75);
+  }
+  const commit = await reader.get(`repos/${request.source_repository}/commits/${branch}`);
   const defaultSha = getJsonString(commit, "sha");
   if (request.source_sha !== defaultSha) {
     throw new CliError(
-      `Release build source must be the current default-branch HEAD: expected=${defaultSha} actual=${request.source_sha}.`,
+      `Release build source must be the current selected branch HEAD: expected=${defaultSha} actual=${request.source_sha}.`,
       65
     );
   }
@@ -400,12 +422,26 @@ async function main(): Promise<void> {
 
   // Only requests that can actually acquire an enabled runner should incur the
   // (potentially long) source CI evidence wait and follow-pin verification.
-  await requireVerifiedCiEvidence(
-    reader,
-    request.source_repository,
-    request.source_sha,
-    centralCiWait
-  );
+  if (branch === "dev") {
+    if (manifest.builds.some((build) => !build.attest_asset)) {
+      throw new CliError("Dev Beta builds require attestation for every build.", 66);
+    }
+    const control = process.env.GITHUB_REPOSITORY ?? defaultControlRepository;
+    await assertTrustedDevWrite(reader, request.source_repository, request.source_sha, control);
+    // Initialization alone is not a dev CI result: require a completed recorded dev PR write.
+    await verifyRecordedDevWrite(reader, request.source_repository, request.source_sha, control);
+    const live = await reader.get(`repos/${request.source_repository}/commits/dev`);
+    if (getJsonString(live, "sha") !== request.source_sha) {
+      throw new CliError("Dev Beta build source changed during validation.", 75);
+    }
+  } else {
+    await requireVerifiedCiEvidence(
+      reader,
+      request.source_repository,
+      request.source_sha,
+      centralCiWait
+    );
+  }
   if (follows_text !== null) {
     await verifyFollowPins(reader, {
       repository: request.source_repository,
@@ -415,15 +451,17 @@ async function main(): Promise<void> {
     });
   }
   const version = normalizeReleaseVersion(request.requested_version);
+  const artifactName = branchReleaseArtifactName(branch, manifest.artifact_name);
 
   await appendLines(process.env.GITHUB_OUTPUT, [
     `source_repository=${request.source_repository}`,
     `source_sha=${request.source_sha}`,
+    `source_branch=${branch}`,
     `product=${product}`,
     `manifest_path=${manifest_path}`,
     `product_root=${product_root}`,
     `version=${version}`,
-    `artifact_name=${manifest.artifact_name}`,
+    `artifact_name=${artifactName}`,
     `target_repository=${manifest.target_repository}`,
     `node_version_file=${manifest.node_version_file}`,
     `python_version_file=${manifest.python_version_file}`,
@@ -451,7 +489,8 @@ async function main(): Promise<void> {
       manifest_path,
       product_root,
       version,
-      artifact_name: manifest.artifact_name,
+      artifact_name: artifactName,
+      source_branch: branch,
       target_repository: manifest.target_repository,
       node_version_file: manifest.node_version_file,
       python_version_file: manifest.python_version_file,
