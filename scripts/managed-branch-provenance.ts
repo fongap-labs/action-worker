@@ -94,7 +94,10 @@ export async function resolveManagedBranchMerge(
     baseRef(pr) !== targetBranch ||
     !shaPattern.test(prHeadSha)
   ) {
-    throw new CliError(`::error::Merged pull request facts do not match the ${targetBranch} write.`, 65);
+    throw new CliError(
+      `::error::Merged pull request facts do not match the ${targetBranch} write.`,
+      65
+    );
   }
 
   return { pr_number: prNumber, pr_head_sha: prHeadSha };
