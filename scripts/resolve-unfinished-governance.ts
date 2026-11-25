@@ -6,18 +6,19 @@ import {
   isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
 
-const context = "PR Governance";
 const description = "Action Worker PR governance did not complete for this head";
 
 // The newest PR Governance status of a commit, read from its combined status.
 export function latestGovernanceStatus(
   combined: unknown,
   repository: string,
-  sha: string
+  sha: string,
+  context = "PR Governance"
 ): { state: string; target: string } | null {
   const statuses = getJsonArray(combined, "statuses")
     .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === context)
@@ -56,6 +57,8 @@ export function isUnfinished(
 async function main(): Promise<void> {
   const [repository = "", prNumber = "", ownRunUrl = ""] = process.argv.slice(2);
   const controlRepository = process.env.CONTROL_REPOSITORY ?? "";
+  const branch = process.env.AW_PR_TARGET_BRANCH ?? "main";
+  const context = gateContextsForBranch(loadGateContract(), branch).pr_governance;
   const controlToken = requireToken("control");
   const statusToken = requireToken("status");
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !/^[0-9]+$/.test(prNumber)) {
@@ -66,7 +69,7 @@ async function main(): Promise<void> {
   }
 
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, controlToken);
-  if (!isGovernedPullDirection(pull)) {
+  if (!isGovernedPullDirection(pull, branch)) {
     console.log(
       `Skipping unfinished PR governance: ${repository}#${prNumber} does not target main from a feature branch.`
     );
@@ -76,8 +79,9 @@ async function main(): Promise<void> {
   if (!/^[0-9a-f]{40}$/.test(head)) {
     throw new CliError(`::error::Pull request ${repository}#${prNumber} has no head commit.`, 65);
   }
+  if (branch === "dev" && head !== process.env.AW_EXPECTED_PR_HEAD) return;
   const combined = await getGithubJson(`repos/${repository}/commits/${head}/status`, statusToken);
-  const status = latestGovernanceStatus(combined, repository, head);
+  const status = latestGovernanceStatus(combined, repository, head, context);
 
   const runId = status ? targetRunId(status.target, controlRepository) : null;
   const isTargetRunCompleted =

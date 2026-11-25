@@ -95,3 +95,17 @@ test("CI failure and prepare failure reopen a red gate only after status publica
   assert.match(recover.run ?? "", /run-pr-governance/);
   assert.ok(failureSteps.indexOf(failed) < failureSteps.indexOf(recover));
 });
+
+test("development governance validates but cannot invoke main merge or refresh", () => {
+  const content = readFileSync(".github/workflows/handle-pr-dispatch.yml", "utf8");
+  const steps = workflow(".github/workflows/handle-pr-dispatch.yml").jobs.govern!.steps;
+  assert.match(content, /approved:.*target_branch == 'main'/);
+  assert.match(
+    step(steps, "Refresh behind branch before expensive CI").if ?? "",
+    /target_branch == 'main'/
+  );
+  assert.match(
+    step(steps, "Verify current dev governance scope").run ?? "",
+    /verify-dev-governance/
+  );
+});

@@ -683,3 +683,51 @@ test("repository-dispatch intake reads only the authorized wake-up target", asyn
   assert.deepEqual(fetched, [`repos/${alpha}/pulls?state=open&per_page=100&page=1`]);
   assert.equal(result.repositories, 1);
 });
+
+test("intake routes trusted public dev PRs without consuming main gates or repair", async () => {
+  const repository = "fongap-labs/example";
+  const control = "fongap-labs/action-worker";
+  const dispatched: unknown[] = [];
+  const reserved: string[] = [];
+  const base = { ref: "dev", repo: { full_name: repository, private: false } };
+  const head = { ref: "feat/dev-task", sha: shaA, repo: { full_name: repository } };
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [
+            { number: 1, author_association: "MEMBER", base, head },
+            { number: 2, author_association: "MEMBER", base, head: { ...head, ref: "main" } },
+            {
+              number: 3,
+              author_association: "MEMBER",
+              base: { ...base, repo: { ...base.repo, private: true } },
+              head,
+            },
+          ];
+        }
+        assert.equal(path, `repos/${repository}/commits/${shaA}/status`);
+        return attestFixtureResponseForPath(path, {
+          statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
+            context,
+            state: "success",
+            target_url: `https://github.com/${control}/actions/runs/55`,
+          })),
+        });
+      },
+    },
+    async (...args) => {
+      dispatched.push(args);
+    },
+    control,
+    async () => assert.fail("unexpected repair dispatch"),
+    async (_repo, _sha, context) => {
+      reserved.push(context);
+    }
+  );
+  assert.deepEqual(dispatched, [[repository, 1, shaA, "dev"]]);
+  assert.deepEqual(reserved, ["Dev PR Governance"]);
+  assert.equal(result.dispatched, 1);
+  assert.equal(result.blocked_unauthorized, 2);
+});

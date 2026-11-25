@@ -13,9 +13,11 @@ export function classifyPrMergeability(
   repository: string,
   prNumber: number,
   headSha: string,
-  baseSha: string
+  baseSha: string,
+  targetBranch = "main"
 ): MergePreflightResult {
   if (
+    !isManagedBranchRef(targetBranch) ||
     !repositoryPattern.test(repository) ||
     !Number.isSafeInteger(prNumber) ||
     prNumber < 1 ||
@@ -32,7 +34,7 @@ export function classifyPrMergeability(
   if (
     getJsonString(head, "sha") !== headSha ||
     getJsonString(base, "sha") !== baseSha ||
-    getJsonString(base, "ref") !== "main"
+    getJsonString(base, "ref") !== targetBranch
   ) {
     throw new CliError("::error::PR head or main changed before CI; resolve the new snapshot.", 75);
   }
@@ -53,6 +55,9 @@ export function classifyPrMergeability(
     return "retry";
   }
   if (pull.mergeable_state === "behind") {
+    if (targetBranch === "dev") {
+      throw new CliError("Dev PR must be refreshed within its own task branch.", 75);
+    }
     const headRepository = getJsonString(head.repo, "full_name");
     const baseRepository = getJsonString(base.repo, "full_name");
     if (headRepository !== repository || baseRepository !== repository) {
@@ -75,7 +80,14 @@ async function main(): Promise<void> {
   }
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     const pull = await getGithubJson("repos/" + repository + "/pulls/" + prNumber, token);
-    const outcome = classifyPrMergeability(pull, repository, prNumber, headSha, baseSha);
+    const outcome = classifyPrMergeability(
+      pull,
+      repository,
+      prNumber,
+      headSha,
+      baseSha,
+      process.env.AW_PR_TARGET_BRANCH ?? "main"
+    );
     if (outcome === "ready") {
       console.log("PR mergeability preflight passed for the current head and base.");
       return;

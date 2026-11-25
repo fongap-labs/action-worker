@@ -68,6 +68,14 @@ export async function fetchPullFacts(
   }
   const base = isJsonRecord(pull.base) ? pull.base : {};
   const head = isJsonRecord(pull.head) ? pull.head : {};
+  if (
+    targetBranch === "dev" &&
+    (!isJsonRecord(base.repo) ||
+      base.repo.private !== false ||
+      getJsonString(head.repo, "full_name") !== repository)
+  ) {
+    throw new CliError("Dev PR governance requires a public same-repository PR.", 75);
+  }
   const baseSha = resolvePullDiffBaseSha(base, repository);
   const headSha = getJsonString(head, "sha");
   if (!/^[0-9a-f]{40}$/.test(headSha)) {
@@ -118,6 +126,19 @@ async function main(): Promise<void> {
   };
   const actual = await runText("git", ["-C", "target", "rev-parse", "HEAD"]);
   let resolved = initial;
+  const targetBranch = process.env.AW_CI_TARGET_BRANCH ?? "main";
+  if (targetBranch === "dev") {
+    const current = await fetchPullFacts(repository, prNumber, token, false, targetBranch);
+    if (
+      actual !== initial.headSha ||
+      current.headSha !== initial.headSha ||
+      current.baseSha !== initial.baseSha ||
+      current.title !== initial.title ||
+      initial.headSha !== process.env.AW_EXPECTED_PR_HEAD
+    ) {
+      throw new CliError("Dev PR snapshot changed after dispatch.", 75);
+    }
+  }
   if (actual !== initial.headSha) {
     resolved = await fetchPullFacts(repository, prNumber, token);
     if (actual !== resolved.headSha) {

@@ -23,7 +23,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     outputs:
-      approved: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
+      target_branch: ${{ steps.payload.outputs.target_branch }}
+      approved: ${{ steps.payload.outputs.target_branch == 'main' && steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
     env:
       AW_AI_AGENT_CONFIG: ${{ vars.AW_AI_AGENT_CONFIG }}
 
@@ -56,7 +57,7 @@ jobs:
         id: payload
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
-        run: node scripts/validate-pr-payload.ts "$PAYLOAD"
+        run: node scripts/validate-pr-payload.ts "$PAYLOAD" --pr-governance
 
       - name: Resolve PR API scope
         id: api_scope
@@ -90,7 +91,15 @@ jobs:
           GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          AW_CI_TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
         run: node scripts/resolve-pr-facts.ts fetch
+
+      - name: Verify immutable development request
+        if: steps.payload.outputs.target_branch == 'dev'
+        env:
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          RESOLVED_HEAD: ${{ steps.facts.outputs.head_sha }}
+        run: test "$REQUESTED_HEAD" = "$RESOLVED_HEAD"
 
       - name: Checkout target PR
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -111,6 +120,8 @@ jobs:
           INITIAL_BASE_SHA: ${{ steps.facts.outputs.base_sha }}
           INITIAL_HEAD_SHA: ${{ steps.facts.outputs.head_sha }}
           INITIAL_TITLE: ${{ steps.facts.outputs.title }}
+          AW_CI_TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
+          AW_EXPECTED_PR_HEAD: ${{ github.event.client_payload.head_sha }}
         run: node scripts/resolve-pr-facts.ts resolve
 
       - name: Fingerprint checked PR title
@@ -121,7 +132,7 @@ jobs:
 
       - name: Check deploy configuration gaps
         id: deploy_gap
-        if: ${{ always() }}
+        if: ${{ always() && steps.payload.outputs.target_branch == 'main' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.app_read.outputs.token }}
@@ -149,6 +160,7 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          AW_PR_TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" pending "Action Worker PR governance in progress" "$RUN_URL"
 
       - name: Mark central merge gate in progress
@@ -159,6 +171,7 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          AW_PR_TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
           PR_STATUS_CONTEXT: validate-merge
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" pending "Action Worker merge gate in progress" "$RUN_URL"
 
@@ -172,10 +185,11 @@ jobs:
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
+          AW_PR_TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
         run: node scripts/pr-merge-preflight.ts "$REPOSITORY" "$PR_NUMBER" "$HEAD_SHA" "$BASE_SHA"
 
       - name: Mint PR branch refresh token
-        if: steps.merge_preflight.outputs.needs_refresh == 'true'
+        if: steps.payload.outputs.target_branch == 'main' && steps.merge_preflight.outputs.needs_refresh == 'true'
         id: refresh_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -186,7 +200,7 @@ jobs:
           permission-contents: write
 
       - name: Refresh behind branch before expensive CI
-        if: steps.merge_preflight.outputs.needs_refresh == 'true'
+        if: steps.payload.outputs.target_branch == 'main' && steps.merge_preflight.outputs.needs_refresh == 'true'
         env:
           GH_TOKEN: ${{ steps.refresh_app.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -297,6 +311,7 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           REQUEST_ID: ${{ github.event.client_payload.request_id }}
+          TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -306,7 +321,8 @@ jobs:
             "$REQUEST_ID" \
             "$HEAD_SHA" \
             "$RUN_URL" \
-            "$GITHUB_WORKSPACE/policies/execution.json"
+            "$GITHUB_WORKSPACE/policies/execution.json" \
+            "$TARGET_BRANCH"
 
       # CI now owns a signed pending lease. Release the governance runner and
       # reopen a fresh gate after verified completion instead of polling for
@@ -324,7 +340,8 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           CI_EVIDENCE_PATH: /tmp/ci-evidence.json
-        run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json" "$PR_NUMBER"
+          TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
+        run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json" "$PR_NUMBER" "$TARGET_BRANCH"
 
       - name: Validate CI evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true' && steps.ci_dispatch.outputs.deferred != 'true'
@@ -332,6 +349,19 @@ jobs:
         run: |
           set -Eeuo pipefail
           node scripts/validate-ci-evidence.ts /tmp/ci-evidence.json
+
+      - name: Verify current dev governance scope
+        if: steps.payload.outputs.target_branch == 'dev' && steps.ci_dispatch.outputs.deferred != 'true'
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
+          TITLE_FINGERPRINT: ${{ steps.title.outputs.fingerprint }}
+        run: node scripts/verify-dev-governance.ts
 
       - name: Mark deterministic gate passed
         id: gate
@@ -365,7 +395,8 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/check-status-owner.ts "$REPOSITORY" "$HEAD_SHA" "$RUN_URL"
+          GOVERNANCE_CONTEXT: ${{ steps.payload.outputs.target_branch == 'dev' && 'Dev PR Governance' || 'PR Governance' }}
+        run: node scripts/check-status-owner.ts "$REPOSITORY" "$HEAD_SHA" "$RUN_URL" "$GOVERNANCE_CONTEXT"
 
       # Records a cancelled run. The context is only readable in a step condition, so the final
       # gates below read this output instead of calling cancelled() themselves.
@@ -400,6 +431,7 @@ jobs:
           STATE: ${{ steps.cancellation.outputs.cancelled != 'true' && steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
           DESCRIPTION: ${{ steps.cancellation.outputs.cancelled == 'true' && 'Action Worker PR governance was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker PR governance failed' }}
           TITLE_FINGERPRINT: ${{ steps.title.outputs.fingerprint }}
+          AW_PR_TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -421,6 +453,7 @@ jobs:
           STATE: ${{ steps.cancellation.outputs.cancelled != 'true' && steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
           DESCRIPTION: ${{ steps.cancellation.outputs.cancelled == 'true' && 'Action Worker merge gate was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker merge gate failed' }}
           TITLE_FINGERPRINT: ${{ steps.title.outputs.fingerprint }}
+          AW_PR_TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
           PR_STATUS_CONTEXT: validate-merge
         shell: bash
         run: |
@@ -435,7 +468,7 @@ jobs:
       # runs in an independent non-blocking job, never inside PR Governance.
 
       - name: Publish PR review
-        if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' }}
+        if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' && steps.payload.outputs.target_branch == 'main' }}
         id: issue_app
         continue-on-error: true
         uses: ./.github/actions/mint-app-token
@@ -448,7 +481,7 @@ jobs:
           permission-pull-requests: write
 
       - name: Publish PR review
-        if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' }}
+        if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' && steps.payload.outputs.target_branch == 'main' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.issue_app.outputs.token }}
@@ -509,7 +542,7 @@ jobs:
         id: payload
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
-        run: node scripts/validate-pr-payload.ts "$PAYLOAD"
+        run: node scripts/validate-pr-payload.ts "$PAYLOAD" --pr-governance
 
       - name: Resolve PR API scope
         id: api_scope
@@ -641,4 +674,9 @@ jobs:
           REPOSITORY: ${{ github.event.client_payload.repository }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/resolve-unfinished-governance.ts "$REPOSITORY" "$PR_NUMBER" "$RUN_URL"
+          AW_PR_TARGET_BRANCH: ${{ needs.govern.outputs.target_branch || 'main' }}
+          AW_EXPECTED_PR_HEAD: ${{ github.event.client_payload.head_sha }}
+          REQUESTED_BRANCH: ${{ github.event.client_payload.target_branch || 'main' }}
+        run: |
+          if [[ "$AW_PR_TARGET_BRANCH" != "$REQUESTED_BRANCH" ]]; then exit 0; fi
+          node scripts/resolve-unfinished-governance.ts "$REPOSITORY" "$PR_NUMBER" "$RUN_URL"
