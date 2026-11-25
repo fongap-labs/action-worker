@@ -30,12 +30,12 @@ function titleFingerprint(pull: unknown): string {
   return prTitleFingerprint(title);
 }
 
-function assertDevPull(pull: unknown, scope: PrCiScope, merged: boolean): void {
+function assertDevPull(pull: unknown, scope: PrCiScope, isMerged: boolean): void {
   if (
     !isJsonRecord(pull) ||
     pull.number !== scope.prNumber ||
-    pull.state !== (merged ? "closed" : "open") ||
-    pull.merged !== merged ||
+    pull.state !== (isMerged ? "closed" : "open") ||
+    pull.merged !== isMerged ||
     !isGovernedPullDirection(pull, "dev") ||
     !isJsonRecord(pull.head) ||
     !isJsonRecord(pull.base) ||
@@ -44,7 +44,7 @@ function assertDevPull(pull: unknown, scope: PrCiScope, merged: boolean): void {
     getJsonString(pull.base.repo, "full_name") !== scope.repository ||
     getJsonString(pull.head.repo, "full_name") !== scope.repository ||
     getJsonString(pull.head, "sha") !== scope.headSha ||
-    (!merged &&
+    (!isMerged &&
       (pull.draft !== false ||
         pull.mergeable !== true ||
         pull.mergeable_state === "behind" ||
