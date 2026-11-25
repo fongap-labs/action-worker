@@ -151,6 +151,10 @@ test("approval requires the current trusted run and configured user reviewers", 
   world.entries.set(world.runPath, { ...world.run, head_branch: "dev" });
   await assert.rejects(world.verify(), /current trusted governance run/);
   world.entries.set(world.runPath, world.run);
-  world.entries.set(world.environmentPath, { id: 8, name: "branch-transfer", protection_rules: [] });
+  world.entries.set(world.environmentPath, {
+    id: 8,
+    name: "branch-transfer",
+    protection_rules: [],
+  });
   await assert.rejects(world.verify(), /no explicit user reviewers/);
 });
