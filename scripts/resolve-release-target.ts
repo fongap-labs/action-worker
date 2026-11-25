@@ -150,10 +150,7 @@ async function main(): Promise<void> {
   }
   const isBeta = request.source_branch === "dev";
   if (isBeta) {
-    const run = await getGithubJson(
-      `repos/${artifactRepository}/actions/runs/${runId}`,
-      readToken
-    );
+    const run = await getGithubJson(`repos/${artifactRepository}/actions/runs/${runId}`, readToken);
     assertBetaProducer(request, run, controlRepository);
     const statusToken = process.env.AW_STATUS_API_TOKEN ?? "";
     if (!statusToken) throw new CliError("Beta release status read token required.", 77);

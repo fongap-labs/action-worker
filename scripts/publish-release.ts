@@ -403,9 +403,10 @@ async function main(): Promise<void> {
   const request = asRequest(await readJson(requestPath));
   const isBeta = request.source_branch === "dev";
   const releaseWriteToken = isBeta
-    ? process.env.AW_BETA_RELEASE_WRITE_API_TOKEN ?? ""
-    : process.env.AW_RELEASE_WRITE_API_TOKEN ?? "";
-  if (!releaseWriteToken) throw new CliError("Scoped release writer is required; no PAT fallback.", 77);
+    ? (process.env.AW_BETA_RELEASE_WRITE_API_TOKEN ?? "")
+    : (process.env.AW_RELEASE_WRITE_API_TOKEN ?? "");
+  if (!releaseWriteToken)
+    throw new CliError("Scoped release writer is required; no PAT fallback.", 77);
   if (
     isBeta
       ? !process.env.AW_BETA_RELEASE_WRITE_API_TOKEN ||
@@ -480,24 +481,24 @@ async function main(): Promise<void> {
   const ciJson = isBeta
     ? []
     : (JSON.parse(
-          await runGithubCli(
-            [
-              "run",
-              "list",
-              "--repo",
-              sourceRepository,
-              "--workflow",
-              "ci.yml",
-              "--commit",
-              sourceSha,
-              "--limit",
-              "20",
-              "--json",
-              "status,conclusion,headSha,databaseId",
-            ],
-            controlToken
-          )
-        ) as unknown);
+        await runGithubCli(
+          [
+            "run",
+            "list",
+            "--repo",
+            sourceRepository,
+            "--workflow",
+            "ci.yml",
+            "--commit",
+            sourceSha,
+            "--limit",
+            "20",
+            "--json",
+            "status,conclusion,headSha,databaseId",
+          ],
+          controlToken
+        )
+      ) as unknown);
   const ciRuns = getJsonArray(ciJson)
     .filter(
       (run) =>
@@ -707,7 +708,9 @@ async function main(): Promise<void> {
     );
     if (
       isBeta &&
-      (phase.kind !== "read-only" || targetRepository !== sourceRepository || targetSha !== sourceSha)
+      (phase.kind !== "read-only" ||
+        targetRepository !== sourceRepository ||
+        targetSha !== sourceSha)
     ) {
       throw new CliError(
         "Beta publication must remain on its exact dev source and cannot stage a changelog.",

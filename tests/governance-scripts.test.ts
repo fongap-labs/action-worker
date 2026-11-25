@@ -814,9 +814,7 @@ test("release contracts bind source, artifact provenance, target, assets, and li
   // A mirrored CRAN package may carry a four-part numeric version (AlgDesign 1.2.1.2); a fifth
   // part, or a non-numeric part, is not a version.
   validateRelease(request, { ...manifest, version: "1.2.1.2" }, policy);
-  assert.throws(() =>
-    validateRelease(request, { ...manifest, version: "1.2.1.2-beta.1" }, policy)
-  );
+  assert.throws(() => validateRelease(request, { ...manifest, version: "1.2.1.2-beta.1" }, policy));
   assert.throws(() => validateRelease(request, { ...manifest, version: "1.2.1.2.3" }, policy));
   assert.throws(() => validateRelease(request, { ...manifest, version: "1.2.1.x" }, policy));
   assert.throws(() => validateRelease(request, { ...manifest, version: "1.2" }, policy));

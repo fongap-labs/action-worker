@@ -200,8 +200,9 @@ test("Beta target accepts only explicit same-repository dev provenance and reser
 
 test("Beta release writer never receives the formal App credentials", async () => {
   const content = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
+  type ReleaseStep = { id?: string; if?: string; with?: Record<string, string> };
   const workflow = parse(content) as {
-    jobs: { release: { steps: Array<{ id?: string; if?: string; with?: Record<string, string> }> } };
+    jobs: { release: { steps: ReleaseStep[] } };
   };
   const steps = workflow.jobs.release.steps;
   const main = steps.find((step) => step.id === "release_write_app");
