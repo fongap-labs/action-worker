@@ -1,5 +1,6 @@
 import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
+import { isManagedBranchRef } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -34,6 +35,12 @@ export function classifyPrMergeability(
     getJsonString(base, "ref") !== "main"
   ) {
     throw new CliError("::error::PR head or main changed before CI; resolve the new snapshot.", 75);
+  }
+  if (isManagedBranchRef(getJsonString(head, "ref"))) {
+    throw new CliError(
+      "::error::Managed branch transfer requires separate human authorization.",
+      75
+    );
   }
   if (pull.draft === true) return "ready";
   if (pull.mergeable === false || pull.mergeable_state === "dirty") {

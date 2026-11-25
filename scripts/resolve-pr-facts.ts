@@ -7,14 +7,18 @@ type PullFacts = {
   title: string;
 };
 
-// Only pull requests targeting main can create PR governance attestations. A reverse
-// sync PR with main as its head would otherwise write failure statuses onto main.
+export function isManagedBranchRef(ref: string): boolean {
+  return ref === "main" || ref === "dev";
+}
+
+// The existing main-only admission path cannot authorize transfers from a managed branch.
+// Its commit statuses are SHA-scoped and must not overwrite protected branch evidence.
 export function isGovernedPullDirection(pull: unknown): boolean {
   if (!isJsonRecord(pull)) return false;
   const base = isJsonRecord(pull.base) ? pull.base : {};
   const head = isJsonRecord(pull.head) ? pull.head : {};
   const headRef = getJsonString(head, "ref");
-  return getJsonString(base, "ref") === "main" && headRef !== "" && headRef !== "main";
+  return getJsonString(base, "ref") === "main" && headRef !== "" && !isManagedBranchRef(headRef);
 }
 
 // Governance only works on open pull requests. The advisory AI review may also run for a pull
@@ -55,7 +59,7 @@ export async function fetchPullFacts(
   }
   if (!isGovernedPullDirection(pull)) {
     throw new CliError(
-      "::error::PR governance requires base=main and head!=main; reverse PRs must not write statuses to main.",
+      "::error::PR governance requires an ordinary task branch targeting main; managed branch heads require a separate authorization path.",
       65
     );
   }
