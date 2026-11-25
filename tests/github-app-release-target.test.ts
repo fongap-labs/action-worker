@@ -197,3 +197,18 @@ test("Beta target accepts only explicit same-repository dev provenance and reser
   );
   assert.throws(() => resolve({ ...beta, artifact_name: "release" }, target, source));
 });
+
+test("Beta release writer never receives the formal App credentials", async () => {
+  const content = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
+  const workflow = parse(content) as {
+    jobs: { release: { steps: Array<{ id?: string; if?: string; with?: Record<string, string> }> } };
+  };
+  const steps = workflow.jobs.release.steps;
+  const main = steps.find((step) => step.id === "release_write_app");
+  const beta = steps.find((step) => step.id === "beta_write_app");
+  assert.equal(main?.if, "steps.release_target.outputs.source_branch == 'main'");
+  assert.equal(beta?.if, "steps.release_target.outputs.source_branch == 'dev'");
+  assert.equal(beta?.with?.["client-id"], "${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID }}");
+  assert.equal(beta?.with?.["private-key"], "${{ secrets.AW_BETA_RELEASE_APP_PRIVATE_KEY }}");
+  assert.equal(beta?.with?.repositories, "${{ steps.release_target.outputs.repository_name }}");
+});

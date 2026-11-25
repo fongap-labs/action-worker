@@ -695,7 +695,7 @@ jobs:
               --arg source_branch "$SOURCE_BRANCH" \
               '{
                 event_type: "run-release",
-                client_payload: {
+                client_payload: ({
                   schema_version: "2",
                   request_id: $request_id,
                   source_repository: $source_repository,
@@ -703,7 +703,7 @@ jobs:
                   artifact_repository: $artifact_repository,
                   artifact_run_id: $artifact_run_id,
                   artifact_name: $artifact_name
-                } + (if $source_branch == "dev" then {source_branch: "dev"} else {} end)
+                } + (if $source_branch == "dev" then {source_branch: "dev"} else {} end))
               }'
           )"
 

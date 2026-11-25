@@ -390,11 +390,9 @@ async function main(): Promise<void> {
   await requireCommand("unzip", ["-v"]);
 
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
-  const releaseWriteToken =
-    process.env.AW_BETA_RELEASE_WRITE_API_TOKEN || process.env.AW_RELEASE_WRITE_API_TOKEN || "";
   const approvedTarget = process.env.AW_RELEASE_TARGET_REPOSITORY ?? "";
   const statusToken = requireStatusToken();
-  if (!controlToken || !releaseWriteToken || !approvedTarget) {
+  if (!controlToken || !approvedTarget) {
     throw new CliError(
       "Read, target-only App write and approved target credentials are required for release publication; no PAT fallback.",
       77
@@ -404,6 +402,10 @@ async function main(): Promise<void> {
   await validateRequest(requestPath);
   const request = asRequest(await readJson(requestPath));
   const isBeta = request.source_branch === "dev";
+  const releaseWriteToken = isBeta
+    ? process.env.AW_BETA_RELEASE_WRITE_API_TOKEN ?? ""
+    : process.env.AW_RELEASE_WRITE_API_TOKEN ?? "";
+  if (!releaseWriteToken) throw new CliError("Scoped release writer is required; no PAT fallback.", 77);
   if (
     isBeta
       ? !process.env.AW_BETA_RELEASE_WRITE_API_TOKEN ||
@@ -475,25 +477,27 @@ async function main(): Promise<void> {
   }
 
   if (isBeta) assertBetaProducer(request, runJson, controlRepository);
-  const ciJson = isBeta ? [] : JSON.parse(
-    await runGithubCli(
-      [
-        "run",
-        "list",
-        "--repo",
-        sourceRepository,
-        "--workflow",
-        "ci.yml",
-        "--commit",
-        sourceSha,
-        "--limit",
-        "20",
-        "--json",
-        "status,conclusion,headSha,databaseId",
-      ],
-      controlToken
-    )
-  ) as unknown;
+  const ciJson = isBeta
+    ? []
+    : (JSON.parse(
+          await runGithubCli(
+            [
+              "run",
+              "list",
+              "--repo",
+              sourceRepository,
+              "--workflow",
+              "ci.yml",
+              "--commit",
+              sourceSha,
+              "--limit",
+              "20",
+              "--json",
+              "status,conclusion,headSha,databaseId",
+            ],
+            controlToken
+          )
+        ) as unknown);
   const ciRuns = getJsonArray(ciJson)
     .filter(
       (run) =>
@@ -510,7 +514,8 @@ async function main(): Promise<void> {
     statusToken
   );
   if (
-    !isBeta && !(await hasVerifiedCiEvidence(sourceReader, statusJson, {
+    !isBeta &&
+    !(await hasVerifiedCiEvidence(sourceReader, statusJson, {
       controlRepository: controlRepositoryOf(),
       targetRepository: sourceRepository,
       targetSha: sourceSha,
