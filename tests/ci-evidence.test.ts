@@ -15,6 +15,7 @@ import {
   trustedControlRunId,
   verificationRecorder,
 } from "../scripts/ci-evidence.ts";
+import { prCiScopeDescription } from "../scripts/ci-scope-receipt.ts";
 import { waitForCentralStatus } from "../scripts/wait-ci-evidence.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
@@ -659,4 +660,55 @@ test("verified successful control run identity must match the signed status URL"
   assert.equal(result, false);
   assert.equal(failures.at(-1), "run-mismatch");
   assert.equal(reader.requested.length, 1);
+});
+
+test("signed PR CI scope binds the target branch and every immutable snapshot field", async () => {
+  const scope = {
+    repository: targetRepository,
+    prNumber: 7,
+    targetBranch: "main",
+    baseSha: "b".repeat(40),
+    headSha: targetSha,
+    mergeSha: "c".repeat(40),
+  };
+  const description = prCiScopeDescription(scope);
+  const receipt = evidenceStatus({ description });
+  assert.equal(
+    await hasVerifiedCiEvidence(runReader([controlRun()]), receipt, {
+      ...noDelay,
+      expectedPrScope: scope,
+    }),
+    true
+  );
+  for (const expectedPrScope of [
+    { ...scope, repository: "other/repo" },
+    { ...scope, prNumber: 8 },
+    { ...scope, targetBranch: "dev" },
+    { ...scope, baseSha: "d".repeat(40) },
+    { ...scope, headSha: "e".repeat(40) },
+    { ...scope, mergeSha: "f".repeat(40) },
+  ]) {
+    const reader = runReader([controlRun()]);
+    assert.equal(
+      await hasVerifiedCiEvidence(reader, receipt, { ...noDelay, expectedPrScope }),
+      false
+    );
+    assert.deepEqual(reader.requested, []);
+  }
+  assert.equal(
+    await hasVerifiedCiEvidence(runReader([controlRun()]), evidenceStatus(), {
+      ...noDelay,
+      expectedPrScope: scope,
+    }),
+    false
+  );
+  assert.equal(
+    await hasVerifiedCiEvidence(runReader([controlRun()]), evidenceStatus(), noDelay),
+    true
+  );
+  assert.throws(() => prCiScopeDescription({ ...scope, mergeSha: "" }), /Invalid PR CI snapshot/);
+  assert.throws(
+    () => prCiScopeDescription({ ...scope, targetBranch: "other" }),
+    /Invalid PR CI snapshot/
+  );
 });
