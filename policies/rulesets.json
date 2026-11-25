@@ -9,7 +9,9 @@
       "conditions": {
         "ref_name": {
           "exclude": [],
-          "include": ["refs/heads/main"]
+          "include": [
+            "refs/heads/main"
+          ]
         }
       },
       "rules": [
@@ -36,7 +38,9 @@
             "require_last_push_approval": false,
             "required_review_thread_resolution": false,
             "require_extra_approval_for_unattributed_changes": false,
-            "allowed_merge_methods": ["squash"]
+            "allowed_merge_methods": [
+              "squash"
+            ]
           }
         },
         {
@@ -62,10 +66,40 @@
       "conditions": {
         "ref_name": {
           "exclude": [],
-          "include": ["refs/heads/legacy/**"]
+          "include": [
+            "refs/heads/legacy/**"
+          ]
         }
       },
       "rules": [
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        },
+        {
+          "type": "update"
+        }
+      ]
+    },
+    {
+      "name": "Protect Dev Branch",
+      "target": "branch",
+      "enforcement": "active",
+      "bypass_actors": [],
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": [
+            "refs/heads/dev"
+          ]
+        }
+      },
+      "rules": [
+        {
+          "type": "creation"
+        },
         {
           "type": "deletion"
         },
