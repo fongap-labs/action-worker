@@ -1,6 +1,7 @@
 import { assertManualBranchAuthorization } from "./branch-transfer-approval.ts";
 import { prCiScopeDescription, readCurrentTransferScope } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
+import { initializeProtectedDev } from "./create-protected-dev.ts";
 import {
   bootstrapApprovalComment,
   devBootstrapContext,
@@ -103,7 +104,7 @@ async function main(): Promise<void> {
       await appendLines(process.env.GITHUB_STEP_SUMMARY, [
         "## Development initialization authorization",
         "",
-        "Source and administrator identity verified; this operation does not create a branch.",
+        "Source and administrator identity verified; the check stage does not create a branch.",
         `Source SHA: ${sha} (${requestedSha.trim() ? "manual" : "automatic"})`,
         "",
         `\`${identity}\``,
@@ -125,6 +126,22 @@ async function main(): Promise<void> {
       token: requireToken("status"),
       description: signedStatusDescription(status),
     });
+    const refToken = process.env.AW_DEV_REF_TOKEN ?? "";
+    delete process.env.AW_DEV_REF_TOKEN;
+    await initializeProtectedDev(
+      process.env.GITHUB_API_URL ?? "https://api.github.com",
+      protectionToken,
+      refToken,
+      repository,
+      sha
+    );
+    await verifyBootstrapSource(reader, repository, sha, controlRepository, true);
+    await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+      "## Development initialization completed",
+      "",
+      `Created and verified ${repository}@dev at ${sha}; closed branch protection restored.`,
+      "Dev merge enrollment remains subject to the existing Dev Write Guard and central policy.",
+    ]);
     return;
   }
   const scope = await readCurrentTransferScope(reader, repository, prNumber, sha);

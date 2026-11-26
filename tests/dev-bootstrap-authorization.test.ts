@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   bootstrapApprovalComment,
+  DevBootstrapPendingError,
   isClosedDevProtection,
   verifyAuthorizedDevBootstrap,
 } from "../scripts/dev-bootstrap-authorization.ts";
@@ -82,5 +83,34 @@ test("unsigned, expired and changed bootstrap evidence cannot establish dev trus
   await assert.rejects(
     verifyAuthorizedDevBootstrap(reader, repository, sha, signed, control, now),
     /branch identity changed/
+  );
+});
+
+test("the signed receipt of a running manual initialization defers the dev audit", async () => {
+  const receipt = {
+    context: "Dev Bootstrap Authorization",
+    state: "success",
+    description: `init-v1=${sha}`,
+    target_url: `https://github.com/${control}/actions/runs/42`,
+    created_at: "2026-11-25T11:00:00Z",
+  };
+  const signed = attestFixtureStatuses({ statuses: [receipt] }, repository, sha);
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.equal(path, `repos/${control}/actions/runs/42`);
+      return {
+        id: 42,
+        repository: { full_name: control },
+        head_branch: "main",
+        path: ".github/workflows/authorize-branch-transfer.yml",
+        event: "workflow_dispatch",
+        run_attempt: 1,
+        status: "in_progress",
+      };
+    },
+  };
+  await assert.rejects(
+    verifyAuthorizedDevBootstrap(reader, repository, sha, signed, control, now),
+    DevBootstrapPendingError
   );
 });
