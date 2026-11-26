@@ -208,9 +208,18 @@ test("Beta release writer never receives the formal App credentials", async () =
   const main = steps.find((step) => step.id === "release_write_app");
   const betaSteps = workflow.jobs["beta-release"].steps;
   const beta = betaSteps.find((step) => step.id === "beta_write_app");
-  assert.equal(steps.some((step) => step.id === "beta_write_app"), false);
-  assert.equal(betaSteps.some((step) => step.id === "release_write_app"), false);
-  assert.equal(betaSteps.some((step) => step.id === "npm_dispatch_app"), false);
+  assert.equal(
+    steps.some((step) => step.id === "beta_write_app"),
+    false
+  );
+  assert.equal(
+    betaSteps.some((step) => step.id === "release_write_app"),
+    false
+  );
+  assert.equal(
+    betaSteps.some((step) => step.id === "npm_dispatch_app"),
+    false
+  );
   assert.equal(main?.if, "steps.release_target.outputs.source_branch == 'main'");
   assert.equal(beta?.if, "steps.release_target.outputs.source_branch == 'dev'");
   assert.equal(beta?.with?.["client-id"], "${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID }}");
