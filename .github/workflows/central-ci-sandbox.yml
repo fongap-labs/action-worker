@@ -547,6 +547,7 @@ jobs:
           CENTRAL_CI_PR_NUMBER: ${{ inputs.pr_number }}
           TARGET_REPOSITORY: ${{ inputs.repository }}
           TARGET_PRIVATE: ${{ inputs.is_private }}
+          DELTA_PRIVACY_DEFERRED: ${{ inputs.delta_privacy_deferred }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -580,7 +581,7 @@ jobs:
             'portable-relocation', 'relocated-executable-startup'
           )
           $draftArgs = @{}
-          if ('${{ inputs.delta_privacy_deferred }}' -ceq 'true') {
+          if ($env:DELTA_PRIVACY_DEFERRED -ceq 'true') {
             if (-not $isPublicDelta -or $env:TARGET_REPOSITORY -cne 'fongap-labs/delta' -or $env:CENTRAL_CI_PR_NUMBER -cne '99') {
               throw 'Invalid Delta draft privacy deferral scope.'
             }
