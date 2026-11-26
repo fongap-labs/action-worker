@@ -1,6 +1,8 @@
 {
   "schema_version": 3,
-  "path_allow_patterns": ["(^|/)\\.env\\.(?:example|sample|template|variables)$"],
+  "path_allow_patterns": [
+    "(^|/)\\.env\\.(?:example|sample|template|variables)$"
+  ],
   "forbidden_path_patterns": [
     "(^|/)\\.env$",
     "(^|/)\\.env\\.(?:local|production|prod|staging|stage|development|dev)$",
@@ -91,7 +93,13 @@
     }
   ],
   "require_pinned_actions": true,
-  "path_terms": ["secret", "token", "auth", "permission", "credential"],
+  "path_terms": [
+    "secret",
+    "token",
+    "auth",
+    "permission",
+    "credential"
+  ],
   "approved_workflows": [
     {
       "path": ".github/workflows/notify-action-worker.yml",
@@ -172,7 +180,9 @@
       "source": "Electron v44.11.5 Windows x64 official release",
       "distribution_sha256": "2938040ee81382bb8a99954425a316fee17f23d55f5be0ef413275f7e793c8af",
       "reason": "Exact public upstream native-runtime context from the verified official distribution. Kept to preserve the official runtime binary; any changed or additional context remains blocking.",
-      "context_sha256": ["42f3313baad38870afe6007152fce635446875314f1bfc8b9959b90925fdd927"]
+      "context_sha256": [
+        "42f3313baad38870afe6007152fce635446875314f1bfc8b9959b90925fdd927"
+      ]
     },
     {
       "rule": "aws-access-key",
@@ -273,7 +283,9 @@
       "source": "python-build-standalone CPython 3.12.14 official Windows x64 release",
       "distribution_sha256": "7c45c9622400d578709a9b2cddbe8124cc21d382409d9f13406d706d28e31b14",
       "reason": "Exact public upstream native-runtime context from the verified official distribution. Kept to preserve the official runtime binary; any changed or additional context remains blocking.",
-      "context_sha256": ["2065a05fbb20aed94c1f12a9e85dfaf2fd8cc88655c5e6f3e967d48438ed68ca"]
+      "context_sha256": [
+        "2065a05fbb20aed94c1f12a9e85dfaf2fd8cc88655c5e6f3e967d48438ed68ca"
+      ]
     },
     {
       "rule": "privacy-windows-home-path",
@@ -374,6 +386,26 @@
         "fb60172dee0ecee541fa19fbabf9a11a62eb71c7c88eec56ff162d6fa45dff95",
         "fc0aef7de4ed6bcf96e46b9ec3b80c5081506cc305a9daf6c4a6c3e3a6361805",
         "fda248249878f3e5bc821dee523116b33445bb264114d69b957ecdd2b62b36f0"
+      ]
+    },
+    {
+      "rule": "privacy-windows-home-path",
+      "source": "pnpm 11.28.5 official Windows x64 @reflink/reflink-win32-x64-msvc distribution",
+      "distribution_sha256": "370cdee825881d1f0c3e87a85df5589ee51f1a7eec3bca3c252255b6521224dc",
+      "reason": "Exact Rust compiler source-path metadata in the pinned native reflink module; these strings are diagnostic metadata and do not participate in reflink operations. Only the listed contexts for this exact module digest are exempt.",
+      "context_sha256": [
+        "032d263ff0505ef8365c07de7686000eba7787e70d7fbe1256b68deb4649db11",
+        "0acfd84c91f6ea0b8298e5275e230fc5f7cd97464447a22e606372268f6039d6",
+        "2ecdd5845b84afe392d9b15ecbb8da89a193e7697c970deab717ab4575889012",
+        "477259206572b23ace0140d4b2d725de681f796116a05fcb16344e880dee8ce2",
+        "4beb43673527e3d8267fc63d41d219565bdbb1177b4cdcdf70e48b0b0c1f8333",
+        "87dd0b5f6a506363a4d220bae4e7b04ced8e61cde5941c386a5a8e5a6336d7c2",
+        "8a2173e8b823743be9158001f05f40784ce8ec4c1e47d886a85cc4249fccf0e8",
+        "bc9faf6a89f3e77bfb08a291fa87aa85ed705d6bdda3e967f41515ca031bcb00",
+        "c16ad503cc87f7615d0ea2c4f3ba8e328ec791522388347b7d181ab0410665c3",
+        "c719b47357ab0e36b67ced62d38ae8879a703c38c33522a47f311f605b4cccba",
+        "d417caf141109b91395383dfac5df6817e9a010ecee2fd7e8072742ca263760d",
+        "d573e9febefcab00c48738606a4bad57b3d8d755f15745a1965307909d3ca216"
       ]
     }
   ]
