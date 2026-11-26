@@ -177,15 +177,15 @@ class Scanner:
             if not matches:
                 continue
             if source == "content" and name in self.contexts:
-                unapproved = False
+                is_unapproved = False
                 for match in matches:
                     start = max(0, match.start() - 64)
                     end = min(len(text), match.end() + 64)
                     context = text[start:end].encode("utf-8")
                     if hashlib.sha256(context).hexdigest() not in self.contexts[name]:
-                        unapproved = True
+                        is_unapproved = True
                         break
-                if not unapproved:
+                if not is_unapproved:
                     continue
             self.counts[name] = self.counts.get(name, 0) + 1
             key = (*origin, name)
