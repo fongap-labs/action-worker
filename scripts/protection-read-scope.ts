@@ -1,4 +1,4 @@
-import { GithubReader, isJsonRecord } from "./github-api.ts";
+import { GithubHttpError, GithubReader, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 /** An unreadable protection rule is an infrastructure error, not an unauthorized write. */
@@ -15,7 +15,7 @@ export function takeProtectionReadToken(): string {
   return token;
 }
 
-/** Only exact policy-scoped protection GETs may use the admin-ops credential. */
+/** Only exact policy-scoped ruleset GETs may use the admin-ops credential. */
 export function withProtectionReads(
   reader: GithubReader,
   token: string,
@@ -29,23 +29,38 @@ export function withProtectionReads(
     const [pathname, query] = path.split("?");
     const rules = /^repos\/([^/]+\/[^/]+)\/rulesets(?:\/([1-9][0-9]*))?$/.exec(pathname ?? "");
     const environment = /^repos\/([^/]+\/[^/]+)\/environments\/branch-transfer$/.exec(path);
-    if (!rules && !environment) return ordinary(path);
-    if (rules) {
-      const expected = rules[2] ? "includes_parents=false" : "includes_parents=false&per_page=100";
-      if (query !== expected || path !== `${pathname}?${expected}`) {
-        throw new ProtectionReadError("Protection read query is not authorized.");
+    if (environment) {
+      if (environment[1] !== approvalRepository) {
+        throw new ProtectionReadError("Approval read is outside the approved repository scope.");
       }
+      // Environment metadata requires Actions read, not Administration write.
+      return ordinary(path);
     }
-    if (
-      (rules && !allowed.has(rules[1] ?? "")) ||
-      (environment && environment[1] !== approvalRepository)
-    ) {
+    if (!rules) return ordinary(path);
+    const expected = rules[2] ? "includes_parents=false" : "includes_parents=false&per_page=100";
+    if (query !== expected || path !== `${pathname}?${expected}`) {
+      throw new ProtectionReadError("Protection read query is not authorized.");
+    }
+    if (!allowed.has(rules[1] ?? "")) {
       throw new ProtectionReadError("Protection read is outside the approved repository scope.");
     }
     if (!token) {
       throw new ProtectionReadError("Missing admin-ops protection read credential.");
     }
-    const result = await privileged.get(path);
+    let result: unknown;
+    try {
+      result = await privileged.get(path);
+    } catch (error) {
+      if (
+        error instanceof GithubHttpError &&
+        (error.status === 404 || error.kind === "permission")
+      ) {
+        throw new ProtectionReadError(
+          `Cannot read managed ruleset ${rules[2] ? "detail" : "list"} (HTTP ${error.status}); verify admin-ops repository access and Administration write.`
+        );
+      }
+      throw error;
+    }
     if (rules?.[2] && (!isJsonRecord(result) || !Array.isArray(result.bypass_actors))) {
       throw new ProtectionReadError(
         "GitHub did not disclose bypass_actors; protection cannot be verified."

@@ -3,7 +3,7 @@ import {
   prCiScopeDescription,
   readCurrentTransferScope,
 } from "./ci-scope-receipt.ts";
-import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { GithubHttpError, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 type Reader = { get(path: string): Promise<unknown> };
@@ -49,13 +49,28 @@ function approvedReviewerIds(environment: unknown): Set<number> {
   return ids;
 }
 
+async function readApprovalEnvironment(
+  reader: Reader,
+  controlRepository: string
+): Promise<unknown> {
+  try {
+    return await reader.get(`repos/${controlRepository}/environments/${environmentName}`);
+  } catch (error) {
+    if (error instanceof GithubHttpError && (error.status === 404 || error.kind === "permission")) {
+      throw new CliError(
+        `Cannot read branch-transfer Environment (HTTP ${error.status}); verify it exists in Action Worker Settings > Environments and the App has Actions read.`,
+        77
+      );
+    }
+    throw error;
+  }
+}
+
 export async function assertBranchApprovalEnvironment(
   reader: Reader,
   controlRepository: string
 ): Promise<void> {
-  const environment = await reader.get(
-    `repos/${controlRepository}/environments/${environmentName}`
-  );
+  const environment = await readApprovalEnvironment(reader, controlRepository);
   if (approvedReviewerIds(environment).size === 0) {
     throw new CliError("Branch transfer environment has no explicit user reviewers.", 77);
   }
@@ -87,7 +102,7 @@ export async function assertExactBranchApproval(
   ) {
     throw new CliError("Branch transfer approval requires the current trusted governance run.", 75);
   }
-  const environment = await reader.get(`${prefix}/environments/${environmentName}`);
+  const environment = await readApprovalEnvironment(reader, controlRepository);
   const reviewerIds = approvedReviewerIds(environment);
   if (reviewerIds.size === 0) {
     throw new CliError("Branch transfer environment has no explicit user reviewers.", 77);
