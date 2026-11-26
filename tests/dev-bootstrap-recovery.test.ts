@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { mainWriteGuardWorkflowPaths } from "../scripts/ci-evidence.ts";
-import {
-  bootstrapIntegrationId,
-  temporaryDevGuardName,
-} from "../scripts/create-protected-dev.ts";
+import { bootstrapIntegrationId, temporaryDevGuardName } from "../scripts/create-protected-dev.ts";
 import { recoverInterruptedDevBootstrap } from "../scripts/dev-bootstrap-recovery.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
@@ -99,7 +96,13 @@ function fixture() {
       },
     ],
     [prefix, { full_name: repository, private: false, default_branch: "main" }],
-    [listPath, [{ ...closed, id: 12 }, { ...guard, id: 13 }]],
+    [
+      listPath,
+      [
+        { ...closed, id: 12 },
+        { ...guard, id: 13 },
+      ],
+    ],
     [closedPath, closed],
     [guardPath, guard],
     [`${prefix}/branches/main`, { commit: { sha } }],
