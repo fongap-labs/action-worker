@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -8,10 +8,10 @@ import { test } from "node:test";
 const script = "scripts/artifact-privacy-scan.py";
 const policy = "policies/security.json";
 
-function run(directory: string, strictOpaque = false) {
+function run(directory: string, strictOpaque = false, extra: string[] = []) {
   const args = [script, directory, policy];
   if (strictOpaque) args.push("--strict-opaque");
-  const result = spawnSync("python3", args, { encoding: "utf8" });
+  const result = spawnSync("python3", [...args, ...extra], { encoding: "utf8" });
   return { status: result.status, output: result.stdout + result.stderr };
 }
 
@@ -196,4 +196,83 @@ test("release privacy diagnostics classify origins without revealing archive mem
   assert.equal(map.status, 1);
   assert.ok(map.output.includes("node-dependencies/source-map/privacy-email-address"));
   assert.doesNotMatch(map.output, /developer|hidden|index\.js\.map/);
+});
+
+test("privacy diagnostics identify archive member and window without disclosing names or values", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const address = ["developer", "example.invalid"].join("@");
+  archive(join(directory, "bundle.zip"), "private-name/module.pyc", address, "zip");
+  const result = run(directory, false, ["--diagnostics"]);
+  assert.equal(result.status, 1);
+  const rows = result.output
+    .split("\n")
+    .filter((line) => line.startsWith("Release privacy locator "))
+    .map((line) => JSON.parse(line.slice("Release privacy locator ".length)));
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0], {
+    area: "other",
+    first_window: 1,
+    kind: "binary",
+    last_window: 1,
+    locator: "1.1",
+    rule: "privacy-email-address",
+    source: "content",
+    windows: 1,
+  });
+  assert.doesNotMatch(result.output, /developer|private-name|module\.pyc|example\.invalid/);
+  assert.equal(run(directory).status, result.status);
+});
+
+test("privacy diagnostics enumerate opaque objects without changing the verdict", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  await writeFile(join(directory, "private-name.exe"), "ordinary binary fixture");
+  const result = run(directory, false, ["--diagnostics"]);
+  assert.equal(result.status, 0);
+  assert.match(result.output, /"rule": "opaque-unverified"/);
+  assert.match(result.output, /"locator": "1"/);
+  assert.doesNotMatch(result.output, /private-name/);
+  assert.equal(run(directory, true, ["--diagnostics"]).status, 1);
+});
+
+test("private path mapping is offline-only, exclusive and never placed inside release assets", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const report = join(directory, "report.json");
+  const result = spawnSync("python3", [script, directory, policy, "--local-report", report], {
+    encoding: "utf8",
+    env: { ...process.env, CI: "", GITHUB_ACTIONS: "" },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /local-report-inside-release/);
+  const ci = spawnSync("python3", [script, directory, policy, "--local-report", report], {
+    encoding: "utf8",
+    env: { ...process.env, CI: "true" },
+  });
+  assert.equal(ci.status, 1);
+  assert.match(ci.stderr, /local-report-forbidden-in-ci/);
+});
+
+test("offline private report maps the same locator to an exact archive chain without matching values", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "release-privacy-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const directory = join(root, "assets");
+  await mkdir(directory);
+  const address = ["developer", "example.invalid"].join("@");
+  archive(join(directory, "bundle.zip"), "private-name/module.pyc", address, "zip");
+  const report = join(root, "report.json");
+  const args = [script, directory, policy, "--diagnostics", "--local-report", report];
+  const env = { ...process.env, CI: "", GITHUB_ACTIONS: "" };
+  const result = spawnSync("python3", args, { encoding: "utf8", env });
+  assert.equal(result.status, 1);
+  assert.doesNotMatch(result.stdout + result.stderr, /developer|private-name|module\.pyc/);
+  const raw = await readFile(report, "utf8");
+  const parsed = JSON.parse(raw);
+  assert.deepEqual(parsed.details[0].relative_archive_chain, ["bundle.zip", "private-name/module.pyc"]);
+  assert.equal(parsed.details[0].locator, "1.1");
+  assert.doesNotMatch(raw, /developer|example\.invalid/);
+  const repeated = spawnSync("python3", args, { encoding: "utf8", env });
+  assert.match(repeated.stderr, /local-report-write-failed/);
+  assert.equal(await readFile(report, "utf8"), raw);
 });
