@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isGovernedPullDirection, resolvePullDiffBaseSha } from "../scripts/resolve-pr-facts.ts";
+import {
+  isGovernedPullDirection,
+  resolveGovernanceRoute,
+  resolvePullDiffBaseSha,
+} from "../scripts/resolve-pr-facts.ts";
 
 const repository = "fongap-labs/app-source";
 
@@ -63,4 +67,58 @@ test("dev CI direction is explicit and cannot authorize branch transfers", () =>
   for (const ref of ["main", "dev", ""]) {
     assert.equal(isGovernedPullDirection({ ...dev, head: { ref } }, "dev"), false);
   }
+});
+
+test("legacy bridge events resolve and pin the live dev target without granting transfers", () => {
+  const headSha = "a".repeat(40);
+  const repo = { full_name: repository, private: false };
+  const pull = {
+    state: "open",
+    base: { ref: "dev", sha: "b".repeat(40), repo },
+    head: { ref: "feat/example", sha: headSha, repo },
+  };
+  assert.deepEqual(resolveGovernanceRoute(pull, repository, "", ""), {
+    targetBranch: "dev",
+    headSha,
+  });
+  assert.deepEqual(resolveGovernanceRoute(pull, repository, "dev", headSha), {
+    targetBranch: "dev",
+    headSha,
+  });
+  assert.throws(() => resolveGovernanceRoute(pull, repository, "main", headSha), /not authorized/);
+  assert.throws(() => resolveGovernanceRoute(pull, repository, "dev", ""), /current public/);
+  assert.throws(
+    () => resolveGovernanceRoute(pull, repository, "", "c".repeat(40)),
+    /current public/
+  );
+  for (const ref of ["main", "dev"]) {
+    assert.throws(
+      () => resolveGovernanceRoute({ ...pull, head: { ...pull.head, ref } }, repository, "", ""),
+      /not authorized/
+    );
+  }
+  assert.throws(
+    () =>
+      resolveGovernanceRoute(
+        { ...pull, head: { ...pull.head, repo: { full_name: "outside/fork" } } },
+        repository,
+        "",
+        ""
+      ),
+    /current public/
+  );
+  assert.throws(
+    () =>
+      resolveGovernanceRoute(
+        { ...pull, base: { ...pull.base, repo: { ...repo, private: true } } },
+        repository,
+        "",
+        ""
+      ),
+    /current public/
+  );
+  assert.deepEqual(
+    resolveGovernanceRoute({ ...pull, base: { ...pull.base, ref: "main" } }, repository, "", ""),
+    { targetBranch: "main", headSha }
+  );
 });

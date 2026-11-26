@@ -133,3 +133,18 @@ test("dev write credential follows the reviewed protection boundary", () => {
   const audit = workflow(".github/workflows/intake.yml").jobs["dev-writes"]!.steps;
   assert.equal(step(audit, "Audit managed dev branches").run, "node scripts/audit-dev-writes.ts");
 });
+
+test("ordinary governance routes legacy dispatches from live PR facts before writing status", () => {
+  const content = readFileSync(".github/workflows/handle-pr-dispatch.yml", "utf8");
+  const steps = workflow(".github/workflows/handle-pr-dispatch.yml").jobs.govern!.steps;
+  const route = steps.find((step) => step.name === "Resolve live PR governance route");
+  const fetch = steps.find((step) => step.name === "Fetch PR facts");
+  const mark = steps.find((step) => step.name === "Mark governance in progress");
+  assert.ok(route && fetch && mark);
+  assert.ok(steps.indexOf(route) < steps.indexOf(fetch));
+  assert.ok(steps.indexOf(fetch) < steps.indexOf(mark));
+  assert.match(content, /AW_CI_TARGET_BRANCH: \$\{\{ steps\.route\.outputs\.target_branch \}\}/);
+  assert.match(content, /REQUESTED_HEAD: \$\{\{ steps\.route\.outputs\.head_sha \}\}/);
+  assert.match(content, /AW_EXPECTED_PR_HEAD: \$\{\{ steps\.route\.outputs\.head_sha \}\}/);
+  assert.match(content, /AW_PR_TARGET_BRANCH: \$\{\{ steps\.route\.outputs\.target_branch \}\}/);
+});

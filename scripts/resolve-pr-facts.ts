@@ -49,6 +49,45 @@ export function resolvePullDiffBaseSha(base: unknown, repository: string): strin
   return baseSha;
 }
 
+
+/** A legacy bridge event is a wake-up hint, not a branch authorization. */
+export function resolveGovernanceRoute(
+  pull: unknown,
+  repository: string,
+  requestedBranch: string,
+  requestedHead: string
+): { targetBranch: "main" | "dev"; headSha: string } {
+  if (!isJsonRecord(pull) || pull.state !== "open") {
+    throw new CliError("Target PR is not open.", 65);
+  }
+  const targetBranch = getJsonString(pull.base, "ref");
+  const head = isJsonRecord(pull.head) ? pull.head : {};
+  if (
+    (targetBranch !== "main" && targetBranch !== "dev") ||
+    (requestedBranch !== "" && requestedBranch !== targetBranch) ||
+    !isGovernedPullDirection(pull, targetBranch)
+  ) {
+    throw new CliError("PR target or managed branch direction is not authorized.", 65);
+  }
+  const base = isJsonRecord(pull.base) ? pull.base : {};
+  resolvePullDiffBaseSha(base, repository);
+  const headSha = getJsonString(head, "sha");
+  if (!/^[0-9a-f]{40}$/.test(headSha)) {
+    throw new CliError("PR head SHA is invalid.", 65);
+  }
+  if (
+    targetBranch === "dev" &&
+    (!isJsonRecord(base.repo) ||
+      base.repo.private !== false ||
+      getJsonString(head.repo, "full_name") !== repository ||
+      (requestedBranch === "dev" && requestedHead === "") ||
+      (requestedHead !== "" && requestedHead !== headSha))
+  ) {
+    throw new CliError("Dev governance requires a current public same-repository PR.", 75);
+  }
+  return { targetBranch, headSha };
+}
+
 export async function fetchPullFacts(
   repository: string,
   prNumber: string,
@@ -62,7 +101,7 @@ export async function fetchPullFacts(
   }
   if (!isGovernedPullDirection(pull, targetBranch)) {
     throw new CliError(
-      "::error::PR governance requires an ordinary task branch targeting main; managed branch heads require a separate authorization path.",
+      "::error::PR governance requires an ordinary task branch targeting the selected branch; managed branch heads require separate authorization.",
       65
     );
   }
@@ -104,6 +143,20 @@ async function main(): Promise<void> {
   if (!repository || !prNumber || !token) {
     throw new CliError("::error::Repository, PR number, and GH_TOKEN are required.", 64);
   }
+  if (stage === "route") {
+    const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
+    const route = resolveGovernanceRoute(
+      pull,
+      repository,
+      process.env.AW_REQUESTED_PR_BRANCH ?? "",
+      process.env.AW_EXPECTED_PR_HEAD ?? ""
+    );
+    await appendLines(process.env.GITHUB_OUTPUT, [
+      `target_branch=${route.targetBranch}`,
+      `head_sha=${route.headSha}`,
+    ]);
+    return;
+  }
   if (stage === "fetch") {
     await writeFacts(
       await fetchPullFacts(
@@ -117,7 +170,7 @@ async function main(): Promise<void> {
     return;
   }
   if (stage !== "resolve") {
-    throw new CliError("Usage: resolve-pr-facts.ts <fetch|resolve>", 64);
+    throw new CliError("Usage: resolve-pr-facts.ts <route|fetch|resolve>", 64);
   }
   const initial: PullFacts = {
     baseSha: process.env.INITIAL_BASE_SHA ?? "",
