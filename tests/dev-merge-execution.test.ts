@@ -123,3 +123,21 @@ test("dev enrollment only derives a protected gate for the selected repository",
     );
   }
 });
+
+test("Delta enrollment does not open other repositories or reuse the main gate", () => {
+  const delta = "fongap-labs/delta";
+  assert.equal(devMergePolicyEnabled(policy, delta, identity.controlRepository), true);
+  const rules = managedRepositoryRulesets(policy, delta, identity.controlRepository);
+  assert.equal(
+    protectedMergeRuleset(rules.find((rule) => rule.name === "Protect Main Branch"), "main"),
+    true
+  );
+  assert.equal(
+    protectedMergeRuleset(rules.find((rule) => rule.name === "Protect Dev Branch"), "dev"),
+    true
+  );
+  assert.equal(
+    devMergePolicyEnabled(policy, identity.repository, identity.controlRepository),
+    false
+  );
+});

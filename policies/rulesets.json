@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "dev_merge_repositories": [],
+  "dev_merge_repositories": ["fongap-labs/delta"],
   "rulesets": [
     {
       "name": "Protect Main Branch",
