@@ -1,5 +1,8 @@
 import { requireToken } from "./control-token.ts";
-import { DevBootstrapPendingError, verifyAuthorizedDevBootstrap } from "./dev-bootstrap-authorization.ts";
+import {
+  DevBootstrapPendingError,
+  verifyAuthorizedDevBootstrap,
+} from "./dev-bootstrap-authorization.ts";
 import {
   DevWritePendingError,
   hasVerifiedDevWriteGuard,

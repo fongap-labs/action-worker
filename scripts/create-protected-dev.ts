@@ -2,10 +2,10 @@ import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { isClosedDevProtection } from "./dev-bootstrap-authorization.ts";
 import {
+  GithubReader,
   getGithubJsonIfExists,
   getJsonNumber,
   getJsonString,
-  GithubReader,
   isJsonRecord,
 } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
@@ -68,16 +68,19 @@ export async function createProtectedDevBranch(
   ) {
     throw new CliError("Invalid protected dev creation request.", 65);
   }
-  const prefix = "repos/" + repository;
-  const rulesPath = prefix + "/rulesets";
-  const listPath = rulesPath + "?includes_parents=false&per_page=100";
-  const detailPath = (id: number) => rulesPath + "/" + id + "?includes_parents=false";
-  const branchPath = (branch: string) => prefix + "/branches/" + branch;
+  const prefix = `repos/${repository}`;
+  const rulesPath = `${prefix}/rulesets`;
+  const listPath = `${rulesPath}?includes_parents=false&per_page=100`;
+  const detailPath = (id: number) => `${rulesPath}/${id}?includes_parents=false`;
+  const branchPath = (branch: string) => `${prefix}/branches/${branch}`;
   const assertSource = async () => {
     const main = await reader.get(branchPath("main"));
     const dev = await getGithubJsonIfExists(branchPath("dev"), (path) => reader.get(path));
     if (!isJsonRecord(main) || getJsonString(main.commit, "sha") !== sha || dev !== undefined) {
-      throw new CliError("Locked main SHA changed or dev already exists; no ref write allowed.", 75);
+      throw new CliError(
+        "Locked main SHA changed or dev already exists; no ref write allowed.",
+        75
+      );
     }
   };
 
@@ -95,7 +98,11 @@ export async function createProtectedDevBranch(
     throw new CliError("Unexpected or unfinished dev creation protection; inspect rulesets.", 75);
   }
   const original = snapshot(await reader.get(detailPath(id)));
-  if (!isClosedDevProtection(original) || !Array.isArray(original.rules) || original.rules.length !== 4) {
+  if (
+    !isClosedDevProtection(original) ||
+    !Array.isArray(original.rules) ||
+    original.rules.length !== 4
+  ) {
     throw new CliError("Exact closed dev ruleset is required before initialization.", 75);
   }
   const reduced = {
@@ -113,6 +120,21 @@ export async function createProtectedDevBranch(
     rules: [{ type: "creation" }],
   };
   let guardId = 0;
+  const restoreProtection = async () => {
+    if (guardId > 0 && guardId !== id) {
+      const current = snapshot(await reader.get(detailPath(id)));
+      if (!isDeepStrictEqual(current, original)) {
+        if (!isDeepStrictEqual(current, reduced)) {
+          throw new CliError("Unexpected dev ruleset drift; creation guard retained.", 75);
+        }
+        await admin("PUT", `${rulesPath}/${id}`, original);
+      }
+      if (!isDeepStrictEqual(snapshot(await reader.get(detailPath(id))), original)) {
+        throw new CliError("Closed dev protection not restored; creation guard retained.", 75);
+      }
+      await admin("DELETE", `${rulesPath}/${guardId}`);
+    }
+  };
   try {
     const created = await admin("POST", rulesPath, guard);
     guardId = getJsonNumber(created, "id");
@@ -125,7 +147,7 @@ export async function createProtectedDevBranch(
     if (!isDeepStrictEqual(snapshot(await reader.get(detailPath(id))), original)) {
       throw new CliError("Dev protection changed concurrently; no ref write allowed.", 75);
     }
-    await admin("PUT", rulesPath + "/" + id, reduced);
+    await admin("PUT", `${rulesPath}/${id}`, reduced);
     if (
       !isDeepStrictEqual(snapshot(await reader.get(detailPath(id))), reduced) ||
       !isDeepStrictEqual(snapshot(await reader.get(detailPath(guardId))), guard)
@@ -133,21 +155,9 @@ export async function createProtectedDevBranch(
       throw new CliError("Scoped creation protection changed; no ref write allowed.", 75);
     }
     await assertSource();
-    await createRef("POST", prefix + "/git/refs", { ref: "refs/heads/dev", sha });
+    await createRef("POST", `${prefix}/git/refs`, { ref: "refs/heads/dev", sha });
   } finally {
-    if (guardId > 0 && guardId !== id) {
-      const current = snapshot(await reader.get(detailPath(id)));
-      if (!isDeepStrictEqual(current, original)) {
-        if (!isDeepStrictEqual(current, reduced)) {
-          throw new CliError("Unexpected dev ruleset drift; creation guard retained.", 75);
-        }
-        await admin("PUT", rulesPath + "/" + id, original);
-      }
-      if (!isDeepStrictEqual(snapshot(await reader.get(detailPath(id))), original)) {
-        throw new CliError("Closed dev protection not restored; creation guard retained.", 75);
-      }
-      await admin("DELETE", rulesPath + "/" + guardId);
-    }
+    await restoreProtection();
   }
 
   const dev = await reader.get(branchPath("dev"));
@@ -170,19 +180,20 @@ export async function createProtectedDevBranch(
 function githubWriter(apiUrl: string, token: string): Writer {
   if (!token) throw new CliError("Required scoped GitHub credential is missing.", 77);
   return async (method, path, body) => {
-    const response = await fetch(apiUrl.replace(/\/+$/, "") + "/" + path, {
+    const response = await fetch(`${apiUrl.replace(/\/+$/, "")}/${path}`, {
       method,
       headers: {
         Accept: "application/vnd.github+json",
-        Authorization: "Bearer " + token,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         "X-GitHub-Api-Version": "2022-11-28",
       },
       body: body === undefined ? undefined : JSON.stringify(body),
+      redirect: "error",
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
-      throw new CliError("GitHub dev initialization " + method + " failed (HTTP " + response.status + ").", 75);
+      throw new CliError(`GitHub dev initialization ${method} failed (HTTP ${response.status}).`, 75);
     }
     return response.status === 204 ? undefined : await response.json();
   };

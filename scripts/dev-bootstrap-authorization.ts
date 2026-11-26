@@ -169,7 +169,10 @@ export async function verifyAuthorizedDevBootstrap(
       run.run_attempt === 1 &&
       run.status === "in_progress"
     ) {
-      throw new DevBootstrapPendingError("Development initialization publisher has not finished.", 75);
+      throw new DevBootstrapPendingError(
+        "Development initialization publisher has not finished.",
+        75
+      );
     }
   }
   if (

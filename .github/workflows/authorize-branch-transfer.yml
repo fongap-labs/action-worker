@@ -1,5 +1,5 @@
 name: 手动 · 分支授权
-run-name: ${{ inputs.confirm && '执行' || '仅检查' }} · ${{ inputs.operation }} · ${{ inputs.repository }}
+run-name: ${{ inputs.confirm && 'Execute' || 'Check only' }} · ${{ inputs.operation }} · ${{ inputs.repository }}
 
 on:
   workflow_dispatch:

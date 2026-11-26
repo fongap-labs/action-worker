@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { bootstrapIntegrationId, createProtectedDevBranch } from "../scripts/create-protected-dev.ts";
+import {
+  bootstrapIntegrationId,
+  createProtectedDevBranch,
+} from "../scripts/create-protected-dev.ts";
 import { CliError } from "../scripts/runtime-command.ts";
 
 const repository = "fongap-labs/example";
-const prefix = "repos/" + repository;
+const prefix = `repos/${repository}`;
 const sha = "a".repeat(40);
-const rulesPath = prefix + "/rulesets";
+const rulesPath = `${prefix}/rulesets`;
 const policy = JSON.parse(readFileSync("policies/rulesets.json", "utf8")) as {
   rulesets: Array<Record<string, unknown>>;
 };
@@ -19,12 +22,12 @@ function fixture(failWrite = false) {
   let dev = "";
   const reader = {
     async get(path: string): Promise<unknown> {
-      if (path === prefix + "/branches/main") return { commit: { sha } };
-      if (path === prefix + "/branches/dev") {
+      if (path === `${prefix}/branches/main`) return { commit: { sha } };
+      if (path === `${prefix}/branches/dev`) {
         if (!dev) throw new CliError("HTTP 404");
         return { commit: { sha: dev } };
       }
-      if (path === rulesPath + "?includes_parents=false&per_page=100") {
+      if (path === `${rulesPath}?includes_parents=false&per_page=100`) {
         return [...rules].map(([id, value]) => ({ ...value, id }));
       }
       const id = Number(path.split("/").at(-1)?.split("?")[0]);
@@ -41,13 +44,13 @@ function fixture(failWrite = false) {
       return { id: 13 };
     }
     if (method === "PUT") {
-      assert.equal(path, rulesPath + "/12");
+      assert.equal(path, `${rulesPath}/12`);
       assert.ok(rules.has(13));
       rules.set(12, body as Record<string, unknown>);
       events.push("update");
       return {};
     }
-    assert.equal(path, rulesPath + "/13");
+    assert.equal(path, `${rulesPath}/13`);
     assert.deepEqual(rules.get(12), original);
     rules.delete(13);
     events.push("cleanup");
@@ -55,7 +58,7 @@ function fixture(failWrite = false) {
   };
   const createRef = async (method: "POST" | "PUT" | "DELETE", path: string, body?: unknown) => {
     assert.equal(method, "POST");
-    assert.equal(path, prefix + "/git/refs");
+    assert.equal(path, `${prefix}/git/refs`);
     assert.deepEqual(body, { ref: "refs/heads/dev", sha });
     assert.deepEqual(rules.get(12)?.bypass_actors, []);
     assert.deepEqual(rules.get(12)?.rules, [
