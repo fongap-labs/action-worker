@@ -193,7 +193,10 @@ function githubWriter(apiUrl: string, token: string): Writer {
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
-      throw new CliError(`GitHub dev initialization ${method} failed (HTTP ${response.status}).`, 75);
+      throw new CliError(
+        `GitHub dev initialization ${method} failed (HTTP ${response.status}).`,
+        75
+      );
     }
     return response.status === 204 ? undefined : await response.json();
   };
