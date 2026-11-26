@@ -50,6 +50,11 @@ on:
       is_private:
         required: true
         type: string
+      delta_privacy_deferred:
+        description: Trusted temporary Delta dev draft incident scope; never valid CI evidence
+        required: false
+        type: string
+        default: "false"
       private_windows_numeric_diagnostic:
         description: Trusted central policy grant for bounded private Windows numeric diagnostics
         required: false
@@ -542,6 +547,7 @@ jobs:
           CENTRAL_CI_PR_NUMBER: ${{ inputs.pr_number }}
           TARGET_REPOSITORY: ${{ inputs.repository }}
           TARGET_PRIVATE: ${{ inputs.is_private }}
+          DELTA_PRIVACY_DEFERRED: ${{ inputs.delta_privacy_deferred }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -574,11 +580,19 @@ jobs:
             'portable-output-layout', 'portable-checksum-verification',
             'portable-relocation', 'relocated-executable-startup'
           )
+          $draftArgs = @{}
+          if ($env:DELTA_PRIVACY_DEFERRED -ceq 'true') {
+            if (-not $isPublicDelta -or $env:TARGET_REPOSITORY -cne 'fongap-labs/delta' -or $env:CENTRAL_CI_PR_NUMBER -cne '99') {
+              throw 'Invalid Delta draft privacy deferral scope.'
+            }
+            $draftArgs.DeferReleasePrivacy = $true
+            Write-Host '::notice::Delta draft release privacy scan deferred; final evidence remains pending.'
+          }
           try {
             if ($isPublicDelta) {
               # Stream fixed phase names and bounded numbers only; retain the full local log.
               # Progress is informational and never replaces the process exit verdict.
-              & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" *>&1 |
+              & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" @draftArgs *>&1 |
                 Tee-Object -FilePath $log |
                 ForEach-Object {
                   $line = [string]$_
