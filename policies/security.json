@@ -395,6 +395,33 @@
         "d417caf141109b91395383dfac5df6817e9a010ecee2fd7e8072742ca263760d",
         "d573e9febefcab00c48738606a4bad57b3d8d755f15745a1965307909d3ca216"
       ]
+    },
+    {
+      "rule": "privacy-email-address",
+      "source": "LibreOffice kit 0.2.3 official Windows x64 runtime executable (pnpm lock integrity verified)",
+      "distribution_sha256": "c9597966fe8db459e2d1cc0fefe5c070f10957349c4dd3daab211219eb75f933",
+      "reason": "Upstream email-shaped literals embedded in the pinned runtime executable, not Delta build or user metadata. Preserve the unchanged runtime; approve only these exact contexts in this exact binary digest.",
+      "context_sha256": [
+        "031d08db39ab1e4f28e745a25bf3ecf420319f57407b47e920c336e684bf53a7",
+        "20bf15c4d0c12cd600393ee5818b34421a4c153f33167c843e4b67cf10a2d69c",
+        "2b9b5780c4222edce387cb7b43fc037ad714d1307a5ef8718e3f25b0c56e7809",
+        "32db56f642ed5e77d826d47a6bbf6910721f39a563c7ad5d9f164aec698c4972",
+        "33393f75d9589190ef4b93e53ccc80b3ea3bef1ca2ad2180b1c4bbc84854901a",
+        "3f0562551c0639f856913161254899991b741beddac2c1d10a3b462b015129b5",
+        "4868da29bfd4038abb892d3da1e6df488db003965923742652527abd763ca3a8",
+        "62fd03f91d5740a6136f865ff84c87af76a7b0a985b337a431cfa61b94224453",
+        "68b9263b9fcf047d4c491e284d19b2d72ac7ec8dd47184f73d69cdda1c410046",
+        "bf1f7b5b3fdb9414d8c3a30163e6ac14eac21645a6701e8ed5252d4ca1d2b13b",
+        "d5abe6504890477af05774154f9ec4d6fa254be9d4d2b71c4193a74743112bbc",
+        "fa407be52661ad7b511a294e7610b5320a845b85a45d757349fdfc9c5c88d7a7"
+      ]
+    },
+    {
+      "rule": "private-key",
+      "source": "LibreOffice kit 0.2.3 official Windows x64 runtime executable (pnpm lock integrity verified)",
+      "distribution_sha256": "c9597966fe8db459e2d1cc0fefe5c070f10957349c4dd3daab211219eb75f933",
+      "reason": "The exact marker is followed by no key body and is not a private key. Preserve the unchanged runtime; approve only this exact marker context in this exact binary digest.",
+      "context_sha256": ["44d6a37a5d73258e0bacc92e715f3b4afe39317a046d67efd1ede4293cff76f3"]
     }
   ]
 }
