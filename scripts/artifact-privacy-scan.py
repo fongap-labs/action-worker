@@ -2,6 +2,7 @@
 """Offline release privacy scan; public output never includes paths or matching values."""
 
 import argparse
+import hashlib
 import io
 import json
 import os
@@ -44,7 +45,31 @@ def load_patterns(policy_path: Path):
                 if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", name):
                     raise ValueError("bad rule id")
                 rules.append((prefix + name, re.compile(expression)))
-        return rules
+        allowlist = policy.get("artifact_context_allowlist", [])
+        if not isinstance(allowlist, list):
+            raise ValueError("bad artifact context allowlist")
+        contexts = {}
+        rule_names = {name for name, _ in rules}
+        for item in allowlist:
+            if (
+                not isinstance(item, dict)
+                or item.get("rule") not in rule_names
+                or not isinstance(item.get("source"), str)
+                or not item["source"].strip()
+                or not isinstance(item.get("distribution_sha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", item["distribution_sha256"])
+                or not isinstance(item.get("reason"), str)
+                or not item["reason"].strip()
+                or not isinstance(item.get("context_sha256"), list)
+                or not item["context_sha256"]
+                or any(
+                    not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                    for digest in item["context_sha256"]
+                )
+            ):
+                raise ValueError("bad artifact context allowance")
+            contexts.setdefault(item["rule"], set()).update(item["context_sha256"])
+        return rules, contexts
     except (OSError, ValueError, KeyError, TypeError, re.error) as error:
         raise PrivacyScanError("invalid-policy") from error
 
@@ -98,8 +123,9 @@ def finding_origin(name, inherited="other"):
 
 
 class Scanner:
-    def __init__(self, rules, strict_opaque, diagnostics=False, local_paths=False):
+    def __init__(self, rules, strict_opaque, diagnostics=False, local_paths=False, contexts=None):
         self.rules = rules
+        self.contexts = contexts or {}
         self.strict_opaque = strict_opaque
         self.counts = {}
         self.origin_counts = {}
@@ -139,13 +165,32 @@ class Scanner:
             row["relative_archive_chain"] = names
         self.details[key] = row
 
-    def check_text(self, text, origin, locator, source, window, names):
+    def check_text(self, text, origin, locator, source, window, names, final_window=True):
         for name, expression in self.rules:
-            if expression.search(text):
-                self.counts[name] = self.counts.get(name, 0) + 1
-                key = (*origin, name)
-                self.origin_counts[key] = self.origin_counts.get(key, 0) + 1
-                self.record_detail(locator, origin, name, source, window, names)
+            matches = list(expression.finditer(text))
+            if not matches:
+                continue
+            # Do not decide on matches whose trailing context may continue in the next stream
+            # window. The overlap guarantees they will be checked again with complete context.
+            if not final_window:
+                matches = [match for match in matches if match.end() <= len(text) - 64]
+            if not matches:
+                continue
+            if source == "content" and name in self.contexts:
+                is_unapproved = False
+                for match in matches:
+                    start = max(0, match.start() - 64)
+                    end = min(len(text), match.end() + 64)
+                    context = text[start:end].encode("utf-8")
+                    if hashlib.sha256(context).hexdigest() not in self.contexts[name]:
+                        is_unapproved = True
+                        break
+                if not is_unapproved:
+                    continue
+            self.counts[name] = self.counts.get(name, 0) + 1
+            key = (*origin, name)
+            self.origin_counts[key] = self.origin_counts.get(key, 0) + 1
+            self.record_detail(locator, origin, name, source, window, names)
 
     def check_name(self, name, origin, locator, names, source="name"):
         normalized = name.replace("\\", "/")
@@ -165,17 +210,17 @@ class Scanner:
             raise PrivacyScanError("file-budget-exceeded")
         tail = ""
         window = 0
-        while True:
-            block = stream.read(CHUNK_BYTES)
-            if not block:
-                break
+        block = stream.read(CHUNK_BYTES)
+        while block:
             self.expanded_bytes += len(block)
             if self.expanded_bytes > MAX_EXPANDED_BYTES:
                 raise PrivacyScanError("expanded-size-budget-exceeded")
+            next_block = stream.read(CHUNK_BYTES)
             text = tail + block.decode("utf-8", errors="replace")
             window += 1
-            self.check_text(text, origin, locator, "content", window, names)
+            self.check_text(text, origin, locator, "content", window, names, not next_block)
             tail = text[-OVERLAP_BYTES:]
+            block = next_block
 
     def inspect(self, name, stream, depth, inherited="other", locator="1", parents=()):
         origin = finding_origin(name, inherited)
@@ -261,7 +306,8 @@ class Scanner:
 def scan_directory(directory, policy_path, strict_opaque, diagnostics=False, local_paths=False):
     if not directory.is_dir() or directory.is_symlink():
         raise PrivacyScanError("invalid-asset-directory")
-    scanner = Scanner(load_patterns(policy_path), strict_opaque, diagnostics, local_paths)
+    rules, contexts = load_patterns(policy_path)
+    scanner = Scanner(rules, strict_opaque, diagnostics, local_paths, contexts)
     for path in sorted(directory.rglob("*"), key=lambda item: item.relative_to(directory).as_posix()):
         if path.is_symlink():
             raise PrivacyScanError("symlinked-release-asset")

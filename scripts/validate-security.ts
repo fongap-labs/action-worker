@@ -38,6 +38,7 @@ type SecurityPolicy = {
   secret_allowlist: SecretAllowance[];
   workflow_forbidden_patterns: NamedPattern[];
   approved_workflows: ApprovedWorkflow[];
+  artifact_context_allowlist: ArtifactContextAllowance[];
   require_pinned_actions: boolean;
 };
 
@@ -46,6 +47,14 @@ type SecurityPolicy = {
 type ApprovedWorkflow = {
   path: string;
   sha256: string;
+};
+
+type ArtifactContextAllowance = {
+  rule: string;
+  source: string;
+  distribution_sha256: string;
+  reason: string;
+  context_sha256: string[];
 };
 
 export type SecurityViolation = {
@@ -115,6 +124,40 @@ function approvedWorkflows(value: unknown): ApprovedWorkflow[] {
   });
 }
 
+function artifactContextAllowlist(value: unknown, rules: Set<string>): ArtifactContextAllowance[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw new CliError("::error::Invalid security policy field: artifact_context_allowlist.", 65);
+  }
+  return value.map((item) => {
+    if (
+      !isJsonRecord(item) ||
+      typeof item.rule !== "string" ||
+      !rules.has(item.rule) ||
+      typeof item.source !== "string" ||
+      item.source.trim() === "" ||
+      typeof item.distribution_sha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(item.distribution_sha256) ||
+      typeof item.reason !== "string" ||
+      item.reason.trim() === "" ||
+      !Array.isArray(item.context_sha256) ||
+      item.context_sha256.length === 0 ||
+      item.context_sha256.some(
+        (digest) => typeof digest !== "string" || !/^[0-9a-f]{64}$/.test(digest)
+      )
+    ) {
+      throw new CliError("::error::Invalid security policy entry: artifact_context_allowlist.", 65);
+    }
+    return {
+      rule: item.rule,
+      source: item.source,
+      distribution_sha256: item.distribution_sha256,
+      reason: item.reason,
+      context_sha256: item.context_sha256 as string[],
+    };
+  });
+}
+
 export function workflowContentHash(content: string): string {
   return createHash("sha256").update(content.replace(/\r\n/g, "\n"), "utf8").digest("hex");
 }
@@ -131,11 +174,16 @@ function parsePolicy(value: unknown): SecurityPolicy {
   if (privacyPatterns.length === 0) {
     throw new CliError("::error::Privacy gate requires non-empty privacy_patterns.", 65);
   }
+  const secretPatterns = namedPatterns(value.secret_patterns, "secret_patterns");
+  const artifactRules = new Set([
+    ...secretPatterns.map(({ name }) => name),
+    ...privacyPatterns.map(({ name }) => `privacy-${name}`),
+  ]);
   return {
     schema_version: 3,
     path_allow_patterns: stringArray(value.path_allow_patterns, "path_allow_patterns"),
     forbidden_path_patterns: stringArray(value.forbidden_path_patterns, "forbidden_path_patterns"),
-    secret_patterns: namedPatterns(value.secret_patterns, "secret_patterns"),
+    secret_patterns: secretPatterns,
     privacy_patterns: privacyPatterns,
     secret_allowlist: secretAllowlist(value.secret_allowlist),
     workflow_forbidden_patterns: namedPatterns(
@@ -143,6 +191,10 @@ function parsePolicy(value: unknown): SecurityPolicy {
       "workflow_forbidden_patterns"
     ),
     approved_workflows: approvedWorkflows(value.approved_workflows),
+    artifact_context_allowlist: artifactContextAllowlist(
+      value.artifact_context_allowlist,
+      artifactRules
+    ),
     require_pinned_actions: value.require_pinned_actions,
   };
 }
