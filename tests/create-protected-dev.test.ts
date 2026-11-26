@@ -16,7 +16,7 @@ const policy = JSON.parse(readFileSync("policies/rulesets.json", "utf8")) as {
 };
 const original = policy.rulesets.find((rule) => rule.name === "Protect Dev Branch")!;
 
-function fixture(failWrite = false) {
+function fixture(failWrite = false, reorderRules = false) {
   const rules = new Map<number, Record<string, unknown>>([[12, structuredClone(original)]]);
   const events: string[] = [];
   let dev = "";
@@ -31,7 +31,13 @@ function fixture(failWrite = false) {
         return [...rules].map(([id, value]) => ({ ...value, id }));
       }
       const id = Number(path.split("/").at(-1)?.split("?")[0]);
-      if (rules.has(id)) return { ...rules.get(id), id };
+      if (rules.has(id)) {
+        const value = rules.get(id)!;
+        if (reorderRules && events.includes("create") && Array.isArray(value.rules)) {
+          return { ...value, id, rules: value.rules.toReversed() };
+        }
+        return { ...value, id };
+      }
       assert.fail(path);
     },
   };
@@ -108,4 +114,12 @@ test("a previous temporary guard fails closed before mutation", async () => {
 
 test("bootstrap integration is derived from the existing reviewed policy", () => {
   assert.ok(bootstrapIntegrationId() > 0);
+});
+
+test("GitHub may reorder the restored rule array without changing branch protection", async () => {
+  const f = fixture(false, true);
+  await createProtectedDevBranch(f.reader, f.admin, f.createRef, repository, sha, 42);
+  assert.equal(f.getDev(), sha);
+  assert.deepEqual(f.events, ["guard", "update", "create", "update", "cleanup"]);
+  assert.deepEqual([...f.rules], [[12, original]]);
 });

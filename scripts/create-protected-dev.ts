@@ -12,9 +12,9 @@ import { CliError } from "./runtime-command.ts";
 
 type Reader = { get(path: string): Promise<unknown> };
 type Writer = (method: "POST" | "PUT" | "DELETE", path: string, body?: unknown) => Promise<unknown>;
-const temporaryName = "Dev Bootstrap Creation Guard";
+export const temporaryDevGuardName = "Dev Bootstrap Creation Guard";
 
-function snapshot(value: unknown) {
+export function devRulesetSnapshot(value: unknown) {
   if (!isJsonRecord(value)) throw new CliError("Invalid dev ruleset response.", 75);
   return {
     name: value.name,
@@ -22,7 +22,11 @@ function snapshot(value: unknown) {
     enforcement: value.enforcement,
     conditions: value.conditions,
     bypass_actors: value.bypass_actors,
-    rules: value.rules,
+    rules: Array.isArray(value.rules)
+      ? value.rules.toSorted((left, right) =>
+          getJsonString(left, "type").localeCompare(getJsonString(right, "type"))
+        )
+      : value.rules,
   };
 }
 
@@ -93,11 +97,11 @@ export async function createProtectedDevBranch(
     closedRules.length !== 1 ||
     !Number.isSafeInteger(id) ||
     id < 1 ||
-    rules.some((rule) => getJsonString(rule, "name") === temporaryName)
+    rules.some((rule) => getJsonString(rule, "name") === temporaryDevGuardName)
   ) {
     throw new CliError("Unexpected or unfinished dev creation protection; inspect rulesets.", 75);
   }
-  const original = snapshot(await reader.get(detailPath(id)));
+  const original = devRulesetSnapshot(await reader.get(detailPath(id)));
   if (
     !isClosedDevProtection(original) ||
     !Array.isArray(original.rules) ||
@@ -112,7 +116,7 @@ export async function createProtectedDevBranch(
   // The temporary rule restricts creation to the trusted App, while the existing
   // rule continues to prohibit all updates, deletions and force pushes.
   const guard = {
-    name: temporaryName,
+    name: temporaryDevGuardName,
     target: "branch",
     enforcement: "active",
     conditions: original.conditions,
@@ -122,14 +126,14 @@ export async function createProtectedDevBranch(
   let guardId = 0;
   const restoreProtection = async () => {
     if (guardId > 0 && guardId !== id) {
-      const current = snapshot(await reader.get(detailPath(id)));
+      const current = devRulesetSnapshot(await reader.get(detailPath(id)));
       if (!isDeepStrictEqual(current, original)) {
         if (!isDeepStrictEqual(current, reduced)) {
           throw new CliError("Unexpected dev ruleset drift; creation guard retained.", 75);
         }
         await admin("PUT", `${rulesPath}/${id}`, original);
       }
-      if (!isDeepStrictEqual(snapshot(await reader.get(detailPath(id))), original)) {
+      if (!isDeepStrictEqual(devRulesetSnapshot(await reader.get(detailPath(id))), original)) {
         throw new CliError("Closed dev protection not restored; creation guard retained.", 75);
       }
       await admin("DELETE", `${rulesPath}/${guardId}`);
@@ -141,16 +145,16 @@ export async function createProtectedDevBranch(
     if (!Number.isSafeInteger(guardId) || guardId < 1 || guardId === id) {
       throw new CliError("Temporary creation guard ID unavailable; original lock retained.", 75);
     }
-    if (!isDeepStrictEqual(snapshot(await reader.get(detailPath(guardId))), guard)) {
+    if (!isDeepStrictEqual(devRulesetSnapshot(await reader.get(detailPath(guardId))), guard)) {
       throw new CliError("Temporary creation guard cannot be independently verified.", 75);
     }
-    if (!isDeepStrictEqual(snapshot(await reader.get(detailPath(id))), original)) {
+    if (!isDeepStrictEqual(devRulesetSnapshot(await reader.get(detailPath(id))), original)) {
       throw new CliError("Dev protection changed concurrently; no ref write allowed.", 75);
     }
     await admin("PUT", `${rulesPath}/${id}`, reduced);
     if (
-      !isDeepStrictEqual(snapshot(await reader.get(detailPath(id))), reduced) ||
-      !isDeepStrictEqual(snapshot(await reader.get(detailPath(guardId))), guard)
+      !isDeepStrictEqual(devRulesetSnapshot(await reader.get(detailPath(id))), reduced) ||
+      !isDeepStrictEqual(devRulesetSnapshot(await reader.get(detailPath(guardId))), guard)
     ) {
       throw new CliError("Scoped creation protection changed; no ref write allowed.", 75);
     }
@@ -164,14 +168,14 @@ export async function createProtectedDevBranch(
   if (
     !isJsonRecord(dev) ||
     getJsonString(dev.commit, "sha") !== sha ||
-    !isDeepStrictEqual(snapshot(await reader.get(detailPath(id))), original)
+    !isDeepStrictEqual(devRulesetSnapshot(await reader.get(detailPath(id))), original)
   ) {
     throw new CliError("Dev branch or restored protection verification failed.", 75);
   }
   const finalRules = await reader.get(listPath);
   if (
     !Array.isArray(finalRules) ||
-    finalRules.some((rule) => getJsonString(rule, "name") === temporaryName)
+    finalRules.some((rule) => getJsonString(rule, "name") === temporaryDevGuardName)
   ) {
     throw new CliError("Temporary dev creation protection is not cleaned up.", 75);
   }
@@ -218,4 +222,21 @@ export async function initializeProtectedDev(
     sha,
     bootstrapIntegrationId()
   );
+}
+
+export async function deleteTemporaryDevGuard(
+  apiUrl: string,
+  token: string,
+  repository: string,
+  id: number
+): Promise<void> {
+  if (
+    !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) ||
+    repository === "fongap-labs/action-worker" ||
+    !Number.isSafeInteger(id) ||
+    id < 1
+  ) {
+    throw new CliError("Invalid development guard cleanup scope.", 65);
+  }
+  await githubWriter(apiUrl, token)("DELETE", `repos/${repository}/rulesets/${id}`);
 }
