@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isGovernedPullDirection, resolvePullDiffBaseSha } from "../scripts/resolve-pr-facts.ts";
+import {
+  isGovernedPullDirection,
+  legacyDevIntakeWake,
+  resolvePullDiffBaseSha,
+} from "../scripts/resolve-pr-facts.ts";
 
 const repository = "fongap-labs/app-source";
 
@@ -63,4 +67,39 @@ test("dev CI direction is explicit and cannot authorize branch transfers", () =>
   for (const ref of ["main", "dev", ""]) {
     assert.equal(isGovernedPullDirection({ ...dev, head: { ref } }, "dev"), false);
   }
+});
+
+test("legacy bridge notifications can only wake intake for open public same-repository dev PRs", () => {
+  const pull = {
+    state: "open",
+    base: { ref: "dev", repo: { private: false, full_name: repository } },
+    head: { ref: "fix/issue", sha: "a".repeat(40), repo: { full_name: repository } },
+  };
+  assert.equal(legacyDevIntakeWake(pull, repository), true);
+  assert.equal(legacyDevIntakeWake({ ...pull, state: "closed" }, repository), false);
+  assert.equal(
+    legacyDevIntakeWake({ ...pull, base: { ...pull.base, ref: "main" } }, repository),
+    false
+  );
+  assert.equal(
+    legacyDevIntakeWake(
+      { ...pull, base: { ...pull.base, repo: { ...pull.base.repo, private: true } } },
+      repository
+    ),
+    false
+  );
+  for (const ref of ["main", "dev", ""]) {
+    assert.equal(legacyDevIntakeWake({ ...pull, head: { ...pull.head, ref } }, repository), false);
+  }
+  assert.equal(
+    legacyDevIntakeWake(
+      { ...pull, head: { ...pull.head, repo: { full_name: "other/fork" } } },
+      repository
+    ),
+    false
+  );
+  assert.equal(
+    legacyDevIntakeWake({ ...pull, head: { ...pull.head, sha: "invalid" } }, repository),
+    false
+  );
 });

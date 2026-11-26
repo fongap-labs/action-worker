@@ -318,3 +318,19 @@ test("automatic control PR merge atomically pins the validated head SHA", async 
   assert.match(merge.run, /\.head\.sha == \$head and \.merge_commit_sha == \$merged/);
   assert.doesNotMatch(merge.run, /gh pr merge/);
 });
+
+test("legacy dev notifications wake intake without entering main governance", async () => {
+  const dispatch = await workflow("handle-pr-dispatch.yml");
+  const route = dispatch.jobs["route-legacy"];
+  assert.ok(route);
+  assert.match(
+    route.if ?? "",
+    /target_branch == null && github.event.client_payload.head_sha == null/
+  );
+  assert.equal(dispatch.jobs.govern?.needs, "route-legacy");
+  assert.match(dispatch.jobs.govern?.if ?? "", /wake_dev == 'false'/);
+  assert.match(dispatch.jobs["resolve-unfinished"]?.if ?? "", /result == 'failure'/);
+  const wake = route.steps?.find((step) => step.name === "Wake central intake for development PR");
+  assert.match(wake?.run ?? "", /event_type:"run-intake"/);
+  assert.doesNotMatch(wake?.run ?? "", /run-pr-governance|statuses\//);
+});

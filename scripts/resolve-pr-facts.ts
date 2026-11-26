@@ -25,6 +25,21 @@ export function isGovernedPullDirection(pull: unknown, targetBranch = "main"): b
 
 // Governance only works on open pull requests. The advisory AI review may also run for a pull
 // request that was merged while it waited, so its caller opts in.
+export function legacyDevIntakeWake(pull: unknown, repository: string): boolean {
+  if (!isJsonRecord(pull) || pull.state !== "open" || !isGovernedPullDirection(pull, "dev")) {
+    return false;
+  }
+  const base = isJsonRecord(pull.base) ? pull.base : {};
+  const head = isJsonRecord(pull.head) ? pull.head : {};
+  return (
+    isJsonRecord(base.repo) &&
+    base.repo.private === false &&
+    base.repo.full_name === repository &&
+    getJsonString(head.repo, "full_name") === repository &&
+    /^[a-f0-9]{40}$/.test(getJsonString(head, "sha"))
+  );
+}
+
 export function pullAllowsFacts(pull: unknown, isMergedAllowed: boolean): boolean {
   if (!isJsonRecord(pull)) {
     return false;
@@ -104,6 +119,12 @@ async function main(): Promise<void> {
   if (!repository || !prNumber || !token) {
     throw new CliError("::error::Repository, PR number, and GH_TOKEN are required.", 64);
   }
+  if (stage === "route-legacy") {
+    const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
+    const wake = legacyDevIntakeWake(pull, repository);
+    await appendLines(process.env.GITHUB_OUTPUT, [`wake_dev=${String(wake)}`]);
+    return;
+  }
   if (stage === "fetch") {
     await writeFacts(
       await fetchPullFacts(
@@ -117,7 +138,7 @@ async function main(): Promise<void> {
     return;
   }
   if (stage !== "resolve") {
-    throw new CliError("Usage: resolve-pr-facts.ts <fetch|resolve>", 64);
+    throw new CliError("Usage: resolve-pr-facts.ts <route-legacy|fetch|resolve>", 64);
   }
   const initial: PullFacts = {
     baseSha: process.env.INITIAL_BASE_SHA ?? "",

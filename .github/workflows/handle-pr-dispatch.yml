@@ -18,7 +18,90 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  route-legacy:
+    name: Route legacy PR notification
+    # A v1 bridge hint without a branch or a head is not a dev authorization.
+    if: ${{ github.event.client_payload.target_branch == null && github.event.client_payload.head_sha == null }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      wake_dev: ${{ steps.route.outputs.wake_dev }}
+    steps:
+      - name: Mask target repository identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '(.client_payload.repository // "") | select(type == "string" and length > 0)' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r identity; do
+              printf '::add-mask::%s\n' "$identity"
+            done
+
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Validate legacy PR request
+        id: payload
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: node scripts/validate-pr-payload.ts "$PAYLOAD"
+
+      - name: Resolve PR API scope
+        id: api_scope
+        env:
+          TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint legacy PR read token
+        id: app_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-pull-requests: read
+
+      - name: Resolve live legacy notification route
+        id: route
+        env:
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+        run: node scripts/resolve-pr-facts.ts route-legacy
+
+      - name: Mint scoped intake dispatch token
+        if: steps.route.outputs.wake_dev == 'true'
+        id: dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Wake central intake for development PR
+        if: steps.route.outputs.wake_dev == 'true'
+        env:
+          GH_TOKEN: ${{ steps.dispatch_app.outputs.token }}
+          TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -cn --arg repository "$TARGET_REPOSITORY" '{event_type:"run-intake",client_payload:{repository:$repository}}' |
+            gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input -
+
   govern:
+    needs: route-legacy
+    if: ${{ !cancelled() && (needs.route-legacy.result == 'skipped' || (needs.route-legacy.result == 'success' && needs.route-legacy.outputs.wake_dev == 'false')) }}
     name: PR Governance
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -745,7 +828,7 @@ jobs:
   resolve-unfinished:
     name: Resolve unfinished PR Governance
     needs: govern
-    if: ${{ always() && needs.govern.result != 'success' }}
+    if: ${{ always() && (needs.govern.result == 'failure' || needs.govern.result == 'cancelled') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
