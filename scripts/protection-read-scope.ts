@@ -26,12 +26,16 @@ export function withProtectionReads(
   const privileged = new GithubReader(reader.apiUrl, token);
   const ordinary = reader.get.bind(reader);
   reader.get = async (path) => {
-    const rules =
-      /^repos\/([^/]+\/[^/]+)\/rulesets(?:\/([1-9][0-9]*))?\?includes_parents=false(?:&per_page=100)?$/.exec(
-        path
-      );
+    const [pathname, query] = path.split("?");
+    const rules = /^repos\/([^/]+\/[^/]+)\/rulesets(?:\/([1-9][0-9]*))?$/.exec(pathname ?? "");
     const environment = /^repos\/([^/]+\/[^/]+)\/environments\/branch-transfer$/.exec(path);
     if (!rules && !environment) return ordinary(path);
+    if (rules) {
+      const expected = rules[2] ? "includes_parents=false" : "includes_parents=false&per_page=100";
+      if (query !== expected || path !== `${pathname}?${expected}`) {
+        throw new ProtectionReadError("Protection read query is not authorized.");
+      }
+    }
     if (
       (rules && !allowed.has(rules[1] ?? "")) ||
       (environment && environment[1] !== approvalRepository)

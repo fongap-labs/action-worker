@@ -53,7 +53,9 @@ export async function assertBranchApprovalEnvironment(
   reader: Reader,
   controlRepository: string
 ): Promise<void> {
-  const environment = await reader.get(`repos/${controlRepository}/environments/${environmentName}`);
+  const environment = await reader.get(
+    `repos/${controlRepository}/environments/${environmentName}`
+  );
   if (approvedReviewerIds(environment).size === 0) {
     throw new CliError("Branch transfer environment has no explicit user reviewers.", 77);
   }

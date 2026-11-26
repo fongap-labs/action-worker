@@ -35,6 +35,7 @@ test("protection reads use the isolated identity; normal reads preserve App toke
       reader.get("repos/outside/repo/rulesets/12?includes_parents=false"),
       /outside the approved/
     );
+    await assert.rejects(reader.get(`repos/${repo}/rulesets/12`), /query is not authorized/);
     disclose = false;
     await assert.rejects(reader.get(detail), /did not disclose bypass_actors/);
     const missing = withProtectionReads(
