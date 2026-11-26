@@ -380,7 +380,6 @@ test("plugin rename allowance pins only the two verified main baselines", () => 
 });
 
 
-
 test("pinned Delta UI product migration accepts only exact central CI path updates", () => {
   assert.equal(PLUGIN_UI_MIGRATION_BASE, "3e40b5238293d20644dcba07b1115114512cc1fa");
   const baseFiles = new Map([
