@@ -181,7 +181,9 @@ test("Delta design token suite activates on introduction and refuses silent remo
     rmSync(join(control, "scripts/design-token-contract.ts"));
     writeFileSync(
       join(target, "package.json"),
-      JSON.stringify({ scripts: { "verify-design-token-contract": "tsx scripts/design-token-contract.ts" } })
+      JSON.stringify({
+        scripts: { "verify-design-token-contract": "tsx scripts/design-token-contract.ts" },
+      })
     );
     assert.equal(needsDeltaDesignTokenContract(target, control), true);
   } finally {
