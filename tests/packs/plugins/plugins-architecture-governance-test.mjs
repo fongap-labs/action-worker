@@ -12,6 +12,8 @@ test('architecture contract rollout is complete when any new governance artifact
     'docs/ARCHITECTURE_GOVERNANCE.md',
     'projects/delta-code/architecture-mece.json',
     'projects/delta-code/feature-readiness.json',
+    'projects/delta-ui/architecture-mece.json',
+    'projects/delta-ui/feature-readiness.json',
     'projects/delta-suite/architecture-mece.json',
     'projects/delta-suite/feature-readiness.json',
   ]) assert.ok(existsSync(resolve(root, path)), 'missing required architecture artifact: ' + path)
@@ -91,9 +93,9 @@ test('Code domain directories have exactly one declared owner', () => {
   for (const path of architecture.legacy_facades) assert.ok(existsSync(resolve(root, p.path, 'src', path)))
 })
 
-test('Suite mounted Host feature IDs agree with the MECE contract', () => {
-  const architecture = json('projects/delta-suite/architecture-mece.json')
-  const source = read('packages/delta-suite/src/delta-suite-composition.ts')
+test('Delta UI mounted Host feature IDs agree with the MECE contract', () => {
+  const architecture = json('projects/delta-ui/architecture-mece.json')
+  const source = read('packages/delta-ui/src/delta-ui-composition.ts')
   const registered = Object.fromEntries([...source.matchAll(/registry\.register\(\{\s*id:\s*'([^']+)',\s*owner:\s*'([^']+)'/g)].map(([, id, owner]) => [id, owner]))
   assert.deepEqual(registered, architecture.host_feature_registration)
   for (const owner of Object.values(registered)) assert.ok(architecture.owners.some(o => o.id === owner))
@@ -112,10 +114,17 @@ function literalImports(source) {
     .map(match => match[1])
 }
 
-test('plugin kernels have no external dependencies or internal module cycles', () => {
+test('isolated product kernels have no external dependencies or internal module cycles', () => {
   for (const product of contract.products) {
     const kernel = resolve(root, product.path, 'src', product.id + '-kernel')
-    assert.ok(existsSync(kernel), 'missing product kernel: ' + product.id)
+    if (!existsSync(kernel)) {
+      const architecture = json(product.architecture)
+      assert.ok(
+        architecture.owners.some(owner => owner.id === 'core' && owner.path === product.path + '/src/core'),
+        'product without an isolated kernel must declare an explicit core owner: ' + product.id
+      )
+      continue
+    }
     const files = [...sources(kernel)]
     assert.ok(files.length > 0, 'empty product kernel: ' + product.id)
     const graph = new Map()
@@ -175,18 +184,18 @@ function boundaryRuntimeImports(source) {
   return [...new Set(literalImports(withoutTypes))].sort()
 }
 
-test('declared Suite source boundaries have a single owner and bounded runtime dependencies', () => {
-  const suite = contract.products.find(product => product.id === 'delta-suite')
+test('declared Delta UI source boundaries have a single owner and bounded runtime dependencies', () => {
+  const ui = contract.products.find(product => product.id === 'delta-ui')
   const architecture = json(suite.architecture)
   const boundaries = architecture.source_boundaries
   assert.ok(boundaries && boundaries.session_protection, 'missing established session protection boundary')
   const expected = [
-    ['session_protection', 'security', 'delta-suite-security/session-protection.ts'],
+    ['session_protection', 'security', 'delta-ui-security/session-protection.ts'],
     ['client_context_projection', 'context', 'client-context-projection.ts'],
     ['client_totp_qr', 'security', 'client-totp-qr.ts'],
   ]
   for (const [id, owner, relativePath] of expected) {
-    const path = suite.path + '/src/' + relativePath
+    const path = ui.path + '/src/' + relativePath
     assert.equal(boundaries[id]?.owner, owner, 'wrong source owner: ' + id)
     assert.equal(boundaries[id]?.path, path, 'wrong source path: ' + id)
     assert.ok(existsSync(resolve(root, path)), 'missing established source boundary: ' + id)
@@ -196,7 +205,7 @@ test('declared Suite source boundaries have a single owner and bounded runtime d
   unique(declared.flatMap(boundary => boundary.public_functions))
   for (const boundary of declared) {
     assert.ok(architecture.owners.some(owner => owner.id === boundary.owner))
-    const sourceRoot = resolve(root, suite.path, 'src')
+    const sourceRoot = resolve(root, ui.path, 'src')
     assert.ok(resolve(root, boundary.path).startsWith(sourceRoot + sep))
     const source = read(boundary.path)
     assert.deepEqual(boundaryRuntimeImports(source), [...boundary.allowed_runtime_imports].sort(),
@@ -220,10 +229,10 @@ test('declared Suite source boundaries have a single owner and bounded runtime d
       }
     }
     if (boundary.runtime_entry) {
-      assert.equal(boundary.runtime_entry, suite.path + '/lib/client.js')
-      const relativeSource = boundary.path.slice(suite.path.length + 1)
-      const clientConfig = json(suite.path + '/tsconfig.client.json')
-      const hostConfig = json(suite.path + '/tsconfig.json')
+      assert.equal(boundary.runtime_entry, ui.path + '/lib/client.js')
+      const relativeSource = boundary.path.slice(ui.path.length + 1)
+      const clientConfig = json(ui.path + '/tsconfig.client.json')
+      const hostConfig = json(ui.path + '/tsconfig.json')
       assert.ok(clientConfig.include.includes(relativeSource), 'missing browser helper input: ' + relativeSource)
       assert.ok(hostConfig.exclude.includes(relativeSource), 'browser helper leaks into Host build: ' + relativeSource)
       assert.doesNotMatch(source, /^\s*(?:import|export)\s/m,
@@ -282,9 +291,9 @@ function assertProductRuntimeImportGraph(product, browserSources) {
   assert.equal(visited.size, files.length)
 }
 
-test('Suite literal internal runtime import graph is resolvable, acyclic and Host/browser isolated', () => {
-  const suite = contract.products.find(product => product.id === 'delta-suite')
-  const config = json(suite.path + '/tsconfig.client.json')
+test('Delta UI literal internal runtime import graph is resolvable, acyclic and Host/browser isolated', () => {
+  const ui = contract.products.find(product => product.id === 'delta-ui')
+  const config = json(ui.path + '/tsconfig.client.json')
   assertProductRuntimeImportGraph(suite, config.include.filter(file => !file.endsWith('.d.ts')))
 })
 

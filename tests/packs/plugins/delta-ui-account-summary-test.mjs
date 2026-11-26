@@ -3,9 +3,9 @@ import { targetPath } from '../../kit/target.mjs'
 import { existsSync, readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { runInNewContext } from 'node:vm'
-const sourcePath = targetPath('packages/delta-suite/src/client-account-summary.ts')
-const readiness = JSON.parse(readFileSync(targetPath('projects/delta-suite/feature-readiness.json'), 'utf8'))
-const client = readFileSync(targetPath('packages/delta-suite/src/client.ts'), 'utf8')
+const sourcePath = targetPath('packages/delta-ui/src/client-account-summary.ts')
+const readiness = JSON.parse(readFileSync(targetPath('projects/delta-ui/feature-readiness.json'), 'utf8'))
+const client = readFileSync(targetPath('packages/delta-ui/src/client.ts'), 'utf8')
 // During the coordinated rollout, older revisions have neither the feature nor its declaration.
 // A partial rollout must fail; after the product PR merges, remove this transitional condition.
 const isFeatureAbsent = !existsSync(sourcePath) &&

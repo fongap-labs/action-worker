@@ -2,8 +2,8 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   decideTaskIntentMode, TaskIntentTracker,
-} from '#target/packages/delta-suite/lib/task-intent-policy.js'
-import { installHostTaskIntent } from '#target/packages/delta-suite/lib/host-task-intent.js'
+} from '#target/packages/delta-ui/lib/task-intent-policy.js'
+import { installHostTaskIntent } from '#target/packages/delta-ui/lib/host-task-intent.js'
 
 function harnessFixture(availablePrompt = true) {
   const listeners = new Map()
@@ -19,7 +19,7 @@ function harnessFixture(availablePrompt = true) {
       const cleanup = install(availablePrompt ? {
         systemPrompt: {
           context(entry) {
-            assert.equal(entry.name, 'delta-suite:task-intent')
+            assert.equal(entry.name, 'delta-ui:task-intent')
             assert.equal(entry.interpolate, false)
             dynamic = entry
             return () => { dynamic = undefined }

@@ -32,7 +32,7 @@ test('Delta Suite settings keep secrets out of ConfigForm and use Host credentia
   skip: migrationPresent ? false : 'Delta UI / Delta Suite product migration is not present in this target revision',
 }, () => {
   const client = read('src/client.ts')
-  assert.match(client, /type: secret \? 'password' : 'text'/)
+  assert.match(client, /type: isSecret \? 'password' : 'text'/)
   assert.match(client, /props\.credentials!\.set!\(update\.ref, update\.value\)/)
   assert.match(client, /credentialValidation/)
   assert.ok(client.includes('API Key（只在本次输入中暂存）'))
