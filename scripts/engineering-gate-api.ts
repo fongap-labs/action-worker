@@ -6,11 +6,14 @@ import { fileURLToPath } from "node:url";
 import {
   type ChangedFile,
   filterVerifiedPluginNameOnlyChanges,
+  filterVerifiedPluginUiMigrationChanges,
   inspectEngineeringOwnership,
   isPinnedPluginRenameCandidate,
+  isPinnedPluginUiMigrationCandidate,
   type OwnershipPolicy,
   PLUGIN_RENAME_BASES,
   PLUGIN_RENAME_REPOSITORY,
+  PLUGIN_UI_MIGRATION_BASE,
   parseChangedFiles,
   parseOwnershipPolicy,
 } from "./central-engineering-gate.ts";
@@ -23,7 +26,7 @@ import {
   sourceImportBaselineForSource,
 } from "./source-import-baselines.ts";
 
-export { filterVerifiedPluginNameOnlyChanges };
+export { filterVerifiedPluginNameOnlyChanges, filterVerifiedPluginUiMigrationChanges };
 
 const SHA = /^[a-f0-9]{40}$/;
 const REPOSITORY = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
@@ -80,6 +83,68 @@ async function inspectPinnedPluginNameOnlyChanges(
         timeout: 10_000,
       });
     return filterVerifiedPluginNameOnlyChanges(files, readAtRevision);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+
+export function isPinnedPluginUiMigrationRequest(
+  repository: string,
+  base: string,
+  files: readonly ChangedFile[],
+  isTargetPublic: boolean
+): boolean {
+  return (
+    repository === PLUGIN_RENAME_REPOSITORY &&
+    base === PLUGIN_UI_MIGRATION_BASE &&
+    isTargetPublic &&
+    files.some(isPinnedPluginUiMigrationCandidate)
+  );
+}
+
+async function inspectPinnedPluginUiMigrationChanges(
+  repository: string,
+  base: string,
+  head: string,
+  files: ChangedFile[],
+  isTargetPublic: boolean
+): Promise<ChangedFile[]> {
+  if (!isPinnedPluginUiMigrationRequest(repository, base, files, isTargetPublic)) {
+    return files;
+  }
+  const root = mkdtempSync(join(tmpdir(), "aw-plugin-ui-migration-"));
+  try {
+    await runCommand("git", ["init", "--bare", "-q", root], { timeoutMs: 30_000 });
+    await runCommand(
+      "git",
+      [
+        "-C",
+        root,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/" + repository + ".git",
+        base,
+        head,
+      ],
+      {
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        timeoutMs: 180_000,
+      }
+    );
+    for (const sha of [base, head]) {
+      const actual = await runText("git", ["-C", root, "rev-parse", "--verify", sha + "^{commit}"]);
+      if (actual !== sha) throw new CliError("Plugin UI migration Git revision mismatch.", 65);
+    }
+    const readAtRevision = (revision: "base" | "head", path: string): Buffer =>
+      execFileSync("git", ["-C", root, "show", (revision === "base" ? base : head) + ":" + path], {
+        stdio: ["ignore", "pipe", "ignore"],
+        maxBuffer: 2 * 1024 * 1024,
+        timeout: 10_000,
+      });
+    return filterVerifiedPluginUiMigrationChanges(files, readAtRevision);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -461,6 +526,7 @@ export async function checkGithubEngineeringOwnership(
     }
   }
   files = await inspectPinnedPluginNameOnlyChanges(repository, base, head, files, isTargetPublic);
+  files = await inspectPinnedPluginUiMigrationChanges(repository, base, head, files, isTargetPublic);
   // Private workflow pins are checked using GitHub's commit-bound blob identity.
   // Never fetch private workflow contents into the public control runner.
   const contents = new Map<string, string>();

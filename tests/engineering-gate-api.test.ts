@@ -11,6 +11,7 @@ import {
   filterInheritedWorkflowDeletions,
   filterVerifiedPluginNameOnlyChanges,
   inventoryImmutableGitTrees,
+  isPinnedPluginUiMigrationRequest,
   parseCompareFiles,
 } from "../scripts/engineering-gate-api.ts";
 
@@ -518,5 +519,50 @@ test("pinned plugin rename permits only byte-exact legacy-prefix substitutions",
       { status: "A", path: "tests/random.test.mjs" },
       { status: "M", path: "scripts/build-release.mjs" },
     ]
+  );
+});
+
+
+test("pinned Delta UI migration request is limited to the exact public plugin baseline", () => {
+  const files = [
+    { status: "M" as const, path: ".github/scripts/central-ci.ps1" },
+    { status: "M" as const, path: ".github/scripts/central-ci.sh" },
+    { status: "M" as const, path: "scripts/central-ci-windows.mjs" },
+  ];
+  assert.equal(
+    isPinnedPluginUiMigrationRequest(
+      "fongap-labs/plugins",
+      "3e40b5238293d20644dcba07b1115114512cc1fa",
+      files,
+      true
+    ),
+    true
+  );
+  assert.equal(
+    isPinnedPluginUiMigrationRequest(
+      "fongap-labs/plugins",
+      "0".repeat(40),
+      files,
+      true
+    ),
+    false
+  );
+  assert.equal(
+    isPinnedPluginUiMigrationRequest(
+      "fongap-labs/plugins",
+      "3e40b5238293d20644dcba07b1115114512cc1fa",
+      files,
+      false
+    ),
+    false
+  );
+  assert.equal(
+    isPinnedPluginUiMigrationRequest(
+      "fongap-labs/plugins",
+      "3e40b5238293d20644dcba07b1115114512cc1fa",
+      [{ status: "A", path: ".github/scripts/central-ci.sh" }],
+      true
+    ),
+    false
   );
 });
