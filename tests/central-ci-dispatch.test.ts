@@ -333,7 +333,7 @@ test("temporary Delta #99 draft deferral never produces passing CI evidence", ()
   );
   assert.ok(
     workflow.includes(
-      'state=pending\n                description="Draft CI passed; release privacy scan deferred"'
+      'state=pending\n                description="Draft source checks passed; full release CI required"'
     )
   );
   assert.ok(
@@ -342,6 +342,17 @@ test("temporary Delta #99 draft deferral never produces passing CI evidence", ()
   assert.ok(sandbox.includes('default: "false"'));
   assert.ok(sandbox.includes("$env:CENTRAL_CI_PR_NUMBER -cne '99'"));
   assert.ok(sandbox.includes("@draftArgs *>&1"));
-  assert.ok(windows.includes("if ($DeferReleasePrivacy)"));
-  assert.ok(windows.includes("} else {\n    Invoke-Checked 'python.exe'"));
+  const draft = windows.slice(
+    windows.indexOf("  if ($DraftRemediation) {"),
+    windows.indexOf("  $stage = 'release-build'")
+  );
+  assert.ok(draft.includes("Invoke-Checked 'pnpm.cmd' @('install', '--frozen-lockfile')"));
+  assert.ok(draft.includes("Invoke-Checked 'pnpm.cmd' @('run', 'typecheck', '--serial')"));
+  assert.ok(draft.includes("apps/desktop/tests/privacy-runtime-wiring.spec.ts"));
+  assert.ok(draft.includes("apps/desktop/tests/host-process.spec.ts"));
+  assert.ok(draft.includes("packages/llm/llm-deepseek/tests/extensions.spec.ts"));
+  assert.ok(draft.includes("    return\n  }"));
+  assert.doesNotMatch(draft, /build-delta-release|artifact-privacy-scan|verify-delta-release/);
+  assert.ok(sandbox.includes("$draftArgs.DraftRemediation = $true"));
+  assert.ok(windows.includes("  Invoke-Checked 'python.exe'"));
 });
