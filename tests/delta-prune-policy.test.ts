@@ -56,3 +56,24 @@ test("pruning policy refuses expired and unreviewable exception records", () => 
     assert.throws(() => parse({ ...base, exceptions }), /invalid/);
   }
 });
+
+test("optional source privacy rules are exact, deterministic and reject broad exceptions", () => {
+  const rule = { term: "dsh_session_log", allowedPaths: ["scripts/guard.ts", "tests/guard.spec.ts"] };
+  const first = parse({ ...base, deniedSourceRules: [rule] });
+  assert.equal(
+    first.digest,
+    parse({ ...base, deniedSourceRules: [{ ...rule, allowedPaths: [...rule.allowedPaths].reverse() }] })
+      .digest
+  );
+  assert.notEqual(first.digest, parse(base).digest);
+  for (const deniedSourceRules of [
+    [{ ...rule, allowedPaths: ["packages/*"] }],
+    [{ ...rule, allowedPaths: ["../outside"] }],
+    [{ ...rule, allowedPaths: ["/absolute"] }],
+    [rule, rule],
+    [{ ...rule, term: ".*" }],
+    [{ ...rule, extra: true }],
+  ]) {
+    assert.throws(() => parse({ ...base, deniedSourceRules }), /invalid/);
+  }
+});

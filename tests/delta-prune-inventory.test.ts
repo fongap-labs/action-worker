@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   describeDeltaPruneClosure,
   inspectDeltaPruneInventory,
+  inspectDeltaSourceMatches,
   parseDeltaPruneTree,
 } from "../scripts/delta-prune-inventory.ts";
 import { parseDeltaPrunePolicy } from "../scripts/delta-prune-policy.ts";
@@ -161,4 +162,24 @@ test("declared closure reports ambiguous, missing and registry edges without pro
     "apps/desktop/package.json:dependencies:registry",
     "entry:apps/unknown",
   ]);
+});
+
+test("source privacy rules permit exact approved references only and never return paths", () => {
+  const tree = parseDeltaPruneTree(
+    entry("scripts/guard.ts") + entry("apps/desktop/src/tracker.ts") + entry("scripts/guard.ts.bak")
+  );
+  const rule = { term: "dsh_session_log", allowedPaths: ["scripts/guard.ts"] };
+  const raw = tree.map((item) => sha + ":" + item.path + "\\0").join("");
+  assert.deepEqual(inspectDeltaSourceMatches(rule, sha, raw, tree), {
+    term: rule.term,
+    denied: 2,
+    approvedReferences: 1,
+  });
+  assert.deepEqual(inspectDeltaSourceMatches(rule, sha, "", tree), {
+    term: rule.term,
+    denied: 0,
+    approvedReferences: 0,
+  });
+  assert.throws(() => inspectDeltaSourceMatches(rule, sha, raw.slice(0, -1), tree), /Incomplete/);
+  assert.throws(() => inspectDeltaSourceMatches(rule, sha, sha + ":unknown\\0", tree), /Invalid/);
 });

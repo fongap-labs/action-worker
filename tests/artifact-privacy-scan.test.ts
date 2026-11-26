@@ -269,7 +269,10 @@ test("offline private report maps the same locator to an exact archive chain wit
   assert.doesNotMatch(result.stdout + result.stderr, /developer|private-name|module\.pyc/);
   const raw = await readFile(report, "utf8");
   const parsed = JSON.parse(raw);
-  assert.deepEqual(parsed.details[0].relative_archive_chain, ["bundle.zip", "private-name/module.pyc"]);
+  assert.deepEqual(parsed.details[0].relative_archive_chain, [
+    "bundle.zip",
+    "private-name/module.pyc",
+  ]);
   assert.equal(parsed.details[0].locator, "1.1");
   assert.doesNotMatch(raw, /developer|example\.invalid/);
   const repeated = spawnSync("python3", args, { encoding: "utf8", env });
