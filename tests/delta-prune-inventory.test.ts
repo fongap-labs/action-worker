@@ -166,9 +166,7 @@ test("declared closure reports ambiguous, missing and registry edges without pro
 
 test("source privacy rules permit exact approved references only and never return paths", () => {
   const tree = parseDeltaPruneTree(
-    entry("scripts/guard.ts") +
-      entry("apps/desktop/src/tracker.ts") +
-      entry("scripts/guard.ts.bak")
+    entry("scripts/guard.ts") + entry("apps/desktop/src/tracker.ts") + entry("scripts/guard.ts.bak")
   );
   const rule = { term: "dsh_session_log", allowedPaths: ["scripts/guard.ts"] };
   const raw = tree.map((item) => sha + ":" + item.path + "\0").join("");

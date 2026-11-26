@@ -110,7 +110,7 @@ class Scanner:
         self.diagnostics = diagnostics
         self.local_paths = local_paths
         self.details = {}
-        self.details_truncated = False
+        self.is_details_truncated = False
         self.object_count = 0
 
     def record_detail(self, locator, origin, rule, source, window, names):
@@ -123,7 +123,7 @@ class Scanner:
             row["last_window"] = window
             return
         if len(self.details) >= MAX_DIAGNOSTIC_ROWS:
-            self.details_truncated = True
+            self.is_details_truncated = True
             return
         row = {
             "locator": locator,
@@ -287,7 +287,7 @@ def write_local_report(path, directory, scanner):
         with os.fdopen(descriptor, "w", encoding="utf-8") as output:
             json.dump({
                 "schema_version": 1,
-                "truncated": scanner.details_truncated,
+                "truncated": scanner.is_details_truncated,
                 "details": list(scanner.details.values()),
             }, output, ensure_ascii=True)
             output.write("\n")
@@ -325,7 +325,7 @@ def main():
         for detail in scanner.details.values():
             public = {key: value for key, value in detail.items() if key != "relative_archive_chain"}
             print("Release privacy locator " + json.dumps(public, sort_keys=True), file=sys.stderr)
-        if scanner.details_truncated:
+        if scanner.is_details_truncated:
             print("Release privacy diagnostics truncated; blocking findings remain unchanged.", file=sys.stderr)
     print(json.dumps({
         "schema_version": 1,
