@@ -42,7 +42,9 @@ export async function resolveBranchSourceSha(
     ? `repos/${repository}/branches/main`
     : `repos/${repository}/pulls/${prNumber}`;
   const value = await reader.get(path);
-  const sha = isJsonRecord(value) ? getJsonString(initialize ? value.commit : value.head, "sha") : "";
+  const sha = isJsonRecord(value)
+    ? getJsonString(initialize ? value.commit : value.head, "sha")
+    : "";
   if (!shaPattern.test(sha)) {
     throw new CliError("Current source SHA is unavailable.", 75);
   }
