@@ -39,8 +39,8 @@ function exactId(value: unknown): value is string {
   );
 }
 
-function list(value: unknown, required: boolean): string[] {
-  if (!Array.isArray(value) || (required && value.length === 0)) invalid();
+function list(value: unknown, isRequired: boolean): string[] {
+  if (!Array.isArray(value) || (isRequired && value.length === 0)) invalid();
   if (!value.every(exactId) || new Set(value).size !== value.length) invalid();
   return [...value].sort();
 }
@@ -110,12 +110,7 @@ export function parseDeltaPrunePolicy(
   );
   const thresholds: Record<string, number> = Object.fromEntries(
     thresholdEntries.map(([key, amount]) => {
-      if (
-        !exactId(key) ||
-        typeof amount !== "number" ||
-        !Number.isFinite(amount) ||
-        amount < 0
-      ) {
+      if (!exactId(key) || typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) {
         invalid();
       }
       return [key, amount];
