@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  assertBranchApprovalEnvironment,
   assertBranchTransferApproval,
   transferApprovalComment,
 } from "../scripts/branch-transfer-approval.ts";
 import { readCurrentPrCiScope, readCurrentTransferScope } from "../scripts/ci-scope-receipt.ts";
+import { GithubHttpError } from "../scripts/github-api.ts";
 
 const control = "org/control";
 const repository = "org/product";
@@ -157,4 +159,20 @@ test("approval requires the current trusted run and configured user reviewers", 
     protection_rules: [],
   });
   await assert.rejects(world.verify(), /no explicit user reviewers/);
+});
+
+test("missing or unreadable approval environment fails before authorization with an actionable error", async () => {
+  for (const status of [403, 404]) {
+    const reader = {
+      async get() {
+        throw new GithubHttpError(status, undefined, {
+          kind: status === 403 ? "permission" : "http",
+        });
+      },
+    };
+    await assert.rejects(
+      assertBranchApprovalEnvironment(reader, control),
+      /verify it exists in Action Worker Settings > Environments/
+    );
+  }
 });
