@@ -38,8 +38,10 @@ test("static inventory permits approved app and required internal dependency", (
 
 test("static inventory denies unapproved apps, renamed packages and dependency aliases", () => {
   const tree = parseDeltaPruneTree(
-    entry("package.json") + entry("apps/extra/src/index.ts") +
-      entry("packages/old/src/index.ts") + entry("packages/new/package.json")
+    entry("package.json") +
+      entry("apps/extra/src/index.ts") +
+      entry("packages/old/src/index.ts") +
+      entry("packages/new/package.json")
   );
   const findings = inspectDeltaPruneInventory(
     policy,
@@ -65,17 +67,18 @@ test("static inventory denies unapproved apps, renamed packages and dependency a
 
 test("static inventory fails on missing, malformed and non-regular manifest evidence", () => {
   const tree = parseDeltaPruneTree(
-    entry("package.json") + entry("packages/a/package.json") +
+    entry("package.json") +
+      entry("packages/a/package.json") +
       entry("packages/b/package.json", "120000")
   );
-  assert.deepEqual(
-    inspectDeltaPruneInventory(policy, tree, new Map([["package.json", "{"]])),
-    [
-      "Invalid package manifest: package.json",
-      "Missing package manifest evidence: packages/a/package.json",
-      "Non-regular package manifest: packages/b/package.json",
-    ]
-  );
+  assert.deepEqual(inspectDeltaPruneInventory(policy, tree, new Map([["package.json", "{"]])), [
+    "Invalid package manifest: package.json",
+    "Missing package manifest evidence: packages/a/package.json",
+    "Non-regular package manifest: packages/b/package.json",
+  ]);
   assert.throws(() => parseDeltaPruneTree("partial"), /Incomplete/);
-  assert.throws(() => parseDeltaPruneTree(entry("package.json") + entry("package.json")), /Invalid/);
+  assert.throws(
+    () => parseDeltaPruneTree(entry("package.json") + entry("package.json")),
+    /Invalid/
+  );
 });

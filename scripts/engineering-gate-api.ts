@@ -524,7 +524,9 @@ async function main(): Promise<void> {
     if (repository === "fongap-labs/delta") {
       const rawPolicy = process.env.AW_DELTA_PRUNE_POLICY;
       if (!rawPolicy) {
-        console.log("::notice::Delta static pruning inventory is not activated; central policy provisioning is pending.");
+        console.log(
+          "::notice::Delta static pruning inventory is not activated; central policy provisioning is pending."
+        );
       } else {
         if (process.env.TARGET_PRIVATE !== "false") {
           throw new CliError("Delta pruning inventory requires a verified public target.", 65);

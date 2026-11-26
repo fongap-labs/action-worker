@@ -151,10 +151,14 @@ export async function auditDeltaPruneInventory(
       ],
       { env, timeoutMs: 180_000 }
     );
-    const actual = await runText("git", ["-C", root, "rev-parse", "--verify", candidate + "^{commit}"], {
-      env,
-      timeoutMs: 30_000,
-    });
+    const actual = await runText(
+      "git",
+      ["-C", root, "rev-parse", "--verify", candidate + "^{commit}"],
+      {
+        env,
+        timeoutMs: 30_000,
+      }
+    );
     if (actual !== candidate) throw new CliError("Delta pruning revision mismatch.", 65);
     const tree = await runCommand("git", ["-C", root, "ls-tree", "-r", "-z", candidate], {
       env,
@@ -191,7 +195,10 @@ export async function auditDeltaPruneInventory(
       })
     );
     if (findings.length > 0) {
-      throw new CliError("Delta static pruning inventory denied " + findings.length + " item(s).", 65);
+      throw new CliError(
+        "Delta static pruning inventory denied " + findings.length + " item(s).",
+        65
+      );
     }
   } finally {
     rmSync(root, { recursive: true, force: true });
