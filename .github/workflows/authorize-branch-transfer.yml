@@ -20,6 +20,15 @@ on:
         description: Transfer PR number (0 for initialization)
         type: number
         default: 0
+      confirm:
+        description: 确认授权本次指定仓库和提交（不勾选仅检查）
+        type: boolean
+        required: true
+        default: false
+      transfer_snapshot:
+        description: 跨分支流转时填写检查摘要中的 scope-v1 值（初始化留空）
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -30,9 +39,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  plan:
+  authorize:
     if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
-    name: Plan exact branch authorization
+    name: Check and authorize managed branch operation
     environment:
       name: admin-ops
       deployment: false
@@ -70,78 +79,29 @@ jobs:
           permission-statuses: read
           permission-issues: read
 
-      - name: Show exact approval comment
+      - name: Check source and display authorization scope
         env:
           OPERATION: ${{ inputs.operation }}
           REPOSITORY: ${{ inputs.repository }}
           SOURCE_SHA: ${{ inputs.source_sha }}
           PR_NUMBER: ${{ inputs.pr_number }}
+          OPERATOR_CONFIRMED: ${{ inputs.confirm }}
+          TRANSFER_SNAPSHOT: ${{ inputs.transfer_snapshot }}
           AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_STATUS_API_TOKEN: ${{ steps.app_read.outputs.token }}
         run: node scripts/authorize-branch-operation.ts plan
 
-  authorize:
-    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
-    needs: plan
-    name: Verify explicit maintainer approval
-    environment:
-      name: branch-transfer
-      deployment: false
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Record approval checkpoint
-        run: echo "Approval checkpoint completed; exact approval verification follows."
-
-  finalize:
-    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
-    needs: authorize
-    name: Verify and record explicit maintainer approval
-    environment:
-      name: admin-ops
-      deployment: false
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Checkout control plane
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-
-      - name: Resolve managed PR scope
-        id: api_scope
-        env:
-          TARGET_REPOSITORY: ${{ inputs.repository }}
-        run: node scripts/resolve-github-api-scope.ts pr
-
-      - name: Mint scoped read token
-        id: app_read
-        uses: ./.github/actions/mint-app-token
-        with:
-          client-id: ${{ vars.AW_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
-          owner: ${{ steps.api_scope.outputs.owner }}
-          repositories: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
-          permission-contents: read
-          permission-actions: read
-          permission-pull-requests: read
-          permission-statuses: read
-          permission-issues: read
-
       - name: Verify approval before issuing initialization receipt
+        if: inputs.confirm
         env:
           OPERATION: ${{ inputs.operation }}
           REPOSITORY: ${{ inputs.repository }}
           SOURCE_SHA: ${{ inputs.source_sha }}
           PR_NUMBER: ${{ inputs.pr_number }}
+          OPERATOR_CONFIRMED: ${{ inputs.confirm }}
+          TRANSFER_SNAPSHOT: ${{ inputs.transfer_snapshot }}
           AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -149,7 +109,7 @@ jobs:
         run: node scripts/authorize-branch-operation.ts verify
 
       - name: Mint initialization receipt token
-        if: inputs.operation == 'initialize-dev'
+        if: inputs.confirm && inputs.operation == 'initialize-dev'
         id: receipt_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -160,11 +120,14 @@ jobs:
           permission-statuses: write
 
       - name: Record approved authorization
+        if: inputs.confirm
         env:
           OPERATION: ${{ inputs.operation }}
           REPOSITORY: ${{ inputs.repository }}
           SOURCE_SHA: ${{ inputs.source_sha }}
           PR_NUMBER: ${{ inputs.pr_number }}
+          OPERATOR_CONFIRMED: ${{ inputs.confirm }}
+          TRANSFER_SNAPSHOT: ${{ inputs.transfer_snapshot }}
           AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
