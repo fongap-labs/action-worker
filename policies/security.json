@@ -421,9 +421,7 @@
       "source": "LibreOffice kit 0.2.3 official Windows x64 runtime executable (pnpm lock integrity verified)",
       "distribution_sha256": "c9597966fe8db459e2d1cc0fefe5c070f10957349c4dd3daab211219eb75f933",
       "reason": "The exact marker is followed by no key body and is not a private key. Preserve the unchanged runtime; approve only this exact marker context in this exact binary digest.",
-      "context_sha256": [
-        "44d6a37a5d73258e0bacc92e715f3b4afe39317a046d67efd1ede4293cff76f3"
-      ]
+      "context_sha256": ["44d6a37a5d73258e0bacc92e715f3b4afe39317a046d67efd1ede4293cff76f3"]
     }
   ]
 }
