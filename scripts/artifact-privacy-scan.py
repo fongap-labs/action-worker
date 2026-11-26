@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Offline privacy scan for release assets; never prints filenames or matching values."""
+"""Offline release privacy scan; public output never includes paths or matching values."""
 
 import argparse
 import io
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import stat
@@ -17,6 +18,7 @@ MAX_FILES = 40000
 MAX_EXPANDED_BYTES = 2 * 1024 * 1024 * 1024
 MAX_NESTED_ARCHIVE_BYTES = 128 * 1024 * 1024
 MAX_ARCHIVE_DEPTH = 4
+MAX_DIAGNOSTIC_ROWS = 20000
 ARCHIVE_SUFFIXES = (".zip", ".jar", ".tgz", ".tar.gz", ".tar", ".tar.xz", ".tar.bz2")
 OPAQUE_SUFFIXES = (".dmg", ".appimage", ".exe", ".dll", ".so", ".dylib", ".msi", ".pkg")
 
@@ -96,7 +98,7 @@ def finding_origin(name, inherited="other"):
 
 
 class Scanner:
-    def __init__(self, rules, strict_opaque):
+    def __init__(self, rules, strict_opaque, diagnostics=False, local_paths=False):
         self.rules = rules
         self.strict_opaque = strict_opaque
         self.counts = {}
@@ -105,15 +107,47 @@ class Scanner:
         self.archives = 0
         self.opaque_files = 0
         self.expanded_bytes = 0
+        self.diagnostics = diagnostics
+        self.local_paths = local_paths
+        self.details = {}
+        self.is_details_truncated = False
+        self.object_count = 0
 
-    def check_text(self, text, origin):
+    def record_detail(self, locator, origin, rule, source, window, names):
+        if not self.diagnostics:
+            return
+        key = (locator, rule, source)
+        if key in self.details:
+            row = self.details[key]
+            row["windows"] += 1
+            row["last_window"] = window
+            return
+        if len(self.details) >= MAX_DIAGNOSTIC_ROWS:
+            self.is_details_truncated = True
+            return
+        row = {
+            "locator": locator,
+            "area": origin[0],
+            "kind": origin[1],
+            "rule": rule,
+            "source": source,
+            "first_window": window,
+            "last_window": window,
+            "windows": 1,
+        }
+        if self.local_paths:
+            row["relative_archive_chain"] = names
+        self.details[key] = row
+
+    def check_text(self, text, origin, locator, source, window, names):
         for name, expression in self.rules:
             if expression.search(text):
                 self.counts[name] = self.counts.get(name, 0) + 1
                 key = (*origin, name)
                 self.origin_counts[key] = self.origin_counts.get(key, 0) + 1
+                self.record_detail(locator, origin, name, source, window, names)
 
-    def check_name(self, name, origin):
+    def check_name(self, name, origin, locator, names, source="name"):
         normalized = name.replace("\\", "/")
         path = PurePosixPath(normalized)
         if (
@@ -123,13 +157,14 @@ class Scanner:
             or not normalized
         ):
             raise PrivacyScanError("unsafe-archive-path")
-        self.check_text(normalized, origin)
+        self.check_text(normalized, origin, locator, source, 0, names)
 
-    def scan_stream(self, stream, origin):
+    def scan_stream(self, stream, origin, locator, names):
         self.checked_files += 1
         if self.checked_files > MAX_FILES:
             raise PrivacyScanError("file-budget-exceeded")
         tail = ""
+        window = 0
         while True:
             block = stream.read(CHUNK_BYTES)
             if not block:
@@ -138,19 +173,21 @@ class Scanner:
             if self.expanded_bytes > MAX_EXPANDED_BYTES:
                 raise PrivacyScanError("expanded-size-budget-exceeded")
             text = tail + block.decode("utf-8", errors="replace")
-            self.check_text(text, origin)
+            window += 1
+            self.check_text(text, origin, locator, "content", window, names)
             tail = text[-OVERLAP_BYTES:]
 
-    def inspect(self, name, stream, depth, inherited="other"):
+    def inspect(self, name, stream, depth, inherited="other", locator="1", parents=()):
         origin = finding_origin(name, inherited)
-        self.check_name(name, origin)
+        names = (*parents, name) if self.local_paths else ()
+        self.check_name(name, origin, locator, names)
         lower = name.lower()
         if lower.endswith(ARCHIVE_SUFFIXES):
             if depth >= MAX_ARCHIVE_DEPTH:
                 raise PrivacyScanError("nested-archive-depth-exceeded")
             if depth == 0:
                 # Root release archives are already seekable files; do not load them into memory.
-                self.scan_archive(lower, stream, depth + 1, origin[0])
+                self.scan_archive(lower, stream, depth + 1, origin[0], locator, names)
             else:
                 raw = stream.read(MAX_NESTED_ARCHIVE_BYTES + 1)
                 if len(raw) > MAX_NESTED_ARCHIVE_BYTES:
@@ -158,21 +195,23 @@ class Scanner:
                 self.expanded_bytes += len(raw)
                 if self.expanded_bytes > MAX_EXPANDED_BYTES:
                     raise PrivacyScanError("expanded-size-budget-exceeded")
-                self.scan_archive(lower, io.BytesIO(raw), depth + 1, origin[0])
+                self.scan_archive(lower, io.BytesIO(raw), depth + 1, origin[0], locator, names)
         else:
             if lower.endswith(OPAQUE_SUFFIXES):
                 self.opaque_files += 1
+                self.record_detail(locator, origin, "opaque-unverified", "object", 0, names)
                 if self.strict_opaque:
                     raise PrivacyScanError("opaque-asset-not-verifiable")
-            self.scan_stream(stream, origin)
+            self.scan_stream(stream, origin, locator, names)
 
-    def scan_archive(self, name, stream, depth, inherited):
+    def scan_archive(self, name, stream, depth, inherited, locator, parents):
         self.archives += 1
         seen = set()
         if name.endswith((".zip", ".jar")):
             try:
                 with zipfile.ZipFile(stream) as archive:
-                    for member in archive.infolist():
+                    for index, member in enumerate(archive.infolist(), 1):
+                        child = f"{locator}.{index}"
                         if member.is_dir():
                             continue
                         if member.filename.casefold() in seen:
@@ -182,23 +221,25 @@ class Scanner:
                         if stat.S_ISLNK(mode) or (member.flag_bits & 1):
                             raise PrivacyScanError("unsafe-archive-entry")
                         with archive.open(member) as opened:
-                            self.inspect(member.filename, opened, depth, inherited)
+                            self.inspect(member.filename, opened, depth, inherited, child, parents)
             except (zipfile.BadZipFile, RuntimeError, EOFError) as error:
                 raise PrivacyScanError("unreadable-zip-archive") from error
         else:
             try:
                 with tarfile.open(fileobj=stream, mode="r:*") as archive:
                     regular_members = {}
-                    for member in archive:
+                    for index, member in enumerate(archive, 1):
+                        child = f"{locator}.{index}"
+                        names = (*parents, member.name) if self.local_paths else ()
                         if member.isdir():
-                            self.check_name(member.name, finding_origin(member.name, inherited))
+                            self.check_name(member.name, finding_origin(member.name, inherited), child, names)
                             continue
                         if member.name.casefold() in seen:
                             raise PrivacyScanError("duplicate-archive-entry")
                         seen.add(member.name.casefold())
                         source = member
                         if member.islnk():
-                            self.check_name(member.linkname, finding_origin(member.linkname, inherited))
+                            self.check_name(member.linkname, finding_origin(member.linkname, inherited), child, names, "link-target")
                             # TAR hard links can alias data already present in the same archive.
                             # Read that exact regular member, never resolve or extract a link.
                             if member.size != 0 or member.linkname not in regular_members:
@@ -210,18 +251,18 @@ class Scanner:
                         if opened is None:
                             raise PrivacyScanError("unreadable-archive-entry")
                         with opened:
-                            self.inspect(member.name, opened, depth, inherited)
+                            self.inspect(member.name, opened, depth, inherited, child, parents)
                         if member.isfile():
                             regular_members[member.name] = member
             except (tarfile.TarError, EOFError) as error:
                 raise PrivacyScanError("unreadable-tar-archive") from error
 
 
-def scan_directory(directory, policy_path, strict_opaque):
+def scan_directory(directory, policy_path, strict_opaque, diagnostics=False, local_paths=False):
     if not directory.is_dir() or directory.is_symlink():
         raise PrivacyScanError("invalid-asset-directory")
-    scanner = Scanner(load_patterns(policy_path), strict_opaque)
-    for path in directory.rglob("*"):
+    scanner = Scanner(load_patterns(policy_path), strict_opaque, diagnostics, local_paths)
+    for path in sorted(directory.rglob("*"), key=lambda item: item.relative_to(directory).as_posix()):
         if path.is_symlink():
             raise PrivacyScanError("symlinked-release-asset")
         if path.is_dir():
@@ -230,8 +271,28 @@ def scan_directory(directory, policy_path, strict_opaque):
             raise PrivacyScanError("non-regular-release-asset")
         name = path.relative_to(directory).as_posix()
         with path.open("rb") as stream:
-            scanner.inspect(name, stream, 0)
+            scanner.object_count += 1
+            scanner.inspect(name, stream, 0, locator=str(scanner.object_count))
     return scanner
+
+
+def write_local_report(path, directory, scanner):
+    # Local-only: never put path-bearing reports into a release directory or CI artifacts.
+    if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+        raise PrivacyScanError("local-report-forbidden-in-ci")
+    if path.resolve().is_relative_to(directory.resolve()):
+        raise PrivacyScanError("local-report-inside-release")
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump({
+                "schema_version": 1,
+                "truncated": scanner.is_details_truncated,
+                "details": list(scanner.details.values()),
+            }, output, ensure_ascii=True)
+            output.write("\n")
+    except OSError as error:
+        raise PrivacyScanError("local-report-write-failed") from error
 
 
 def main():
@@ -239,9 +300,17 @@ def main():
     parser.add_argument("directory", type=Path)
     parser.add_argument("policy", type=Path)
     parser.add_argument("--strict-opaque", action="store_true")
+    parser.add_argument("--diagnostics", action="store_true")
+    parser.add_argument("--local-report", type=Path, help="Offline only: exclusive private path mapping outside release directory")
     args = parser.parse_args()
     try:
-        scanner = scan_directory(args.directory, args.policy, args.strict_opaque)
+        if args.local_report and (os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS")):
+            raise PrivacyScanError("local-report-forbidden-in-ci")
+        scanner = scan_directory(args.directory, args.policy, args.strict_opaque,
+                                 args.diagnostics or args.local_report is not None,
+                                 args.local_report is not None)
+        if args.local_report:
+            write_local_report(args.local_report, args.directory, scanner)
     except PrivacyScanError as error:
         print("::error::Release privacy scan could not verify assets [" + str(error) + "].", file=sys.stderr)
         return 1
@@ -252,6 +321,12 @@ def main():
         print("::error::Release privacy finding [" + name + "]: " + str(count), file=sys.stderr)
     for (area, kind, name), count in sorted(scanner.origin_counts.items()):
         print(f"Release privacy origin [{area}/{kind}/{name}]: {count}", file=sys.stderr)
+    if args.diagnostics:
+        for detail in scanner.details.values():
+            public = {key: value for key, value in detail.items() if key != "relative_archive_chain"}
+            print("Release privacy locator " + json.dumps(public, sort_keys=True), file=sys.stderr)
+        if scanner.is_details_truncated:
+            print("Release privacy diagnostics truncated; blocking findings remain unchanged.", file=sys.stderr)
     print(json.dumps({
         "schema_version": 1,
         "files_scanned": scanner.checked_files,

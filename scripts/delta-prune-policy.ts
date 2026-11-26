@@ -12,6 +12,7 @@ const listKeys = [
   "deniedDependencies",
 ] as const;
 const keys = new Set<string>(["version", ...listKeys, "exceptions", "thresholds"]);
+const optionalKeys = new Set<string>(["deniedSourceRules"]);
 const identifier = /^[A-Za-z0-9@._:/-]{1,256}$/;
 
 type ListKey = (typeof listKeys)[number];
@@ -21,10 +22,12 @@ type PolicyException = {
   approval: string;
   expiresAt: string;
 };
+export type DeltaDeniedSourceRule = { term: string; allowedPaths: string[] };
 export type DeltaPrunePolicy = Record<ListKey, string[]> & {
   version: string;
   exceptions: PolicyException[];
   thresholds: Record<string, number>;
+  deniedSourceRules?: DeltaDeniedSourceRule[];
 };
 
 function invalid(): never {
@@ -63,8 +66,8 @@ export function parseDeltaPrunePolicy(
   }
   if (
     !isJsonRecord(value) ||
-    Object.keys(value).length !== keys.size ||
-    Object.keys(value).some((key) => !keys.has(key)) ||
+    [...keys].some((key) => !Object.hasOwn(value, key)) ||
+    Object.keys(value).some((key) => !keys.has(key) && !optionalKeys.has(key)) ||
     !exactId(value.version) ||
     !Array.isArray(value.exceptions) ||
     !isJsonRecord(value.thresholds)
@@ -116,11 +119,38 @@ export function parseDeltaPrunePolicy(
       return [key, amount];
     })
   );
+  let deniedSourceRules: DeltaDeniedSourceRule[] | undefined;
+  if (Object.hasOwn(value, "deniedSourceRules")) {
+    if (!Array.isArray(value.deniedSourceRules) || value.deniedSourceRules.length > 64) invalid();
+    const rules: DeltaDeniedSourceRule[] = [];
+    for (const rule of value.deniedSourceRules) {
+      if (
+        !isJsonRecord(rule) ||
+        Object.keys(rule).length !== 2 ||
+        !exactId(rule.term) ||
+        rule.term.length < 4 ||
+        rules.some((item) => item.term === rule.term)
+      ) {
+        invalid();
+      }
+      const allowedPaths = list(rule.allowedPaths, false);
+      if (
+        allowedPaths.some(
+          (path) => path.startsWith("/") || path.endsWith("/") || path.includes("//")
+        )
+      ) {
+        invalid();
+      }
+      rules.push({ term: rule.term, allowedPaths });
+    }
+    deniedSourceRules = rules.sort((a, b) => (a.term < b.term ? -1 : a.term > b.term ? 1 : 0));
+  }
   const policy: DeltaPrunePolicy = {
     version: value.version,
     ...lists,
     exceptions,
     thresholds,
+    ...(deniedSourceRules === undefined ? {} : { deniedSourceRules }),
   };
   const digest = createHash("sha256").update(JSON.stringify(policy)).digest("hex");
   return { policy, digest };

@@ -1,7 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
-import { type DeltaPrunePolicy, parseDeltaPrunePolicy } from "./delta-prune-policy.ts";
+import {
+  type DeltaDeniedSourceRule,
+  type DeltaPrunePolicy,
+  parseDeltaPrunePolicy,
+} from "./delta-prune-policy.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { CliError, runCommand, runText } from "./runtime-command.ts";
 
@@ -236,6 +240,81 @@ export function describeDeltaPruneClosure(
   };
 }
 
+/** Match a trusted policy rule against an immutable Git tree. Never log source text or paths. */
+export function inspectDeltaSourceMatches(
+  rule: DeltaDeniedSourceRule,
+  candidate: string,
+  raw: string,
+  entries: readonly TreeEntry[]
+): { term: string; denied: number; approvedReferences: number } {
+  if (!shaPattern.test(candidate)) throw new CliError("Invalid Delta source revision.", 65);
+  const prefix = candidate + ":";
+  const allowed = new Set(rule.allowedPaths);
+  const treePaths = new Set(
+    entries.filter((entry) => entry.kind === "blob").map((entry) => entry.path)
+  );
+  const seen = new Set<string>();
+  if (raw && !raw.endsWith("\0")) {
+    throw new CliError("Incomplete source privacy inventory.", 65);
+  }
+  for (const row of raw ? raw.slice(0, -1).split("\0") : []) {
+    const path = row.slice(prefix.length);
+    if (!row.startsWith(prefix) || !treePaths.has(path) || seen.has(path)) {
+      throw new CliError("Invalid source privacy inventory.", 65);
+    }
+    seen.add(path);
+  }
+  const approvedReferences = [...seen].filter((path) => allowed.has(path)).length;
+  return { term: rule.term, denied: seen.size - approvedReferences, approvedReferences };
+}
+
+async function auditDeltaSourceRules(
+  root: string,
+  candidate: string,
+  policy: DeltaPrunePolicy,
+  entries: readonly TreeEntry[],
+  env: NodeJS.ProcessEnv
+) {
+  const results = [];
+  for (const rule of policy.deniedSourceRules ?? []) {
+    let raw = "";
+    try {
+      raw = (
+        await runCommand(
+          "git",
+          [
+            "-C",
+            root,
+            "grep",
+            "-l",
+            "-z",
+            "-F",
+            "--no-textconv",
+            "--no-recurse-submodules",
+            "-e",
+            rule.term,
+            candidate,
+            "--",
+          ],
+          { env, maxBuffer: 8 * 1024 * 1024, timeoutMs: 60_000 }
+        )
+      ).toString("utf8");
+    } catch (error) {
+      if (
+        !(
+          error instanceof CliError &&
+          error.exitCode === 1 &&
+          error.message === "git exited with status 1."
+        )
+      ) {
+        throw new CliError("Delta source privacy inventory could not complete.", 65);
+      }
+    }
+    results.push(inspectDeltaSourceMatches(rule, candidate, raw, entries));
+  }
+  return results;
+}
+
 export async function auditDeltaPruneInventory(
   candidate: string,
   rawPolicy: string
@@ -300,6 +379,8 @@ export async function auditDeltaPruneInventory(
       );
     }
     const findings = inspectDeltaPruneInventory(policy, entries, manifests);
+    const sourceRules = await auditDeltaSourceRules(root, candidate, policy, entries, env);
+    const deniedSourceCount = sourceRules.reduce((sum, rule) => sum + rule.denied, 0);
     console.log(
       JSON.stringify({
         check: "delta-prune-static-inventory",
@@ -307,9 +388,16 @@ export async function auditDeltaPruneInventory(
         policyDigest: digest,
         manifestCount: manifests.size,
         findings,
+        sourcePrivacy: { configured: sourceRules.length > 0, rules: sourceRules },
         closure: describeDeltaPruneClosure(policy, manifests),
       })
     );
+    if (deniedSourceCount > 0) {
+      throw new CliError(
+        "Delta source privacy inventory denied " + deniedSourceCount + " reference(s).",
+        65
+      );
+    }
     if (findings.length > 0) {
       throw new CliError(
         "Delta static pruning inventory denied " + findings.length + " item(s).",
