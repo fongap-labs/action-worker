@@ -1,16 +1,46 @@
-import { test } from 'node:test'
+import { test as nodeTest } from 'node:test'
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { readTargetText } from '../../kit/contract.mjs'
-import {
+import { targetPath } from '../../kit/target.mjs'
+
+const migrationPresent = existsSync(targetPath('packages/delta-ui/package.json'))
+const test = (name, optionsOrFn, fn) => {
+  if (!migrationPresent) {
+    const skip = 'Delta UI product migration is not present in this target revision'
+    return typeof optionsOrFn === 'function'
+      ? nodeTest(name, { skip }, optionsOrFn)
+      : nodeTest(name, { ...optionsOrFn, skip }, fn)
+  }
+  return typeof optionsOrFn === 'function'
+    ? nodeTest(name, optionsOrFn)
+    : nodeTest(name, optionsOrFn, fn)
+}
+const reasoning = migrationPresent
+  ? await import('#target/packages/delta-ui/lib/delta-ui-adapter/gateway-reasoning.js')
+  : {}
+const reasoningApply = migrationPresent
+  ? await import('#target/packages/delta-ui/lib/delta-ui-adapter/gateway-reasoning-apply.js')
+  : {}
+const hostGateway = migrationPresent
+  ? await import('#target/packages/delta-ui/lib/host-gateway-effort.js')
+  : {}
+const {
   decodeGatewayReasoningCatalog,
   toHarnessReasoningEfforts,
   mapGatewayReasoningChoice,
   previewGatewayReasoningSync,
-} from '#target/packages/delta-ui/lib/delta-ui-adapter/gateway-reasoning.js'
-import { applyApprovedGatewayReasoningSync } from '#target/packages/delta-ui/lib/delta-ui-adapter/gateway-reasoning-apply.js'
-import { installHostGatewayEffortSync, DELTA_GATEWAY_EFFORT_PREVIEW_PATH, DELTA_GATEWAY_EFFORT_APPLY_PATH } from '#target/packages/delta-ui/lib/host-gateway-effort.js'
+} = reasoning
+const { applyApprovedGatewayReasoningSync } = reasoningApply
+const {
+  installHostGatewayEffortSync,
+  DELTA_GATEWAY_EFFORT_PREVIEW_PATH,
+  DELTA_GATEWAY_EFFORT_APPLY_PATH,
+} = hostGateway
 
-const source = readTargetText('packages', 'delta-ui', 'src', 'delta-ui-adapter', 'gateway-reasoning.ts')
+const source = migrationPresent
+  ? readTargetText('packages', 'delta-ui', 'src', 'delta-ui-adapter', 'gateway-reasoning.ts')
+  : ''
 
 const highBestEffort = {
   default: 'high', mode: 'best_effort',
