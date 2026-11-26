@@ -186,7 +186,7 @@ function boundaryRuntimeImports(source) {
 
 test('declared Delta UI source boundaries have a single owner and bounded runtime dependencies', () => {
   const ui = contract.products.find(product => product.id === 'delta-ui')
-  const architecture = json(suite.architecture)
+  const architecture = json(ui.architecture)
   const boundaries = architecture.source_boundaries
   assert.ok(boundaries && boundaries.session_protection, 'missing established session protection boundary')
   const expected = [
@@ -294,7 +294,7 @@ function assertProductRuntimeImportGraph(product, browserSources) {
 test('Delta UI literal internal runtime import graph is resolvable, acyclic and Host/browser isolated', () => {
   const ui = contract.products.find(product => product.id === 'delta-ui')
   const config = json(ui.path + '/tsconfig.client.json')
-  assertProductRuntimeImportGraph(suite, config.include.filter(file => !file.endsWith('.d.ts')))
+  assertProductRuntimeImportGraph(ui, config.include.filter(file => !file.endsWith('.d.ts')))
 })
 
 test('Code literal internal runtime import graph is resolvable, acyclic and Host/browser isolated', () => {
