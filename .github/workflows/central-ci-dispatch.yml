@@ -351,6 +351,8 @@ jobs:
           POLICY_BASE_SHA: ${{ steps.merge_ref.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
           POLICY_HEAD_SHA: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
           TARGET_PRIVATE: ${{ steps.visibility.outputs.is_private }}
+          AW_DELTA_PRUNE_POLICY: ${{ vars.AW_DELTA_PRUNE_POLICY }}
+          AW_DELTA_PRUNE_CANDIDATE_SHA: ${{ steps.merge_ref.outputs.merge_sha || steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
         run: node scripts/engineering-gate-api.ts "$REPOSITORY" "$POLICY_BASE_SHA" "$POLICY_HEAD_SHA"
 
       - name: Mint CI lease status token

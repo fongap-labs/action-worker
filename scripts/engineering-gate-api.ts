@@ -15,6 +15,7 @@ import {
   parseOwnershipPolicy,
 } from "./central-engineering-gate.ts";
 import { isDeltaCleanRootTarget, verifyDeltaCleanRootCommit } from "./delta-clean-root.ts";
+import { auditDeltaPruneInventory } from "./delta-prune-inventory.ts";
 import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
 import {
@@ -520,6 +521,17 @@ async function main(): Promise<void> {
       (path) => getGithubJson(path, token),
       (path) => readFileSync(join(controlRoot, path), "utf8")
     );
+    if (repository === "fongap-labs/delta") {
+      const rawPolicy = process.env.AW_DELTA_PRUNE_POLICY;
+      if (!rawPolicy) {
+        console.log("::notice::Delta static pruning inventory is not activated; central policy provisioning is pending.");
+      } else {
+        if (process.env.TARGET_PRIVATE !== "false") {
+          throw new CliError("Delta pruning inventory requires a verified public target.", 65);
+        }
+        await auditDeltaPruneInventory(process.env.AW_DELTA_PRUNE_CANDIDATE_SHA || head, rawPolicy);
+      }
+    }
   } catch (error) {
     if (process.env.TARGET_PRIVATE === "true") {
       throw new CliError(
