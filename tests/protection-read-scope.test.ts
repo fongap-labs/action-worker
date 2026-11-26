@@ -22,11 +22,7 @@ test("protection reads use the isolated identity; normal reads preserve App toke
     await reader.get(detail);
     await reader.get(`repos/${repo}/commits/main/status`);
     await reader.get(`repos/${repo}/branches/main`);
-    assert.deepEqual(tokens, [
-      "Bearer protection",
-      "Bearer status",
-      "Bearer control",
-    ]);
+    assert.deepEqual(tokens, ["Bearer protection", "Bearer status", "Bearer control"]);
     await assert.rejects(
       reader.get("repos/outside/repo/rulesets/12?includes_parents=false"),
       /outside the approved/
