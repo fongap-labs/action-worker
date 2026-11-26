@@ -80,13 +80,15 @@ test("privacy fingerprints preserve exact secret-context exceptions without hash
   const secret = `AKIA${"A".repeat(16)}`;
   const approved = `${"A".repeat(64)}${secret}${"B".repeat(64)}`;
   const configured = JSON.parse(await readFile(policy, "utf8"));
-  configured.artifact_context_allowlist = [{
-    rule: "aws-access-key",
-    source: "verified public fixture",
-    distribution_sha256: "b".repeat(64),
-    reason: "Exact test context only.",
-    context_sha256: [createHash("sha256").update(approved).digest("hex")],
-  }];
+  configured.artifact_context_allowlist = [
+    {
+      rule: "aws-access-key",
+      source: "verified public fixture",
+      distribution_sha256: "b".repeat(64),
+      reason: "Exact test context only.",
+      context_sha256: [createHash("sha256").update(approved).digest("hex")],
+    },
+  ];
   const policyFile = join(directory, "security.json");
   await writeFile(policyFile, JSON.stringify(configured), "utf8");
   const asset = join(directory, "runtime.exe");
