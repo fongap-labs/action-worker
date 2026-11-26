@@ -39,6 +39,7 @@ test("configuration data sensitivity and security impact are independent dimensi
     security_impact: "security-sensitive",
   });
   assert.equal(minimumConfigImpact("AW_REPOSITORY_POLICY"), "authorization-policy");
+  assert.equal(minimumConfigImpact("AW_DELTA_PRUNE_POLICY"), "authorization-policy");
   assert.equal(minimumConfigImpact("AW_TASK_ISOLATION_PILOT_ENABLED"), "authorization-policy");
   assert.equal(minimumConfigImpact("AW_MAIN_WRITE_GUARD_POLICY"), "authorization-policy");
   assert.equal(minimumConfigImpact("AW_CI_EVIDENCE_PUBLIC_KEY"), "root-trust");
