@@ -63,7 +63,10 @@ test("main-write gate completion never depends on automatic merge execution", ()
   assert.equal(facts?.env?.ALLOW_MERGED_PR, "true");
 
   assert.equal(recovery.needs, "govern");
-  assert.match(recovery.if ?? "", /needs\.govern\.result != 'success'/);
+  assert.equal(
+    recovery.if,
+    "${{ always() && (needs.govern.result == 'failure' || needs.govern.result == 'cancelled') }}"
+  );
   const reviewToken = govern.steps.find(
     (step) => step.id === "issue_app" && step.name === "Publish PR review"
   );

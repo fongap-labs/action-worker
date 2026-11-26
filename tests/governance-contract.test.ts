@@ -1616,7 +1616,7 @@ test("an unfinished PR Governance status is resolved by a job that runs after a 
   const job = governance.slice(start);
   assert.match(
     job,
-    /needs: govern\n\s+if: \$\{\{ always\(\) && needs\.govern\.result != 'success' \}\}/
+    /needs: govern\n\s+if: \$\{\{ always\(\) && \(needs\.govern\.result == 'failure' \|\| needs\.govern\.result == 'cancelled'\) \}\}/
   );
   assert.match(
     job,
