@@ -19,6 +19,11 @@ import {
   shouldCreateIncident,
 } from "./main-write-incidents.ts";
 import { managedBranchWriteContext } from "./managed-branch-provenance.ts";
+import {
+  ProtectionReadError,
+  takeProtectionReadToken,
+  withProtectionReads,
+} from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { latestAttestedStatus, signedStatusDescription } from "./status-attestation.ts";
@@ -27,6 +32,7 @@ import { postGithubCommitStatus } from "./status-write-retry.ts";
 const shaPattern = /^[0-9a-f]{40}$/;
 
 async function main(): Promise<void> {
+  const protectionToken = takeProtectionReadToken();
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const runUrl = process.env.DEV_WRITE_AUDIT_RUN_URL ?? "";
   if (!runUrl.startsWith(`https://github.com/${controlRepository}/actions/runs/`)) {
@@ -34,12 +40,16 @@ async function main(): Promise<void> {
   }
   const statusToken = requireToken("status");
   const issueToken = requireToken("issue");
-  const reader = statusAwareReader(
-    process.env.GITHUB_API_URL ?? "https://api.github.com",
-    requireToken("control"),
-    statusToken
-  );
   const repositories = repositoriesForCapability(JSON.parse(readRepositoryPolicyText()), "pr");
+  const reader = withProtectionReads(
+    statusAwareReader(
+      process.env.GITHUB_API_URL ?? "https://api.github.com",
+      requireToken("control"),
+      statusToken
+    ),
+    protectionToken,
+    repositories
+  );
   const context = managedBranchWriteContext("dev");
   for (const repository of repositories) {
     const repo = await reader.get(`repos/${repository}`);
@@ -75,7 +85,11 @@ async function main(): Promise<void> {
       if (error instanceof DevWritePendingError) {
         description = "Development write verification pending";
         state = "pending";
-      } else if (error instanceof CliError && !(error instanceof IncidentAccessError)) {
+      } else if (
+        error instanceof CliError &&
+        !(error instanceof IncidentAccessError) &&
+        !(error instanceof ProtectionReadError)
+      ) {
         description = "Untrusted development write";
         state = "failure";
         if (

@@ -1,4 +1,5 @@
 import {
+  assertBranchApprovalEnvironment,
   assertBranchTransferApproval,
   assertExactBranchApproval,
   transferApprovalComment,
@@ -12,12 +13,14 @@ import {
   verifyBootstrapSource,
 } from "./dev-bootstrap-authorization.ts";
 import { statusAwareReader } from "./github-api.ts";
+import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
 
 async function main(): Promise<void> {
+  const protectionToken = takeProtectionReadToken();
   const stage = process.argv[2];
   const operation = process.env.OPERATION ?? "";
   const repository = process.env.REPOSITORY ?? "";
@@ -35,11 +38,17 @@ async function main(): Promise<void> {
     throw new CliError("Branch authorization requires an explicit trusted main dispatch.", 75);
   }
   validateRepositoryCapability(repository, JSON.parse(readRepositoryPolicyText()), "pr");
-  const reader = statusAwareReader(
-    process.env.GITHUB_API_URL ?? "https://api.github.com",
-    requireToken("control"),
-    requireToken("status")
+  const reader = withProtectionReads(
+    statusAwareReader(
+      process.env.GITHUB_API_URL ?? "https://api.github.com",
+      requireToken("control"),
+      requireToken("status")
+    ),
+    protectionToken,
+    [repository],
+    controlRepository
   );
+  if (stage === "plan") await assertBranchApprovalEnvironment(reader, controlRepository);
   if (operation === "initialize-dev") {
     const comment = bootstrapApprovalComment(repository, sha, runId, attempt);
     await verifyBootstrapSource(reader, repository, sha, controlRepository, false);

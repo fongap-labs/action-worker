@@ -12,6 +12,7 @@ import {
   runGithubCli,
   statusAwareReader,
 } from "./github-api.ts";
+import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
@@ -181,6 +182,7 @@ export async function executeDevMerge(
 }
 
 async function main(): Promise<void> {
+  const protectionToken = takeProtectionReadToken();
   const stage = process.argv[2];
   const identity = {
     repository: process.env.REPOSITORY ?? "",
@@ -192,10 +194,14 @@ async function main(): Promise<void> {
   };
   validateRepositoryCapability(identity.repository, JSON.parse(readRepositoryPolicyText()), "pr");
   const policy: unknown = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
-  const reader = statusAwareReader(
-    process.env.GITHUB_API_URL ?? "https://api.github.com",
-    requireToken("control"),
-    requireToken("status")
+  const reader = withProtectionReads(
+    statusAwareReader(
+      process.env.GITHUB_API_URL ?? "https://api.github.com",
+      requireToken("control"),
+      requireToken("status")
+    ),
+    protectionToken,
+    [identity.repository]
   );
   if (stage === "authorize") {
     const scope = await authorizeDevMerge(reader, policy, identity);

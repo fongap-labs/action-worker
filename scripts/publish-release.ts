@@ -32,6 +32,7 @@ import {
 } from "./github-api.ts";
 import { sha256File } from "./lib/stream-file-hash.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
+import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { dispatchAndWaitForNpm } from "./release-npm-dispatch.ts";
 import { selectPreTagNpmAsset, verifyPublishedNpmBeforeTag } from "./release-npm-gate.ts";
 import { assertMatchingPublishedRelease } from "./release-published-replay.ts";
@@ -371,6 +372,7 @@ async function assertSourceCurrent(
 }
 
 async function main(): Promise<void> {
+  const protectionToken = takeProtectionReadToken();
   const requestPath =
     process.argv[2] ??
     (process.env.RUNNER_TEMP ? join(process.env.RUNNER_TEMP, "release-request.json") : "");
@@ -444,10 +446,14 @@ async function main(): Promise<void> {
   );
   const defaultSha = getJsonString(defaultCommit, "sha");
 
-  const sourceReader = statusAwareReader(
-    process.env.GITHUB_API_URL ?? "https://api.github.com",
-    controlToken,
-    statusToken
+  const sourceReader = withProtectionReads(
+    statusAwareReader(
+      process.env.GITHUB_API_URL ?? "https://api.github.com",
+      controlToken,
+      statusToken
+    ),
+    protectionToken,
+    isBeta ? [sourceRepository] : []
   );
   const betaPolicy = isBeta ? readBetaReleasePolicy() : undefined;
   const writePr = isBeta
