@@ -3,7 +3,7 @@ import {
   prCiScopeDescription,
   readCurrentTransferScope,
 } from "./ci-scope-receipt.ts";
-import { getJsonNumber, getJsonString, GithubHttpError, isJsonRecord } from "./github-api.ts";
+import { GithubHttpError, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 type Reader = { get(path: string): Promise<unknown> };
@@ -56,10 +56,7 @@ async function readApprovalEnvironment(
   try {
     return await reader.get(`repos/${controlRepository}/environments/${environmentName}`);
   } catch (error) {
-    if (
-      error instanceof GithubHttpError &&
-      (error.status === 404 || error.kind === "permission")
-    ) {
+    if (error instanceof GithubHttpError && (error.status === 404 || error.kind === "permission")) {
       throw new CliError(
         `Cannot read branch-transfer Environment (HTTP ${error.status}); verify it exists in Action Worker Settings > Environments and the App has Actions read.`,
         77
