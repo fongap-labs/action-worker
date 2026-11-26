@@ -45,7 +45,7 @@ function expectedPluginUiMigration(path: string, source: string): string | undef
     );
   }
   if (path === "scripts/central-ci-windows.mjs") {
-    let next = replaceExactlyOnce(
+    const next = replaceExactlyOnce(
       source,
       "const configurations = [\n  'packages/shared/tsconfig.json',\n  'packages/delta-code/tsconfig.json',\n  'packages/delta-suite/tsconfig.json',\n  'packages/delta-suite/tsconfig.client.json',\n]",
       "const configurations = [\n  'packages/shared/tsconfig.json',\n  'packages/delta-code/tsconfig.json',\n  'packages/delta-ui/tsconfig.json',\n  'packages/delta-suite/tsconfig.json',\n  'packages/delta-ui/tsconfig.client.json',\n]"

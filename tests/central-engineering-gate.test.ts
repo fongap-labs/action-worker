@@ -7,8 +7,8 @@ import { test } from "node:test";
 import {
   type ChangedFile,
   centralOwnershipComparisonBase,
-  inspectEngineeringOwnership,
   filterVerifiedPluginUiMigrationChanges,
+  inspectEngineeringOwnership,
   isPinnedPluginRenameCandidate,
   isPinnedPluginUiMigrationCandidate,
   PLUGIN_RENAME_BASES,
@@ -380,37 +380,56 @@ test("plugin rename allowance pins only the two verified main baselines", () => 
 });
 
 
+
 test("pinned Delta UI product migration accepts only exact central CI path updates", () => {
   assert.equal(PLUGIN_UI_MIGRATION_BASE, "3e40b5238293d20644dcba07b1115114512cc1fa");
   const baseFiles = new Map([
-    [".github/scripts/central-ci.ps1",
-      "throw 'Missing Delta Suite Windows CI entrypoint.'\nthrow \"Delta Suite Windows CI failed.\"\n"],
-    [".github/scripts/central-ci.sh",
-      "HOST_TSCONFIGS=(\n  packages/delta-code/tsconfig.json\n  packages/delta-suite/tsconfig.json\n)\nCLIENT_TSCONFIG=packages/delta-suite/tsconfig.client.json"],
-    ["scripts/central-ci-windows.mjs",
-      "const configurations = [\n  'packages/shared/tsconfig.json',\n  'packages/delta-code/tsconfig.json',\n  'packages/delta-suite/tsconfig.json',\n  'packages/delta-suite/tsconfig.client.json',\n]\nexecute(process.execPath, ['packages/delta-suite/scripts/finalize-client.mjs'],\n  'finalize Delta client')"],
+    [
+      ".github/scripts/central-ci.ps1",
+      "throw 'Missing Delta Suite Windows CI entrypoint.'\nthrow \"Delta Suite Windows CI failed.\"\n",
+    ],
+    [
+      ".github/scripts/central-ci.sh",
+      "HOST_TSCONFIGS=(\n  packages/delta-code/tsconfig.json\n  packages/delta-suite/tsconfig.json\n)\nCLIENT_TSCONFIG=packages/delta-suite/tsconfig.client.json",
+    ],
+    [
+      "scripts/central-ci-windows.mjs",
+      "const configurations = [\n  'packages/shared/tsconfig.json',\n  'packages/delta-code/tsconfig.json',\n  'packages/delta-suite/tsconfig.json',\n  'packages/delta-suite/tsconfig.client.json',\n]\nexecute(process.execPath, ['packages/delta-suite/scripts/finalize-client.mjs'],\n  'finalize Delta client')",
+    ],
   ]);
   const headFiles = new Map([
-    [".github/scripts/central-ci.ps1",
-      "throw 'Missing Delta UI Windows CI entrypoint.'\nthrow \"Delta UI Windows CI failed.\"\n"],
-    [".github/scripts/central-ci.sh",
-      "HOST_TSCONFIGS=(\n  packages/delta-code/tsconfig.json\n  packages/delta-ui/tsconfig.json\n  packages/delta-suite/tsconfig.json\n)\nCLIENT_TSCONFIG=packages/delta-ui/tsconfig.client.json"],
-    ["scripts/central-ci-windows.mjs",
-      "const configurations = [\n  'packages/shared/tsconfig.json',\n  'packages/delta-code/tsconfig.json',\n  'packages/delta-ui/tsconfig.json',\n  'packages/delta-suite/tsconfig.json',\n  'packages/delta-ui/tsconfig.client.json',\n]\nexecute(process.execPath, ['packages/delta-ui/scripts/finalize-client.mjs'],\n  'finalize Delta client')"],
+    [
+      ".github/scripts/central-ci.ps1",
+      "throw 'Missing Delta UI Windows CI entrypoint.'\nthrow \"Delta UI Windows CI failed.\"\n",
+    ],
+    [
+      ".github/scripts/central-ci.sh",
+      "HOST_TSCONFIGS=(\n  packages/delta-code/tsconfig.json\n  packages/delta-ui/tsconfig.json\n  packages/delta-suite/tsconfig.json\n)\nCLIENT_TSCONFIG=packages/delta-ui/tsconfig.client.json",
+    ],
+    [
+      "scripts/central-ci-windows.mjs",
+      "const configurations = [\n  'packages/shared/tsconfig.json',\n  'packages/delta-code/tsconfig.json',\n  'packages/delta-ui/tsconfig.json',\n  'packages/delta-suite/tsconfig.json',\n  'packages/delta-ui/tsconfig.client.json',\n]\nexecute(process.execPath, ['packages/delta-ui/scripts/finalize-client.mjs'],\n  'finalize Delta client')",
+    ],
   ]);
-  const changes = [...baseFiles.keys()].map(path => ({ status: "M" as const, path }));
+  const changes = [...baseFiles.keys()].map((path) => ({ status: "M" as const, path }));
   assert.ok(changes.every(isPinnedPluginUiMigrationCandidate));
   const readAtRevision = (revision: "base" | "head", path: string) =>
     Buffer.from((revision === "base" ? baseFiles : headFiles).get(path) ?? "");
   assert.deepEqual(filterVerifiedPluginUiMigrationChanges(changes, readAtRevision), []);
 
   const tampered = new Map(headFiles);
-  tampered.set(".github/scripts/central-ci.sh", (tampered.get(".github/scripts/central-ci.sh") ?? "") + "\n# unreviewed change");
+  tampered.set(
+    ".github/scripts/central-ci.sh",
+    (tampered.get(".github/scripts/central-ci.sh") ?? "") + "\n# unreviewed change"
+  );
   const readTampered = (revision: "base" | "head", path: string) =>
     Buffer.from((revision === "base" ? baseFiles : tampered).get(path) ?? "");
   assert.deepEqual(
-    filterVerifiedPluginUiMigrationChanges(changes, readTampered).map(file => file.path),
+    filterVerifiedPluginUiMigrationChanges(changes, readTampered).map((file) => file.path),
     [".github/scripts/central-ci.sh"]
   );
-  assert.equal(isPinnedPluginUiMigrationCandidate({ status: "A", path: ".github/scripts/central-ci.sh" }), false);
+  assert.equal(
+    isPinnedPluginUiMigrationCandidate({ status: "A", path: ".github/scripts/central-ci.sh" }),
+    false
+  );
 });
