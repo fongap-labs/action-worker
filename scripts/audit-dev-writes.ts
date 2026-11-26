@@ -1,8 +1,10 @@
 import { requireToken } from "./control-token.ts";
+import { deleteTemporaryDevGuard } from "./create-protected-dev.ts";
 import {
   DevBootstrapPendingError,
   verifyAuthorizedDevBootstrap,
 } from "./dev-bootstrap-authorization.ts";
+import { recoverInterruptedDevBootstrap } from "./dev-bootstrap-recovery.ts";
 import {
   DevWritePendingError,
   hasVerifiedDevWriteGuard,
@@ -73,13 +75,23 @@ async function main(): Promise<void> {
       if (await hasVerifiedDevWriteGuard(reader, repository, sha, statuses, controlRepository)) {
         continue;
       }
-      const bootstrap = await verifyAuthorizedDevBootstrap(
+      const recovered = await recoverInterruptedDevBootstrap(
         reader,
         repository,
         sha,
         statuses,
-        controlRepository
+        controlRepository,
+        (id) =>
+          deleteTemporaryDevGuard(
+            process.env.GITHUB_API_URL ?? "https://api.github.com",
+            protectionToken,
+            repository,
+            id
+          )
       );
+      const bootstrap =
+        recovered ??
+        (await verifyAuthorizedDevBootstrap(reader, repository, sha, statuses, controlRepository));
       description =
         bootstrap ??
         (await verifyRecordedDevWrite(reader, repository, sha, controlRepository)).description;
