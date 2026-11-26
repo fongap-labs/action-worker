@@ -74,6 +74,34 @@ test("artifact context exceptions fail closed when policy metadata is malformed"
   assert.match(result.output, /invalid-policy/);
 });
 
+test("privacy fingerprints preserve exact secret-context exceptions without hashing secret contexts", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const secret = `AKIA${"A".repeat(16)}`;
+  const approved = `${"A".repeat(64)}${secret}${"B".repeat(64)}`;
+  const configured = JSON.parse(await readFile(policy, "utf8"));
+  configured.artifact_context_allowlist = [{
+    rule: "aws-access-key",
+    source: "verified public fixture",
+    distribution_sha256: "b".repeat(64),
+    reason: "Exact test context only.",
+    context_sha256: [createHash("sha256").update(approved).digest("hex")],
+  }];
+  const policyFile = join(directory, "security.json");
+  await writeFile(policyFile, JSON.stringify(configured), "utf8");
+  const asset = join(directory, "runtime.exe");
+  await writeFile(asset, approved, "utf8");
+  const accepted = run(directory, false, ["--diagnostics"], policyFile);
+  assert.equal(accepted.status, 0);
+  assert.doesNotMatch(accepted.output, /context_sha256|verified public fixture/);
+
+  await writeFile(asset, approved.replace(/B{64}/, `${"C".repeat(64)}`), "utf8");
+  const changed = run(directory, false, ["--diagnostics"], policyFile);
+  assert.equal(changed.status, 1);
+  assert.match(changed.output, /aws-access-key/);
+  assert.doesNotMatch(changed.output, /context_sha256|verified public fixture/);
+});
+
 function archive(target: string, name: string, content: string, kind: "zip" | "tar") {
   const code =
     "import io,os,tarfile,zipfile\n" +
