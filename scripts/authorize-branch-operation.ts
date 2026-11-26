@@ -1,14 +1,8 @@
-import {
-  assertBranchApprovalEnvironment,
-  assertBranchTransferApproval,
-  assertExactBranchApproval,
-  transferApprovalComment,
-} from "./branch-transfer-approval.ts";
-import { readCurrentTransferScope } from "./ci-scope-receipt.ts";
+import { assertManualBranchAuthorization } from "./branch-transfer-approval.ts";
+import { prCiScopeDescription, readCurrentTransferScope } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
 import {
   bootstrapApprovalComment,
-  branchAuthorizationWorkflow,
   devBootstrapContext,
   verifyBootstrapSource,
 } from "./dev-bootstrap-authorization.ts";
@@ -29,13 +23,20 @@ async function main(): Promise<void> {
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const runId = Number(process.env.GITHUB_RUN_ID ?? "");
   const attempt = Number(process.env.GITHUB_RUN_ATTEMPT ?? "");
+  const confirmed = process.env.OPERATOR_CONFIRMED === "true";
+  const snapshot = process.env.TRANSFER_SNAPSHOT ?? "";
   if (
+    controlRepository !== "fongap-labs/action-worker" ||
     process.env.GITHUB_REF !== "refs/heads/main" ||
     process.env.GITHUB_EVENT_NAME !== "workflow_dispatch" ||
     !["plan", "verify", "approve"].includes(stage ?? "") ||
-    !["initialize-dev", "transfer"].includes(operation)
+    !["initialize-dev", "transfer"].includes(operation) ||
+    (operation === "initialize-dev" && (prNumber !== 0 || snapshot !== ""))
   ) {
     throw new CliError("Branch authorization requires an explicit trusted main dispatch.", 75);
+  }
+  if (stage !== "plan" && !confirmed) {
+    throw new CliError("Explicit operator confirmation is required.", 77);
   }
   validateRepositoryCapability(repository, JSON.parse(readRepositoryPolicyText()), "pr");
   const reader = withProtectionReads(
@@ -45,32 +46,23 @@ async function main(): Promise<void> {
       requireToken("status")
     ),
     protectionToken,
-    [repository],
-    controlRepository
+    [repository]
   );
-  if (stage === "plan") await assertBranchApprovalEnvironment(reader, controlRepository);
+  await assertManualBranchAuthorization(reader, controlRepository, repository, runId, attempt);
   if (operation === "initialize-dev") {
-    const comment = bootstrapApprovalComment(repository, sha, runId, attempt);
+    const identity = bootstrapApprovalComment(repository, sha, runId, attempt);
     await verifyBootstrapSource(reader, repository, sha, controlRepository, false);
     if (stage === "plan") {
       await appendLines(process.env.GITHUB_STEP_SUMMARY, [
         "## Development initialization authorization",
         "",
-        "Approve only this exact source SHA; this operation does not create a branch.",
+        "Source and administrator identity verified; this operation does not create a branch.",
         "",
-        `\`${comment}\``,
+        `\`${identity}\``,
+        confirmed ? "Explicit authorization requested." : "Check only; no receipt will be issued.",
       ]);
       return;
     }
-    await assertExactBranchApproval(
-      reader,
-      controlRepository,
-      runId,
-      attempt,
-      comment,
-      branchAuthorizationWorkflow
-    );
-    await verifyBootstrapSource(reader, repository, sha, controlRepository, false);
     if (stage === "verify") return;
     const status = {
       repository,
@@ -89,7 +81,7 @@ async function main(): Promise<void> {
   }
   const scope = await readCurrentTransferScope(reader, repository, prNumber, sha);
   if (!scope) throw new CliError("Branch transfer snapshot is not ready.", 75);
-  const comment = transferApprovalComment(scope, runId, attempt);
+  const expected = prCiScopeDescription(scope);
   if (stage === "plan") {
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       "## Cross-branch transfer authorization",
@@ -97,20 +89,16 @@ async function main(): Promise<void> {
       `Target: ${scope.targetBranch}; PR: #${scope.prNumber}`,
       `Base: ${scope.baseSha}; source: ${scope.headSha}; merge: ${scope.mergeSha}`,
       "",
-      `\`${comment}\``,
+      `\`${expected}\``,
+      "Copy this snapshot into transfer_snapshot and explicitly confirm a new manual run.",
     ]);
     return;
   }
-  await assertBranchTransferApproval(
-    reader,
-    controlRepository,
-    scope,
-    runId,
-    attempt,
-    branchAuthorizationWorkflow
-  );
+  if (snapshot !== expected) {
+    throw new CliError("Exact branch transfer snapshot is missing or changed.", 75);
+  }
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
-    "Exact transfer approval verified.",
+    "Exact administrator transfer authorization verified.",
     "",
     "No merge, branch update or merge-gate status was issued.",
   ]);

@@ -19,8 +19,7 @@ export function takeProtectionReadToken(): string {
 export function withProtectionReads(
   reader: GithubReader,
   token: string,
-  repositories: readonly string[],
-  approvalRepository?: string
+  repositories: readonly string[]
 ): GithubReader {
   const allowed = new Set(repositories);
   const privileged = new GithubReader(reader.apiUrl, token);
@@ -28,14 +27,6 @@ export function withProtectionReads(
   reader.get = async (path) => {
     const [pathname, query] = path.split("?");
     const rules = /^repos\/([^/]+\/[^/]+)\/rulesets(?:\/([1-9][0-9]*))?$/.exec(pathname ?? "");
-    const environment = /^repos\/([^/]+\/[^/]+)\/environments\/branch-transfer$/.exec(path);
-    if (environment) {
-      if (environment[1] !== approvalRepository) {
-        throw new ProtectionReadError("Approval read is outside the approved repository scope.");
-      }
-      // Environment metadata requires Actions read, not Administration write.
-      return ordinary(path);
-    }
     if (!rules) return ordinary(path);
     const expected = rules[2] ? "includes_parents=false" : "includes_parents=false&per_page=100";
     if (query !== expected || path !== `${pathname}?${expected}`) {
