@@ -271,6 +271,7 @@ test("privacy diagnostics identify archive member and window without disclosing 
   assert.equal(rows.length, 1);
   assert.deepEqual(rows[0], {
     area: "other",
+    context_sha256: [createHash("sha256").update(address).digest("hex")],
     first_window: 1,
     kind: "binary",
     last_window: 1,

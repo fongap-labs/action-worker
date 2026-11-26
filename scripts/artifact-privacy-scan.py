@@ -139,7 +139,7 @@ class Scanner:
         self.is_details_truncated = False
         self.object_count = 0
 
-    def record_detail(self, locator, origin, rule, source, window, names):
+    def record_detail(self, locator, origin, rule, source, window, names, context_hashes=()):
         if not self.diagnostics:
             return
         key = (locator, rule, source)
@@ -147,6 +147,8 @@ class Scanner:
             row = self.details[key]
             row["windows"] += 1
             row["last_window"] = window
+            if context_hashes:
+                row["context_sha256"] = sorted(set(row.get("context_sha256", ())) | set(context_hashes))
             return
         if len(self.details) >= MAX_DIAGNOSTIC_ROWS:
             self.is_details_truncated = True
@@ -161,6 +163,8 @@ class Scanner:
             "last_window": window,
             "windows": 1,
         }
+        if context_hashes:
+            row["context_sha256"] = sorted(set(context_hashes))
         if self.local_paths:
             row["relative_archive_chain"] = names
         self.details[key] = row
@@ -176,21 +180,24 @@ class Scanner:
                 matches = [match for match in matches if match.end() <= len(text) - 64]
             if not matches:
                 continue
-            if source == "content" and name in self.contexts:
-                is_unapproved = False
+            unapproved_contexts = []
+            if source == "content" and name.startswith("privacy-"):
                 for match in matches:
                     start = max(0, match.start() - 64)
                     end = min(len(text), match.end() + 64)
                     context = text[start:end].encode("utf-8")
-                    if hashlib.sha256(context).hexdigest() not in self.contexts[name]:
-                        is_unapproved = True
-                        break
-                if not is_unapproved:
+                    digest = hashlib.sha256(context).hexdigest()
+                    if name not in self.contexts or digest not in self.contexts[name]:
+                        unapproved_contexts.append(digest)
+                if name in self.contexts and not unapproved_contexts:
                     continue
             self.counts[name] = self.counts.get(name, 0) + 1
             key = (*origin, name)
             self.origin_counts[key] = self.origin_counts.get(key, 0) + 1
-            self.record_detail(locator, origin, name, source, window, names)
+            self.record_detail(
+                locator, origin, name, source, window, names,
+                sorted(set(unapproved_contexts)) if name.startswith("privacy-") else (),
+            )
 
     def check_name(self, name, origin, locator, names, source="name"):
         normalized = name.replace("\\", "/")
