@@ -131,7 +131,7 @@ test("release privacy scan blocks user or developer addresses inside zip archive
   const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const address = ["developer", "example.invalid"].join("@");
-  archive(join(directory, "bundle.zip"), "source/config.map", "contact=" + address, "zip");
+  archive(join(directory, "bundle.zip"), "source/config.map", `contact=${address}`, "zip");
   const result = run(directory);
   assert.equal(result.status, 1);
   assert.match(result.output, /privacy-email-address/);
@@ -142,7 +142,7 @@ test("release privacy scan blocks local home paths inside compressed tarballs", 
   const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const local = ["", "Users", "developer", "Documents", "private.txt"].join("/");
-  archive(join(directory, "release.tgz"), "assets/metadata.txt", "path=" + local, "tar");
+  archive(join(directory, "release.tgz"), "assets/metadata.txt", `path=${local}`, "tar");
   const result = run(directory);
   assert.equal(result.status, 1);
   assert.match(result.output, /privacy-unix-home-path/);
