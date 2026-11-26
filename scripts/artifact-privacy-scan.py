@@ -181,7 +181,7 @@ class Scanner:
             if not matches:
                 continue
             unapproved_contexts = []
-            if source == "content" and name.startswith("privacy-"):
+            if source == "content" and (name in self.contexts or name.startswith("privacy-")):
                 for match in matches:
                     start = max(0, match.start() - 64)
                     end = min(len(text), match.end() + 64)
