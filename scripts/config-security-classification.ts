@@ -57,6 +57,7 @@ const rootTrustNames = new Set([
 
 const authorizationNames = new Set([
   "AW_REPOSITORY_POLICY",
+  "AW_DELTA_PRUNE_POLICY",
   "AW_TASK_SECRET_POLICY_MODE",
   "AW_DEPLOY_SECRET_POLICY",
   "AW_MAIN_WRITE_GUARD_POLICY",
