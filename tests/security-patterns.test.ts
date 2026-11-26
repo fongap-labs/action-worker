@@ -192,6 +192,24 @@ test("a secret allowance without a reason is rejected as an invalid policy", asy
   await assert.rejects(() => scan(context, "src/a.txt", "plain\n", broken));
 });
 
+test("artifact context allowances require a known rule and verified digest fields", async (context) => {
+  const policy = JSON.parse(await readFile(policyPath, "utf8"));
+  policy.artifact_context_allowlist = [
+    {
+      rule: "unknown-rule",
+      source: "verified upstream",
+      distribution_sha256: "a".repeat(64),
+      reason: "Reviewed context.",
+      context_sha256: ["b".repeat(64)],
+    },
+  ];
+  const directory = await mkdtemp(join(tmpdir(), "action-worker-policy-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const broken = join(directory, "security.json");
+  await writeFile(broken, JSON.stringify(policy), "utf8");
+  await assert.rejects(() => scan(context, "src/a.txt", "plain\n", broken));
+});
+
 test("privacy patterns reject personal addresses and local home paths without capturing values", async (context) => {
   const email = ["developer", "example.invalid"].join("@");
   const unixHome = ["", "home", "developer", "settings.json"].join("/");

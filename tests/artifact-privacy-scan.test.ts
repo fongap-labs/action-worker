@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,12 +9,70 @@ import { test } from "node:test";
 const script = "scripts/artifact-privacy-scan.py";
 const policy = "policies/security.json";
 
-function run(directory: string, strictOpaque = false, extra: string[] = []) {
-  const args = [script, directory, policy];
+function run(
+  directory: string,
+  strictOpaque = false,
+  extra: string[] = [],
+  policyFile: string = policy
+) {
+  const args = [script, directory, policyFile];
   if (strictOpaque) args.push("--strict-opaque");
   const result = spawnSync("python3", [...args, ...extra], { encoding: "utf8" });
   return { status: result.status, output: result.stdout + result.stderr };
 }
+
+test("artifact context exceptions are exact and do not hide another match in the same window", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const address = ["verified", "example.invalid"].join("@");
+  const approved = `${"A".repeat(64)}${address}${"B".repeat(64)}`;
+  const digest = createHash("sha256").update(approved).digest("hex");
+  const configured = JSON.parse(await readFile(policy, "utf8"));
+  configured.artifact_context_allowlist = [
+    {
+      rule: "privacy-email-address",
+      source: "verified public fixture",
+      distribution_sha256: "a".repeat(64),
+      reason: "Exact test context only.",
+      context_sha256: [digest],
+    },
+  ];
+  const policyFile = join(directory, "security.json");
+  await writeFile(policyFile, JSON.stringify(configured), "utf8");
+  const asset = join(directory, "runtime.exe");
+  await writeFile(asset, `${approved}\n${address}`, "utf8");
+  const result = run(directory, false, [], policyFile);
+  assert.equal(result.status, 1);
+  assert.match(result.output, /privacy-email-address/);
+  assert.match(result.output, /"privacy_findings": 1/);
+  assert.doesNotMatch(result.output, /verified public fixture|example\.invalid/);
+
+  await writeFile(asset, `${approved.replace("B".repeat(64), "C".repeat(64))}`, "utf8");
+  const changedContext = run(directory, false, [], policyFile);
+  assert.equal(changedContext.status, 1);
+  assert.match(changedContext.output, /privacy-email-address/);
+});
+
+test("artifact context exceptions fail closed when policy metadata is malformed", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "release-privacy-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const configured = JSON.parse(await readFile(policy, "utf8"));
+  configured.artifact_context_allowlist = [
+    {
+      rule: "privacy-email-address",
+      source: "verified source",
+      distribution_sha256: "not-a-digest",
+      reason: "Invalid fixture.",
+      context_sha256: ["not-a-digest"],
+    },
+  ];
+  const policyFile = join(directory, "security.json");
+  await writeFile(policyFile, JSON.stringify(configured), "utf8");
+  await writeFile(join(directory, "asset.txt"), "ordinary data", "utf8");
+  const result = run(directory, false, [], policyFile);
+  assert.equal(result.status, 1);
+  assert.match(result.output, /invalid-policy/);
+});
 
 function archive(target: string, name: string, content: string, kind: "zip" | "tar") {
   const code =
