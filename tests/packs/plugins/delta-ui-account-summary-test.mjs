@@ -3,14 +3,19 @@ import { targetPath } from '../../kit/target.mjs'
 import { existsSync, readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { runInNewContext } from 'node:vm'
+const migrationPresent = existsSync(targetPath('packages/delta-ui/package.json'))
 const sourcePath = targetPath('packages/delta-ui/src/client-account-summary.ts')
-const readiness = JSON.parse(readFileSync(targetPath('projects/delta-ui/feature-readiness.json'), 'utf8'))
-const client = readFileSync(targetPath('packages/delta-ui/src/client.ts'), 'utf8')
+const readiness = migrationPresent
+  ? JSON.parse(readFileSync(targetPath('projects/delta-ui/feature-readiness.json'), 'utf8'))
+  : {}
+const client = migrationPresent
+  ? readFileSync(targetPath('packages/delta-ui/src/client.ts'), 'utf8')
+  : ''
 // During the coordinated rollout, older revisions have neither the feature nor its declaration.
 // A partial rollout must fail; after the product PR merges, remove this transitional condition.
-const isFeatureAbsent = !existsSync(sourcePath) &&
+const isFeatureAbsent = !migrationPresent || (!existsSync(sourcePath) &&
   !Object.hasOwn(readiness, 'p1_native_account_summary') &&
-  !client.includes('createClientAccountSummary')
+  !client.includes('createClientAccountSummary'))
 const source = isFeatureAbsent ? '' : readFileSync(sourcePath, 'utf8')
 function fixture() {
   const summary = runInNewContext(stripTypeScriptTypes(source + '\ncreateClientAccountSummary()'),

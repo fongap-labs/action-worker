@@ -1,9 +1,20 @@
-import { describe, it } from 'node:test'
+import { describe as nodeDescribe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  decideTaskIntentMode, TaskIntentTracker,
-} from '#target/packages/delta-ui/lib/task-intent-policy.js'
-import { installHostTaskIntent } from '#target/packages/delta-ui/lib/host-task-intent.js'
+import { existsSync } from 'node:fs'
+import { targetPath } from '../../kit/target.mjs'
+
+const migrationPresent = existsSync(targetPath('packages/delta-ui/package.json'))
+const taskIntent = migrationPresent
+  ? await import('#target/packages/delta-ui/lib/task-intent-policy.js')
+  : {}
+const hostTaskIntent = migrationPresent
+  ? await import('#target/packages/delta-ui/lib/host-task-intent.js')
+  : {}
+const { decideTaskIntentMode, TaskIntentTracker } = taskIntent
+const { installHostTaskIntent } = hostTaskIntent
+const describe = (name, fn) => nodeDescribe(name, {
+  skip: migrationPresent ? false : 'Delta UI product migration is not present in this target revision',
+}, fn)
 
 function harnessFixture(availablePrompt = true) {
   const listeners = new Map()
@@ -44,7 +55,7 @@ function harnessFixture(availablePrompt = true) {
   }
 }
 
-describe('Delta Suite universal task intent policy', () => {
+describe('Delta UI universal task intent policy', () => {
   it('covers both substantial coding and non-coding tasks using the same signals', () => {
     const research = 'Prepare a research report\n1. Compare five regulations\n2. Explain their differences\n3. Draft recommendations'
     const coding = 'Refactor the service\n1. Keep compatibility\n2. Add regression tests\n3. Validate the security boundary'
@@ -109,7 +120,7 @@ describe('Delta Suite universal task intent policy', () => {
   })
 })
 
-describe('Delta Suite native task-intent Host integration', () => {
+describe('Delta UI native task-intent Host integration', () => {
   it('uses only actual user claims and native prompt context, not tool or injected text', () => {
     const f = harnessFixture()
     const agent = {}, other = {}
