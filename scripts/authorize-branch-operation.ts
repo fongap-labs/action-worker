@@ -6,19 +6,57 @@ import {
   devBootstrapContext,
   verifyBootstrapSource,
 } from "./dev-bootstrap-authorization.ts";
-import { statusAwareReader } from "./github-api.ts";
+import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
 
+const shaPattern = /^[0-9a-f]{40}$/;
+
+export async function resolveBranchSourceSha(
+  reader: { get(path: string): Promise<unknown> },
+  operation: string,
+  repository: string,
+  prNumber: number,
+  requestedSha: string
+): Promise<string> {
+  if (
+    !["initialize-dev", "transfer"].includes(operation) ||
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
+    !Number.isSafeInteger(prNumber) ||
+    (operation === "initialize-dev" ? prNumber !== 0 : prNumber < 1)
+  ) {
+    throw new CliError("Invalid branch authorization target.", 65);
+  }
+  const requested = requestedSha.trim().toLowerCase();
+  if (requested) {
+    if (!shaPattern.test(requested)) {
+      throw new CliError("Source SHA must be a full 40-character Git commit SHA.", 65);
+    }
+    return requested;
+  }
+  const initialize = operation === "initialize-dev";
+  const path = initialize
+    ? `repos/${repository}/branches/main`
+    : `repos/${repository}/pulls/${prNumber}`;
+  const value = await reader.get(path);
+  const sha = isJsonRecord(value)
+    ? getJsonString(initialize ? value.commit : value.head, "sha")
+    : "";
+  if (!shaPattern.test(sha)) {
+    throw new CliError("Current source SHA is unavailable.", 75);
+  }
+  return sha;
+}
+
 async function main(): Promise<void> {
   const protectionToken = takeProtectionReadToken();
   const stage = process.argv[2];
   const operation = process.env.OPERATION ?? "";
   const repository = process.env.REPOSITORY ?? "";
-  const sha = process.env.SOURCE_SHA ?? "";
+  const requestedSha = process.env.SOURCE_SHA ?? "";
   const prNumber = Number(process.env.PR_NUMBER ?? "");
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const runId = Number(process.env.GITHUB_RUN_ID ?? "");
@@ -31,12 +69,16 @@ async function main(): Promise<void> {
     process.env.GITHUB_EVENT_NAME !== "workflow_dispatch" ||
     !["plan", "verify", "approve"].includes(stage ?? "") ||
     !["initialize-dev", "transfer"].includes(operation) ||
-    (operation === "initialize-dev" && (prNumber !== 0 || snapshot !== ""))
+    !Number.isSafeInteger(prNumber) ||
+    (operation === "initialize-dev" ? prNumber !== 0 || snapshot !== "" : prNumber < 1)
   ) {
     throw new CliError("Branch authorization requires an explicit trusted main dispatch.", 75);
   }
   if (stage !== "plan" && !confirmed) {
     throw new CliError("Explicit operator confirmation is required.", 77);
+  }
+  if (stage !== "plan" && !shaPattern.test(requestedSha)) {
+    throw new CliError("A locked source SHA from the plan is required.", 75);
   }
   validateRepositoryCapability(repository, JSON.parse(readRepositoryPolicyText()), "pr");
   const reader = withProtectionReads(
@@ -49,14 +91,20 @@ async function main(): Promise<void> {
     [repository]
   );
   await assertManualBranchAuthorization(reader, controlRepository, repository, runId, attempt);
+  const sha =
+    stage === "plan"
+      ? await resolveBranchSourceSha(reader, operation, repository, prNumber, requestedSha)
+      : requestedSha;
   if (operation === "initialize-dev") {
     const identity = bootstrapApprovalComment(repository, sha, runId, attempt);
     await verifyBootstrapSource(reader, repository, sha, controlRepository, false);
     if (stage === "plan") {
+      await appendLines(process.env.GITHUB_OUTPUT, [`source_sha=${sha}`, "transfer_snapshot="]);
       await appendLines(process.env.GITHUB_STEP_SUMMARY, [
         "## Development initialization authorization",
         "",
         "Source and administrator identity verified; this operation does not create a branch.",
+        `Source SHA: ${sha} (${requestedSha.trim() ? "manual" : "automatic"})`,
         "",
         `\`${identity}\``,
         confirmed ? "Explicit authorization requested." : "Check only; no receipt will be issued.",
@@ -83,6 +131,13 @@ async function main(): Promise<void> {
   if (!scope) throw new CliError("Branch transfer snapshot is not ready.", 75);
   const expected = prCiScopeDescription(scope);
   if (stage === "plan") {
+    if (snapshot && snapshot !== expected) {
+      throw new CliError("Specified branch transfer snapshot is no longer current.", 75);
+    }
+    await appendLines(process.env.GITHUB_OUTPUT, [
+      `source_sha=${sha}`,
+      `transfer_snapshot=${expected}`,
+    ]);
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       "## Cross-branch transfer authorization",
       "",
@@ -90,7 +145,10 @@ async function main(): Promise<void> {
       `Base: ${scope.baseSha}; source: ${scope.headSha}; merge: ${scope.mergeSha}`,
       "",
       `\`${expected}\``,
-      "Copy this snapshot into transfer_snapshot and explicitly confirm a new manual run.",
+      `Source SHA: ${sha} (${requestedSha.trim() ? "manual" : "automatic"})`,
+      confirmed
+        ? "This exact snapshot is locked for verification and authorization in this run."
+        : "Check only; confirm a new manual run to authorize. Optionally specify this snapshot to require an exact match.",
     ]);
     return;
   }
