@@ -4,7 +4,9 @@
   "runtime": "node",
   "suffix": "-test.mjs",
   "overlay": true,
-  "node_flags": ["--experimental-strip-types"],
+  "node_flags": [
+    "--experimental-strip-types"
+  ],
   "tiers": {
     "gate": [
       "gateway-reasoning-contract-test.mjs",
@@ -17,7 +19,11 @@
       "delta-code-modern-web-guidance-test.mjs",
       "delta-suite-task-intent-test.mjs",
       "plugins-architecture-governance-test.mjs",
-      "delta-suite-account-summary-test.mjs"
+      "delta-suite-account-summary-test.mjs",
+      "delta-suite-config-ui-test.mjs",
+      "delta-suite-icon-test.mjs",
+      "delta-suite-test.mjs",
+      "delta-ui-icon-test.mjs"
     ]
   }
 }

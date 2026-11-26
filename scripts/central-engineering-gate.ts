@@ -14,6 +14,67 @@ export const PLUGIN_RENAME_BASES = new Set([
   "094ad41c4948155419eb12a53be6709d88272c3d",
 ]);
 export const PLUGIN_RENAME_REPOSITORY = "fongap-labs/plugins";
+
+export const PLUGIN_UI_MIGRATION_BASE = "3e40b5238293d20644dcba07b1115114512cc1fa";
+const PLUGIN_UI_MIGRATION_FILES = new Set([
+  ".github/scripts/central-ci.ps1",
+  ".github/scripts/central-ci.sh",
+  "scripts/central-ci-windows.mjs",
+]);
+
+export function isPinnedPluginUiMigrationCandidate(file: ChangedFile): boolean {
+  return file.status === "M" && PLUGIN_UI_MIGRATION_FILES.has(file.path);
+}
+
+function replaceExactlyOnce(source: string, before: string, after: string): string | undefined {
+  const first = source.indexOf(before);
+  if (first < 0 || source.indexOf(before, first + before.length) >= 0) return undefined;
+  return source.slice(0, first) + after + source.slice(first + before.length);
+}
+
+function expectedPluginUiMigration(path: string, source: string): string | undefined {
+  if (path === ".github/scripts/central-ci.ps1") {
+    if ((source.match(/Delta Suite/g) ?? []).length !== 2) return undefined;
+    return source.replaceAll("Delta Suite", "Delta UI");
+  }
+  if (path === ".github/scripts/central-ci.sh") {
+    return replaceExactlyOnce(
+      source,
+      "HOST_TSCONFIGS=(\n  packages/delta-code/tsconfig.json\n  packages/delta-suite/tsconfig.json\n)\nCLIENT_TSCONFIG=packages/delta-suite/tsconfig.client.json",
+      "HOST_TSCONFIGS=(\n  packages/delta-code/tsconfig.json\n  packages/delta-ui/tsconfig.json\n  packages/delta-suite/tsconfig.json\n)\nCLIENT_TSCONFIG=packages/delta-ui/tsconfig.client.json"
+    );
+  }
+  if (path === "scripts/central-ci-windows.mjs") {
+    let next = replaceExactlyOnce(
+      source,
+      "const configurations = [\n  'packages/shared/tsconfig.json',\n  'packages/delta-code/tsconfig.json',\n  'packages/delta-suite/tsconfig.json',\n  'packages/delta-suite/tsconfig.client.json',\n]",
+      "const configurations = [\n  'packages/shared/tsconfig.json',\n  'packages/delta-code/tsconfig.json',\n  'packages/delta-ui/tsconfig.json',\n  'packages/delta-suite/tsconfig.json',\n  'packages/delta-ui/tsconfig.client.json',\n]"
+    );
+    if (next === undefined) return undefined;
+    return replaceExactlyOnce(
+      next,
+      "packages/delta-suite/scripts/finalize-client.mjs",
+      "packages/delta-ui/scripts/finalize-client.mjs"
+    );
+  }
+  return undefined;
+}
+
+export function filterVerifiedPluginUiMigrationChanges(
+  files: readonly ChangedFile[],
+  readAtRevision: (revision: "base" | "head", path: string) => Buffer
+): ChangedFile[] {
+  return files.filter((file) => {
+    if (!isPinnedPluginUiMigrationCandidate(file)) return true;
+    const previous = readAtRevision("base", file.path);
+    const updated = readAtRevision("head", file.path);
+    const decoded = previous.toString("utf8");
+    if (!Buffer.from(decoded, "utf8").equals(previous)) return true;
+    const expected = expectedPluginUiMigration(file.path, decoded);
+    return expected === undefined || !Buffer.from(expected, "utf8").equals(updated);
+  });
+}
+
 const LEGACY_PLUGIN_PREFIX = ["dsh", "delta"].join("-") + "-";
 const NEW_PLUGIN_TEST = /^tests\/delta-(?:code|desktop|suite)(?:-[a-z0-9-]+)?[.]test[.]mjs$/;
 const EXISTING_PLUGIN_CI = new Set([
@@ -310,20 +371,29 @@ export function runOwnershipGate(
     return { ...change, sha: git(root, ["rev-parse", head + ":" + change.path]).trim() };
   });
   let reviewedChanges = changes;
+  const readAtRevision = (revision: "base" | "head", path: string): Buffer =>
+    execFileSync("git", ["-C", root, "show", (revision === "base" ? base : head) + ":" + path], {
+      stdio: ["ignore", "pipe", "ignore"],
+      maxBuffer: 2 * 1024 * 1024,
+      timeout: 10_000,
+    });
   if (
     repository === PLUGIN_RENAME_REPOSITORY &&
     PLUGIN_RENAME_BASES.has(base) &&
     process.env.TARGET_PRIVATE === "false" &&
     changes.some(isPinnedPluginRenameCandidate)
   ) {
-    reviewedChanges = filterVerifiedPluginNameOnlyChanges(changes, (revision, path) =>
-      execFileSync("git", ["-C", root, "show", (revision === "base" ? base : head) + ":" + path], {
-        stdio: ["ignore", "pipe", "ignore"],
-        maxBuffer: 2 * 1024 * 1024,
-        timeout: 10_000,
-      })
-    );
+    reviewedChanges = filterVerifiedPluginNameOnlyChanges(changes, readAtRevision);
   }
+  if (
+    repository === PLUGIN_RENAME_REPOSITORY &&
+    base === PLUGIN_UI_MIGRATION_BASE &&
+    process.env.TARGET_PRIVATE === "false" &&
+    reviewedChanges.some(isPinnedPluginUiMigrationCandidate)
+  ) {
+    reviewedChanges = filterVerifiedPluginUiMigrationChanges(reviewedChanges, readAtRevision);
+  }
+
   const findings = inspectEngineeringOwnership(
     policy,
     repository,
