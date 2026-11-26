@@ -1,7 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
-import { type DeltaDeniedSourceRule, type DeltaPrunePolicy, parseDeltaPrunePolicy } from "./delta-prune-policy.ts";
+import {
+  type DeltaDeniedSourceRule,
+  type DeltaPrunePolicy,
+  parseDeltaPrunePolicy,
+} from "./delta-prune-policy.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { CliError, runCommand, runText } from "./runtime-command.ts";
 
@@ -246,10 +250,14 @@ export function inspectDeltaSourceMatches(
   if (!shaPattern.test(candidate)) throw new CliError("Invalid Delta source revision.", 65);
   const prefix = candidate + ":";
   const allowed = new Set(rule.allowedPaths);
-  const treePaths = new Set(entries.filter((entry) => entry.kind === "blob").map((entry) => entry.path));
+  const treePaths = new Set(
+    entries.filter((entry) => entry.kind === "blob").map((entry) => entry.path)
+  );
   const seen = new Set<string>();
-  if (raw && !raw.endsWith("\\0")) throw new CliError("Incomplete source privacy inventory.", 65);
-  for (const row of raw ? raw.slice(0, -1).split("\\0") : []) {
+  if (raw && !raw.endsWith("\0")) {
+    throw new CliError("Incomplete source privacy inventory.", 65);
+  }
+  for (const row of raw ? raw.slice(0, -1).split("\0") : []) {
     const path = row.slice(prefix.length);
     if (!row.startsWith(prefix) || !treePaths.has(path) || seen.has(path)) {
       throw new CliError("Invalid source privacy inventory.", 65);
@@ -271,16 +279,34 @@ async function auditDeltaSourceRules(
   for (const rule of policy.deniedSourceRules ?? []) {
     let raw = "";
     try {
-      raw = (await runCommand(
-        "git",
-        [
-          "-C", root, "grep", "-l", "-z", "-F", "--no-textconv", "--no-recurse-submodules",
-          "-e", rule.term, candidate, "--",
-        ],
-        { env, maxBuffer: 8 * 1024 * 1024, timeoutMs: 60_000 }
-      )).toString("utf8");
+      raw = (
+        await runCommand(
+          "git",
+          [
+            "-C",
+            root,
+            "grep",
+            "-l",
+            "-z",
+            "-F",
+            "--no-textconv",
+            "--no-recurse-submodules",
+            "-e",
+            rule.term,
+            candidate,
+            "--",
+          ],
+          { env, maxBuffer: 8 * 1024 * 1024, timeoutMs: 60_000 }
+        )
+      ).toString("utf8");
     } catch (error) {
-      if (!(error instanceof CliError && error.exitCode === 1 && error.message === "git exited with status 1.")) {
+      if (
+        !(
+          error instanceof CliError &&
+          error.exitCode === 1 &&
+          error.message === "git exited with status 1."
+        )
+      ) {
         throw new CliError("Delta source privacy inventory could not complete.", 65);
       }
     }
@@ -367,7 +393,10 @@ export async function auditDeltaPruneInventory(
       })
     );
     if (deniedSourceCount > 0) {
-      throw new CliError("Delta source privacy inventory denied " + deniedSourceCount + " reference(s).", 65);
+      throw new CliError(
+        "Delta source privacy inventory denied " + deniedSourceCount + " reference(s).",
+        65
+      );
     }
     if (findings.length > 0) {
       throw new CliError(

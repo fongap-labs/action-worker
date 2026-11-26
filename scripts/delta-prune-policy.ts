@@ -134,7 +134,9 @@ export function parseDeltaPrunePolicy(
         invalid();
       }
       const allowedPaths = list(rule.allowedPaths, false);
-      if (allowedPaths.some((path) => path.startsWith("/") || path.endsWith("/") || path.includes("//"))) {
+      if (
+        allowedPaths.some((path) => path.startsWith("/") || path.endsWith("/") || path.includes("//"))
+      ) {
         invalid();
       }
       rules.push({ term: rule.term, allowedPaths });
