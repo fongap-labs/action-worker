@@ -88,7 +88,6 @@ async function inspectPinnedPluginNameOnlyChanges(
   }
 }
 
-
 export function isPinnedPluginUiMigrationRequest(
   repository: string,
   base: string,
@@ -526,7 +525,13 @@ export async function checkGithubEngineeringOwnership(
     }
   }
   files = await inspectPinnedPluginNameOnlyChanges(repository, base, head, files, isTargetPublic);
-  files = await inspectPinnedPluginUiMigrationChanges(repository, base, head, files, isTargetPublic);
+  files = await inspectPinnedPluginUiMigrationChanges(
+    repository,
+    base,
+    head,
+    files,
+    isTargetPublic
+  );
   // Private workflow pins are checked using GitHub's commit-bound blob identity.
   // Never fetch private workflow contents into the public control runner.
   const contents = new Map<string, string>();

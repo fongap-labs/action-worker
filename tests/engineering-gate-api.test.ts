@@ -522,7 +522,6 @@ test("pinned plugin rename permits only byte-exact legacy-prefix substitutions",
   );
 });
 
-
 test("pinned Delta UI migration request is limited to the exact public plugin baseline", () => {
   const files = [
     { status: "M" as const, path: ".github/scripts/central-ci.ps1" },
@@ -539,12 +538,7 @@ test("pinned Delta UI migration request is limited to the exact public plugin ba
     true
   );
   assert.equal(
-    isPinnedPluginUiMigrationRequest(
-      "fongap-labs/plugins",
-      "0".repeat(40),
-      files,
-      true
-    ),
+    isPinnedPluginUiMigrationRequest("fongap-labs/plugins", "0".repeat(40), files, true),
     false
   );
   assert.equal(
