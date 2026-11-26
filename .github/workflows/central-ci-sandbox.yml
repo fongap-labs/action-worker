@@ -523,6 +523,17 @@ jobs:
           path: ${{ runner.temp }}/delta-pnpm-store
           key: delta-win-x64-node26.13.1-pnpm11.28.5-${{ hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') }}
 
+      # On a lockfile change, reuse only the exact control baseline store when available.
+      # All entries still undergo the target's frozen install; never save from a PR.
+      - name: Restore Delta Windows baseline pnpm store
+        id: delta_pnpm_baseline_cache
+        if: inputs.repository == 'fongap-labs/delta' && inputs.is_private == 'false' && steps.delta_pnpm_cache.outputs.cache-hit != 'true' && hashFiles('ci-control/pnpm-lock.yaml', 'ci-control/pnpm-workspace.yaml') != '' && hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') != hashFiles('ci-control/pnpm-lock.yaml', 'ci-control/pnpm-workspace.yaml')
+        continue-on-error: true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/delta-pnpm-store
+          key: delta-win-x64-node26.13.1-pnpm11.28.5-${{ hashFiles('ci-control/pnpm-lock.yaml', 'ci-control/pnpm-workspace.yaml') }}
+
       - name: Run trusted Windows CI
         env:
           CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
@@ -538,10 +549,10 @@ jobs:
           # The target PR cannot inject a Windows CI entrypoint.
           $awRoot = Join-Path $env:GITHUB_WORKSPACE 'aw'
           $policy = Get-Content -Raw -LiteralPath (Join-Path $awRoot 'policies/ci-windows-routes.json') | ConvertFrom-Json
-          $matches = @($policy.routes | Where-Object { $_.repository -eq $env:TARGET_REPOSITORY })
-          if ($matches.Count -gt 1) { throw "Duplicate central Windows route." }
-          if ($matches.Count -eq 1) {
-            $relative = [string]$matches[0].script
+          $routeMatches = @($policy.routes | Where-Object { $_.repository -eq $env:TARGET_REPOSITORY })
+          if ($routeMatches.Count -gt 1) { throw "Duplicate central Windows route." }
+          if ($routeMatches.Count -eq 1) {
+            $relative = [string]$routeMatches[0].script
             if ($relative -cnotmatch '^tests/packs/[a-z0-9-]+/[a-z0-9-]+\.ps1$') {
               throw "Unsafe central Windows suite path."
             }
@@ -555,8 +566,32 @@ jobs:
           }
 
           $log = Join-Path $env:RUNNER_TEMP "central-ci-windows.log"
+          $isPublicDelta = $env:TARGET_PRIVATE -eq "false" -and
+            $routeMatches.Count -eq 1 -and $relative -eq 'tests/packs/delta/windows-desktop-ci.ps1'
+          $liveStages = @(
+            'toolchain-preflight', 'product-policy', 'release-build', 'package-closure-regression',
+            'release-acceptance', 'release-privacy', 'release-archive-extraction',
+            'portable-output-layout', 'portable-checksum-verification',
+            'portable-relocation', 'relocated-executable-startup'
+          )
           try {
-            & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" *> $log
+            if ($isPublicDelta) {
+              # Stream fixed phase names and bounded numbers only; retain the full local log.
+              # Progress is informational and never replaces the process exit verdict.
+              & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" *>&1 |
+                Tee-Object -FilePath $log |
+                ForEach-Object {
+                  $line = [string]$_
+                  $progress = [regex]::Match($line, '^Delta Windows CI (?:start stage=([a-z-]+)|heartbeat stage=([a-z-]+) elapsed_s=[0-9]{1,5}|timing stage=([a-z-]+) duration_ms=[0-9]{1,12})$')
+                  if ($progress.Success) {
+                    $phase = @($progress.Groups[1].Value, $progress.Groups[2].Value, $progress.Groups[3].Value) | Where-Object { $_ } | Select-Object -First 1
+                    if ($liveStages -ccontains $phase) { Write-Host $line }
+                  }
+                }
+            }
+            else {
+              & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" *> $log
+            }
             if ($LASTEXITCODE -ne 0) {
               throw "Central Windows CI returned exit code $LASTEXITCODE."
             }
@@ -574,7 +609,7 @@ jobs:
           # Public Delta CI prints only reviewed stage names and bounded
           # numerical durations. Private target logs stay private.
           if ($env:TARGET_PRIVATE -eq "false" -and
-              $matches.Count -eq 1 -and
+              $routeMatches.Count -eq 1 -and
               $relative -eq 'tests/packs/delta/windows-desktop-ci.ps1' -and
               (Test-Path -LiteralPath $log)) {
             $allowlistedStages = @(
