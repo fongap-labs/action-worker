@@ -1,8 +1,6 @@
 {
   "schema_version": 3,
-  "path_allow_patterns": [
-    "(^|/)\\.env\\.(?:example|sample|template|variables)$"
-  ],
+  "path_allow_patterns": ["(^|/)\\.env\\.(?:example|sample|template|variables)$"],
   "forbidden_path_patterns": [
     "(^|/)\\.env$",
     "(^|/)\\.env\\.(?:local|production|prod|staging|stage|development|dev)$",
@@ -93,13 +91,7 @@
     }
   ],
   "require_pinned_actions": true,
-  "path_terms": [
-    "secret",
-    "token",
-    "auth",
-    "permission",
-    "credential"
-  ],
+  "path_terms": ["secret", "token", "auth", "permission", "credential"],
   "approved_workflows": [
     {
       "path": ".github/workflows/notify-action-worker.yml",
@@ -180,9 +172,7 @@
       "source": "Electron v44.11.5 Windows x64 official release",
       "distribution_sha256": "2938040ee81382bb8a99954425a316fee17f23d55f5be0ef413275f7e793c8af",
       "reason": "Exact public upstream native-runtime context from the verified official distribution. Kept to preserve the official runtime binary; any changed or additional context remains blocking.",
-      "context_sha256": [
-        "42f3313baad38870afe6007152fce635446875314f1bfc8b9959b90925fdd927"
-      ]
+      "context_sha256": ["42f3313baad38870afe6007152fce635446875314f1bfc8b9959b90925fdd927"]
     },
     {
       "rule": "aws-access-key",
@@ -283,9 +273,7 @@
       "source": "python-build-standalone CPython 3.12.14 official Windows x64 release",
       "distribution_sha256": "7c45c9622400d578709a9b2cddbe8124cc21d382409d9f13406d706d28e31b14",
       "reason": "Exact public upstream native-runtime context from the verified official distribution. Kept to preserve the official runtime binary; any changed or additional context remains blocking.",
-      "context_sha256": [
-        "2065a05fbb20aed94c1f12a9e85dfaf2fd8cc88655c5e6f3e967d48438ed68ca"
-      ]
+      "context_sha256": ["2065a05fbb20aed94c1f12a9e85dfaf2fd8cc88655c5e6f3e967d48438ed68ca"]
     },
     {
       "rule": "privacy-windows-home-path",
