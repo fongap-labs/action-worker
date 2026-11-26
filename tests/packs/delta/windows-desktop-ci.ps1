@@ -2,7 +2,8 @@
 # The target provides source only. CI entrypoint and permissions belong to Action Worker.
 param(
   [Parameter(Mandatory = $true)]
-  [string]$TargetRoot
+  [string]$TargetRoot,
+  [switch]$DeferReleasePrivacy
 )
 
 Set-StrictMode -Version Latest
@@ -101,8 +102,12 @@ try {
     '--target', 'x86_64-pc-windows-msvc', '--version', $releaseVersion, '--output-dir', $releaseOutput)
   $stage = 'release-privacy'
   Write-Host "Delta Windows CI start stage=$stage"
-  Invoke-Checked 'python.exe' @((Join-Path $env:CENTRAL_CI_AW_ROOT 'scripts/artifact-privacy-scan.py'),
-    $releaseOutput, (Join-Path $env:CENTRAL_CI_AW_ROOT 'policies/security.json'), '--diagnostics')
+  if ($DeferReleasePrivacy) {
+    Write-Host 'Delta draft privacy scan deferred; not a complete CI verdict.'
+  } else {
+    Invoke-Checked 'python.exe' @((Join-Path $env:CENTRAL_CI_AW_ROOT 'scripts/artifact-privacy-scan.py'),
+      $releaseOutput, (Join-Path $env:CENTRAL_CI_AW_ROOT 'policies/security.json'), '--diagnostics')
+  }
   $stage = 'release-archive-extraction'
   Write-Host "Delta Windows CI start stage=$stage"
   $sevenZip = Join-Path $env:ProgramFiles '7-Zip/7z.exe'

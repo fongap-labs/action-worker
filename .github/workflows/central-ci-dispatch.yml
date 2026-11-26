@@ -27,6 +27,7 @@ jobs:
       repository_name: ${{ steps.api_scope.outputs.repository_name }}
       pr_number: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number }}
       target_branch: ${{ steps.payload.outputs.target_branch || 'main' }}
+      delta_privacy_deferred: ${{ steps.merge_ref.outputs.delta_privacy_deferred || 'false' }}
       base_sha: ${{ steps.merge_ref.outputs.base_sha || steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       diff_base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       head_sha: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
@@ -326,6 +327,11 @@ jobs:
           fi
           echo "base_sha=$merge_base_sha" >> "$GITHUB_OUTPUT"
           echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
+          # Temporary incident scope: only the live, open Delta #99 dev draft may defer.
+          # The publisher must never issue CI success for this incomplete run.
+          if [[ "$REPOSITORY" == "fongap-labs/delta" && "$TARGET_BRANCH" == "dev" && "$PR_NUMBER" == "99" ]] && jq -e '.draft == true' <<< "$pull" >/dev/null; then
+            echo "delta_privacy_deferred=true" >> "$GITHUB_OUTPUT"
+          fi
           echo "Pinned PR merge snapshot: $merge_sha (base: $merge_base_sha, head: $merge_head_sha)"
 
       - name: Validate requested revision
@@ -679,6 +685,7 @@ jobs:
     uses: ./.github/workflows/central-ci-sandbox.yml
     with:
       platform: windows
+      delta_privacy_deferred: ${{ needs.prepare.outputs.delta_privacy_deferred }}
       private_windows_numeric_diagnostic: ${{ needs.prepare.outputs.private_windows_numeric_diagnostic }}
       repository: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
       owner: ${{ needs.prepare.outputs.owner }}
@@ -795,6 +802,7 @@ jobs:
           LINUX_RESULT: ${{ needs.linux.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
+          DELTA_PRIVACY_DEFERRED: ${{ needs.prepare.outputs.delta_privacy_deferred }}
           HAS_WINDOWS: ${{ needs.prepare.outputs.has_windows }}
           WINDOWS_DIAGNOSTIC: ${{ needs.windows.outputs.windows_diagnostic || '' }}
           NATIVE_PRIVATE_PILOT: ${{ needs.prepare.outputs.native_private_pilot }}
@@ -854,8 +862,15 @@ jobs:
               description="Windows regression failed cases ${numbers//./,} ($count failures)"
             fi
             if node scripts/ci-required-jobs.ts "$LINUX_RESULT" "$SECURITY_RESULT" "$WINDOWS_RESULT" "$HAS_WINDOWS"; then
-              state=success
-              description="Central CI passed"
+              if [[ "$DELTA_PRIVACY_DEFERRED" == "true" ]]; then
+                # Even if the draft becomes ready during this run, its omitted scan cannot be attested.
+                [[ "$REPOSITORY" == "fongap-labs/delta" && "$AW_CI_SCOPE_BRANCH" == "dev" && "$PR_NUMBER" == "99" ]] || exit 75
+                state=pending
+                description="Draft CI passed; release privacy scan deferred"
+              else
+                state=success
+                description="Central CI passed"
+              fi
             fi
 
           fi
@@ -865,6 +880,10 @@ jobs:
           node scripts/write-commit-status.ts "$REPOSITORY" "$HEAD_SHA" "$state" \
             "$context" "$description" "$RUN_URL"
           echo "published=true" >> "$GITHUB_OUTPUT"
+          if [[ "$state" == "pending" && "$DELTA_PRIVACY_DEFERRED" == "true" ]]; then
+            echo "::notice::Draft checks completed; privacy evidence remains pending. Full CI required before merge."
+            exit 0
+          fi
           if [[ "$state" != "success" ]]; then
             echo "::error::Central CI failed for $REPOSITORY@$HEAD_SHA: linux=$LINUX_RESULT security=$SECURITY_RESULT windows=$WINDOWS_RESULT"
             exit 1
