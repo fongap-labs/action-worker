@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { type DeltaPrunePolicy, parseDeltaPrunePolicy } from "./delta-prune-policy.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { CliError, runCommand, runText } from "./runtime-command.ts";
@@ -121,6 +121,121 @@ export function inspectDeltaPruneInventory(
   return [...findings].sort();
 }
 
+/** Declared workspace edges only. Unreached packages are review candidates, never deletion authority. */
+export function describeDeltaPruneClosure(
+  policy: DeltaPrunePolicy,
+  manifests: ReadonlyMap<string, string>
+) {
+  const packages = new Map<string, Record<string, unknown>>();
+  const names = new Map<string, string[]>();
+  const unresolved = new Set<string>();
+  for (const [path, raw] of manifests) {
+    let manifest: unknown;
+    try {
+      manifest = JSON.parse(raw);
+    } catch {
+      unresolved.add(path);
+      continue;
+    }
+    if (!isJsonRecord(manifest)) {
+      unresolved.add(path);
+      continue;
+    }
+    packages.set(path, manifest);
+    if (typeof manifest.name === "string") {
+      const paths = names.get(manifest.name) ?? [];
+      paths.push(path);
+      names.set(manifest.name, paths);
+    }
+  }
+  const runtime = new Map<string, Set<string>>();
+  const all = new Map<string, Set<string>>();
+  for (const [path, manifest] of packages) {
+    const runtimeEdges = new Set<string>();
+    const allEdges = new Set<string>();
+    runtime.set(path, runtimeEdges);
+    all.set(path, allEdges);
+    for (const field of dependencyFields) {
+      const deps = manifest[field];
+      if (!isJsonRecord(deps)) continue;
+      for (const [name, version] of Object.entries(deps)) {
+        if (typeof version !== "string") continue;
+        let target: string | undefined;
+        const local = /^(?:workspace:|file:|link:)((?:\.\.?\/).+)$/.exec(version)?.[1];
+        if (local !== undefined) {
+          const resolved = posix.normalize(posix.join(posix.dirname(path), local, "package.json"));
+          if (packages.has(resolved)) target = resolved;
+        } else if (version.startsWith("workspace:")) {
+          const matches = names.get(aliasTarget(version) ?? name) ?? [];
+          if (matches.length === 1) target = matches[0];
+        } else {
+          // Registry dependencies with matching workspace names are not proven local edges.
+          if (names.has(aliasTarget(version) ?? name) || /^(?:file|link):/.test(version)) {
+            unresolved.add(`${path}:${field}:${name}`);
+          }
+          continue;
+        }
+        if (target === undefined) {
+          unresolved.add(`${path}:${field}:${name}`);
+          continue;
+        }
+        allEdges.add(target);
+        if (field !== "devDependencies") runtimeEdges.add(target);
+      }
+    }
+  }
+  function closure(root: string, edges: ReadonlyMap<string, Set<string>>): string[] {
+    const visited = new Set<string>([root]);
+    const queue = [root];
+    for (const path of queue) {
+      for (const target of edges.get(path) ?? []) {
+        if (visited.has(target)) continue;
+        visited.add(target);
+        queue.push(target);
+      }
+    }
+    return [...visited].sort();
+  }
+  const roots = policy.allowedEntrypoints.flatMap((entry) => {
+    const matches = [...packages.keys()].filter((path) => {
+      const directory = posix.dirname(path);
+      return entry === directory || entry === path || entry.startsWith(directory + "/");
+    });
+    const root = matches.sort((a, b) => b.length - a.length)[0];
+    if (root === undefined) {
+      unresolved.add(`entry:${entry}`);
+      return [];
+    }
+    return [
+      {
+        entry,
+        manifest: root,
+        runtime: closure(root, runtime),
+        includingDevelopment: closure(root, all),
+      },
+    ];
+  });
+  const reached = new Set(roots.flatMap((root) => root.includingDevelopment));
+  const reverse = new Map<string, string[]>();
+  for (const [from, targets] of all) {
+    for (const target of targets) {
+      const consumers = reverse.get(target) ?? [];
+      consumers.push(from);
+      reverse.set(target, consumers);
+    }
+  }
+  return {
+    schemaVersion: 1,
+    scope: "declared-workspace-only",
+    roots,
+    reverseConsumers: Object.fromEntries(
+      [...reverse.keys()].sort().map((path) => [path, (reverse.get(path) ?? []).sort()])
+    ),
+    reviewCandidates: [...packages.keys()].filter((path) => !reached.has(path)).sort(),
+    unresolved: [...unresolved].sort(),
+  };
+}
+
 export async function auditDeltaPruneInventory(
   candidate: string,
   rawPolicy: string
@@ -192,6 +307,7 @@ export async function auditDeltaPruneInventory(
         policyDigest: digest,
         manifestCount: manifests.size,
         findings,
+        closure: describeDeltaPruneClosure(policy, manifests),
       })
     );
     if (findings.length > 0) {
