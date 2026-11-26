@@ -121,6 +121,20 @@ export function chooseLinuxManifestCommand(
   };
 }
 
+// A pre-feature baseline may omit the contract. Once introduced, the candidate
+// cannot remove it or its package entrypoint to avoid the centrally owned suite.
+export function needsDeltaDesignTokenContract(targetRoot: string, controlRoot: string): boolean {
+  const path = "scripts/design-token-contract.ts";
+  const hasContract = (root: string): boolean =>
+    existsSync(join(root, path)) ||
+    (existsSync(join(root, "package.json")) &&
+      Object.hasOwn(
+        JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts ?? {},
+        "verify-design-token-contract"
+      ));
+  return hasContract(targetRoot) || hasContract(controlRoot);
+}
+
 export async function executeManifestLinuxCi(
   targetRoot: string,
   controlRoot: string,
@@ -187,6 +201,23 @@ export async function executeManifestLinuxCi(
   });
   if (ran.error || ran.status !== 0) {
     throw new CliError("Trusted manifest CI execution failed.", ran.status || 65);
+  }
+  if (
+    process.env.TARGET_REPOSITORY === "fongap-labs/delta" &&
+    needsDeltaDesignTokenContract(targetRoot, controlRoot)
+  ) {
+    const suite = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../tests/packs/delta/design-token-contract-test.mjs"
+    );
+    const result = spawnSync(process.execPath, ["--experimental-strip-types", suite, targetRoot], {
+      cwd: targetRoot,
+      stdio: "inherit",
+      timeout: 120_000,
+    });
+    if (result.error || result.status !== 0) {
+      throw new CliError("Central Delta design token contract failed.", result.status || 65);
+    }
   }
 }
 

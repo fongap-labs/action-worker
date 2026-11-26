@@ -6,6 +6,7 @@ import { test } from "node:test";
 import {
   chooseLinuxManifestCommand,
   isDeltaBridgeBootstrapChange,
+  needsDeltaDesignTokenContract,
 } from "../scripts/execute-linux-ci.ts";
 
 const bootstrap = ["bash", "{control_root}/.github/scripts/central-ci.sh", "{target_root}"];
@@ -161,5 +162,31 @@ test("Delta bridge bootstrap gate matches only the approved bridge plus changelo
     ["CHANGELOG.md", "CHANGELOG.md"],
   ]) {
     assert.equal(isDeltaBridgeBootstrapChange(paths), false);
+  }
+});
+
+test("Delta design token suite activates on introduction and refuses silent removal", () => {
+  const root = mkdtempSync(join(tmpdir(), "delta-design-token-"));
+  const target = join(root, "target");
+  const control = join(root, "control");
+  try {
+    mkdirSync(join(target, "scripts"), { recursive: true });
+    mkdirSync(join(control, "scripts"), { recursive: true });
+    assert.equal(needsDeltaDesignTokenContract(target, control), false);
+    writeFileSync(join(target, "scripts/design-token-contract.ts"), "");
+    assert.equal(needsDeltaDesignTokenContract(target, control), true);
+    rmSync(join(target, "scripts/design-token-contract.ts"));
+    writeFileSync(join(control, "scripts/design-token-contract.ts"), "");
+    assert.equal(needsDeltaDesignTokenContract(target, control), true);
+    rmSync(join(control, "scripts/design-token-contract.ts"));
+    writeFileSync(
+      join(target, "package.json"),
+      JSON.stringify({
+        scripts: { "verify-design-token-contract": "tsx scripts/design-token-contract.ts" },
+      })
+    );
+    assert.equal(needsDeltaDesignTokenContract(target, control), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
