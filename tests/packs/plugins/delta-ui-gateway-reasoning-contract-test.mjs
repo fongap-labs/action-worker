@@ -10,7 +10,7 @@ import {
 import { applyApprovedGatewayReasoningSync } from '#target/packages/delta-ui/lib/delta-ui-adapter/gateway-reasoning-apply.js'
 import { installHostGatewayEffortSync, DELTA_GATEWAY_EFFORT_PREVIEW_PATH, DELTA_GATEWAY_EFFORT_APPLY_PATH } from '#target/packages/delta-ui/lib/host-gateway-effort.js'
 
-const source = readTargetText('packages', 'delta-suite', 'src', 'delta-suite-adapter', 'gateway-reasoning.ts')
+const source = readTargetText('packages', 'delta-ui', 'src', 'delta-ui-adapter', 'gateway-reasoning.ts')
 
 const highBestEffort = {
   default: 'high', mode: 'best_effort',
@@ -432,8 +432,8 @@ function assertFailClosed(f) {
 
 test('Gateway Host does not register preview or apply routes without a public request proxy', () => {
   const f = hostGatewayFixture()
-  assert.equal(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, '/api/delta-suite/gateway-effort/preview')
-  assert.equal(DELTA_GATEWAY_EFFORT_APPLY_PATH, '/api/delta-suite/gateway-effort/apply')
+  assert.equal(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, '/api/delta-ui/gateway-effort/preview')
+  assert.equal(DELTA_GATEWAY_EFFORT_APPLY_PATH, '/api/delta-ui/gateway-effort/apply')
   assertFailClosed(f)
   f.stop()
   assertFailClosed(f)
@@ -468,7 +468,7 @@ test('Gateway Host never performs HTTP discovery even when transport is supplied
 test('Gateway Host cannot manufacture preview grants for unsafe models or Off', () => {
   const f = hostGatewayFixture()
   assertFailClosed(f)
-  const hostSource = readTargetText('packages', 'delta-suite', 'src', 'host-gateway-effort.ts')
+  const hostSource = readTargetText('packages', 'delta-ui', 'src', 'host-gateway-effort.ts')
   assert.equal(hostSource.includes('registry.register('), false)
   assert.equal(hostSource.includes('drafts.set('), false)
   assert.equal(hostSource.includes('authorization: '), false)
