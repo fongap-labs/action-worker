@@ -15,6 +15,7 @@ import {
   isJsonRecord,
   statusAwareReader,
 } from "./github-api.ts";
+import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { isStableNpmRelease } from "./release-npm-gate.ts";
 import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
@@ -90,6 +91,7 @@ export async function waitForSuccessfulArtifactRun(
 }
 
 async function main(): Promise<void> {
+  const protectionToken = takeProtectionReadToken();
   const policy = parseJson(
     readRepositoryPolicyText() ?? "",
     "AW_REPOSITORY_POLICY must be valid JSON.",
@@ -155,10 +157,14 @@ async function main(): Promise<void> {
     const statusToken = process.env.AW_STATUS_API_TOKEN ?? "";
     if (!statusToken) throw new CliError("Beta release status read token required.", 77);
     await verifyBetaReleaseSource(
-      statusAwareReader(
-        process.env.GITHUB_API_URL ?? "https://api.github.com",
-        readToken,
-        statusToken
+      withProtectionReads(
+        statusAwareReader(
+          process.env.GITHUB_API_URL ?? "https://api.github.com",
+          readToken,
+          statusToken
+        ),
+        protectionToken,
+        [source]
       ),
       source,
       String(request.source_sha),

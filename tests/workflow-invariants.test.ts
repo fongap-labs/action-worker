@@ -210,7 +210,7 @@ test("automatic npm workflow is separate and blocks the formal tag until verifie
   };
   const source = await readFile("scripts/publish-release.ts", "utf8");
   const target = await readFile("scripts/resolve-release-target.ts", "utf8");
-  assert.deepEqual(Object.keys(release.jobs), ["release"]);
+  assert.deepEqual(Object.keys(release.jobs), ["release", "beta-release"]);
   const publish = release.jobs.release?.steps?.find(
     (step) => step.name === "Publish governed release"
   );
@@ -239,7 +239,7 @@ test("production releases remain read-only until an approved two-phase staging o
   const policy = JSON.parse(await readFile("policies/release-two-phase-staging.json", "utf8")) as {
     approved_staging_repositories: unknown;
   };
-  assert.deepEqual(Object.keys(releaseWorkflow.jobs).sort(), ["release"]);
+  assert.deepEqual(Object.keys(releaseWorkflow.jobs).sort(), ["beta-release", "release"]);
   assert.deepEqual(policy.approved_staging_repositories, []);
   assert.doesNotMatch(
     workflowSource,

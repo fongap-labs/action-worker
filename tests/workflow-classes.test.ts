@@ -189,7 +189,7 @@ test("only approved entry, diagnostics and private operations expose manual disp
     }
     if (kind === "branchAuthorization") {
       assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], file);
-      assert.deepEqual(Object.keys(workflow.jobs ?? {}), ["plan", "authorize"]);
+      assert.deepEqual(Object.keys(workflow.jobs ?? {}), ["plan", "authorize", "finalize"]);
       const job = workflow.jobs?.authorize as Job & {
         environment?: { name: string; deployment: boolean };
         if?: string;
@@ -197,6 +197,12 @@ test("only approved entry, diagnostics and private operations expose manual disp
       };
       assert.deepEqual(job.environment, { name: "branch-transfer", deployment: false });
       assert.equal(job.needs, "plan");
+      const finalize = workflow.jobs?.finalize as Job & {
+        environment?: { name: string; deployment: boolean };
+        needs?: string;
+      };
+      assert.equal(finalize.needs, "authorize");
+      assert.deepEqual(finalize.environment, { name: "admin-ops", deployment: false });
       assert.match(job.if ?? "", /github\.repository == 'fongap-labs\/action-worker'/);
       assert.match(job.if ?? "", /github\.ref == 'refs\/heads\/main'/);
       const source = await readFile(`${workflowDirectory}/${file}`, "utf8");

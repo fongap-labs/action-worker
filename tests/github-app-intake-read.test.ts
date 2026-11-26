@@ -12,7 +12,7 @@ type Step = {
   with?: Record<string, string>;
 };
 
-test("all seven intake jobs use policy-scoped App reads without personal control PAT", async () => {
+test("all eight intake jobs use policy-scoped App reads without personal control PAT", async () => {
   const source = await readFile(".github/workflows/intake.yml", "utf8");
   const workflow = parse(source) as { jobs: Record<string, { steps: Step[] }> };
   assert.doesNotMatch(source, /secrets\.AW_CONTROL_TOKEN/);
@@ -20,6 +20,7 @@ test("all seven intake jobs use policy-scoped App reads without personal control
     "pull-requests": "pr_scope",
     "main-ci": "pr_scope",
     "main-writes": "pr_scope",
+    "dev-writes": "pr_scope",
     "task-sources": "task_scope",
     "task-schedules": "task_scope",
     "deploy-schedules": "deploy_scope",

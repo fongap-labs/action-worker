@@ -195,7 +195,7 @@ function rulesetSnapshot(value: unknown): RulesetPayload {
         name: value.name,
         target: value.target,
         enforcement: value.enforcement,
-        bypass_actors: value.bypass_actors ?? [],
+        bypass_actors: value.bypass_actors,
         conditions: value.conditions,
         rules: value.rules,
       },
