@@ -312,17 +312,34 @@ test("dev CI runs only in the public sandbox and cannot resume main governance",
   }
 });
 
-
 test("temporary Delta #99 draft deferral never produces passing CI evidence", () => {
   const windows = readFileSync("tests/packs/delta/windows-desktop-ci.ps1", "utf8");
-  assert.ok(workflow.includes('[[ "$REPOSITORY" == "fongap-labs/delta" && "$TARGET_BRANCH" == "dev" && "$PR_NUMBER" == "99" ]]'));
+  assert.ok(
+    workflow.includes(
+      '[[ "$REPOSITORY" == "fongap-labs/delta" && "$TARGET_BRANCH" == "dev" && "$PR_NUMBER" == "99" ]]'
+    )
+  );
   assert.ok(workflow.includes("jq -e '.draft == true'"));
-  assert.ok(workflow.includes("delta_privacy_deferred: ${{ steps.merge_ref.outputs.delta_privacy_deferred || 'false' }}"));
-  assert.ok(workflow.includes("delta_privacy_deferred: ${{ needs.prepare.outputs.delta_privacy_deferred }}"));
-  assert.ok(workflow.includes('DELTA_PRIVACY_DEFERRED: ${{ needs.prepare.outputs.delta_privacy_deferred }}'));
-  assert.ok(workflow.includes('state=pending\n                description="Draft CI passed; release privacy scan deferred"'));
-  assert.ok(workflow.includes('if [[ "$state" == "pending" && "$DELTA_PRIVACY_DEFERRED" == "true" ]]; then'));
-  assert.ok(sandbox.includes("default: \"false\""));
+  assert.ok(
+    workflow.includes(
+      "delta_privacy_deferred: ${{ steps.merge_ref.outputs.delta_privacy_deferred || 'false' }}"
+    )
+  );
+  assert.ok(
+    workflow.includes("delta_privacy_deferred: ${{ needs.prepare.outputs.delta_privacy_deferred }}")
+  );
+  assert.ok(
+    workflow.includes("DELTA_PRIVACY_DEFERRED: ${{ needs.prepare.outputs.delta_privacy_deferred }}")
+  );
+  assert.ok(
+    workflow.includes(
+      'state=pending\n                description="Draft CI passed; release privacy scan deferred"'
+    )
+  );
+  assert.ok(
+    workflow.includes('if [[ "$state" == "pending" && "$DELTA_PRIVACY_DEFERRED" == "true" ]]; then')
+  );
+  assert.ok(sandbox.includes('default: "false"'));
   assert.ok(sandbox.includes("$env:CENTRAL_CI_PR_NUMBER -cne '99'"));
   assert.ok(sandbox.includes("@draftArgs *>&1"));
   assert.ok(windows.includes("if ($DeferReleasePrivacy)"));
