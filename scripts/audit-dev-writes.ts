@@ -1,5 +1,8 @@
 import { requireToken } from "./control-token.ts";
-import { verifyAuthorizedDevBootstrap } from "./dev-bootstrap-authorization.ts";
+import {
+  DevBootstrapPendingError,
+  verifyAuthorizedDevBootstrap,
+} from "./dev-bootstrap-authorization.ts";
 import {
   DevWritePendingError,
   hasVerifiedDevWriteGuard,
@@ -82,7 +85,7 @@ async function main(): Promise<void> {
         (await verifyRecordedDevWrite(reader, repository, sha, controlRepository)).description;
       state = "success";
     } catch (error) {
-      if (error instanceof DevWritePendingError) {
+      if (error instanceof DevWritePendingError || error instanceof DevBootstrapPendingError) {
         description = "Development write verification pending";
         state = "pending";
       } else if (

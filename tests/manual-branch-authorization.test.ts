@@ -54,7 +54,14 @@ test("branch authorization reuses admin-ops and never signs an unchecked request
     assert.equal(step.env?.SOURCE_SHA, "${{ steps.plan.outputs.source_sha }}");
     assert.equal(step.env?.TRANSFER_SNAPSHOT, "${{ steps.plan.outputs.transfer_snapshot }}");
   }
-  assert.doesNotMatch(source, /name: branch-transfer|permission-contents: write/);
+  const ref = steps.find((step) => step.name === "Mint repository-scoped initialization ref token");
+  assert.ok(ref);
+  assert.equal(ref.if, "inputs.confirm && inputs.operation == 'initialize-dev'");
+  assert.ok(steps.indexOf(verify) < steps.indexOf(ref));
+  assert.ok(steps.indexOf(ref) < steps.indexOf(approve));
+  assert.equal(approve.env?.AW_DEV_REF_TOKEN, "${{ steps.ref_app.outputs.token }}");
+  assert.doesNotMatch(source, /name: branch-transfer/);
+  assert.equal(source.match(/permission-contents: write/g)?.length, 1);
 });
 
 test("source SHA is automatically resolved from main or PR HEAD when omitted", async () => {

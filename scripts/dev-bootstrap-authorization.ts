@@ -3,6 +3,7 @@ import {
   type JsonReader,
   mainWriteGuardWorkflowPaths,
   postMergeRemediationStatusPrefix,
+  trustedControlRunId,
 } from "./ci-evidence.ts";
 import { getGithubJsonIfExists, getJsonString, isJsonRecord } from "./github-api.ts";
 import { assertNoOpenManagedWriteIncidents } from "./main-write-incidents.ts";
@@ -11,6 +12,7 @@ import { latestAttestedStatus, originalStatusDescription } from "./status-attest
 
 export const branchAuthorizationWorkflow = ".github/workflows/authorize-branch-transfer.yml";
 export const devBootstrapContext = "Dev Bootstrap Authorization";
+export class DevBootstrapPendingError extends CliError {}
 const shaPattern = /^[0-9a-f]{40}$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const authorizationWindowMs = 24 * 60 * 60 * 1000;
@@ -153,6 +155,25 @@ export async function verifyAuthorizedDevBootstrap(
   const createdAt = Date.parse(getJsonString(receipt, "created_at"));
   if (!Number.isFinite(createdAt) || createdAt > now || now - createdAt > authorizationWindowMs) {
     throw new CliError("Development initialization authorization expired.", 75);
+  }
+  const runId = trustedControlRunId(getJsonString(receipt, "target_url"), controlRepository);
+  if (runId !== null) {
+    const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+    if (
+      isJsonRecord(run) &&
+      run.id === runId &&
+      getJsonString(run.repository, "full_name") === controlRepository &&
+      run.path === branchAuthorizationWorkflow &&
+      run.head_branch === "main" &&
+      run.event === "workflow_dispatch" &&
+      run.run_attempt === 1 &&
+      run.status === "in_progress"
+    ) {
+      throw new DevBootstrapPendingError(
+        "Development initialization publisher has not finished.",
+        75
+      );
+    }
   }
   if (
     !(await hasVerifiedControlStatus(reader, statuses, devBootstrapContext, {

@@ -8,7 +8,12 @@ type Job = {
   uses?: unknown;
   concurrency?: unknown;
   permissions?: unknown;
-  steps?: Array<{ uses?: unknown }>;
+  steps?: Array<{
+    uses?: unknown;
+    id?: string;
+    if?: string;
+    with?: Record<string, unknown>;
+  }>;
 };
 type Workflow = {
   on?: Record<string, unknown>;
@@ -198,7 +203,17 @@ test("only approved entry, diagnostics and private operations expose manual disp
       assert.match(job.if ?? "", /github\.repository == 'fongap-labs\/action-worker'/);
       assert.match(job.if ?? "", /github\.ref == 'refs\/heads\/main'/);
       const source = await readFile(`${workflowDirectory}/${file}`, "utf8");
-      assert.doesNotMatch(source, /repository_dispatch:|permission-contents: write/);
+      assert.doesNotMatch(source, /repository_dispatch:|pull_request_target:/);
+      const writers = (job.steps ?? []).filter(
+        (step) => step.with?.["permission-contents"] === "write"
+      );
+      assert.equal(writers.length, 1);
+      const writer = writers[0]!;
+      assert.equal(writer.id, "ref_app");
+      assert.equal(writer.if, "inputs.confirm && inputs.operation == 'initialize-dev'");
+      assert.equal(writer.uses, "./.github/actions/mint-app-token");
+      assert.equal(writer.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
+      assert.equal(source.match(/permission-contents: write/g)?.length, 1);
       assert.doesNotMatch(source, /name: branch-transfer/);
       assert.match(source, /if: inputs.confirm/);
       assert.match(source, /scripts\/authorize-branch-operation\.ts verify/);
