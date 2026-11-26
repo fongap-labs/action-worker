@@ -14,7 +14,16 @@ function Invoke-Checked {
   param([string]$Command, [string[]]$Arguments)
   $watch = [System.Diagnostics.Stopwatch]::StartNew()
   try {
-    & $Command @Arguments
+    $timeoutSeconds = switch ($script:stage) {
+      'product-policy' { 120 }
+      'release-build' { 3600 }
+      'package-closure-regression' { 300 }
+      'release-acceptance' { 900 }
+      'release-privacy' { 900 }
+      'release-archive-extraction' { 300 }
+      default { throw 'Unrecognized Delta Windows CI command phase.' }
+    }
+    & node.exe (Join-Path $env:CENTRAL_CI_AW_ROOT 'scripts/delta-windows-phase.ts') $script:stage $timeoutSeconds $Command @Arguments
     if ($LASTEXITCODE -ne 0) {
       # Never echo a child process command line: it may contain credentials.
       throw "Delta Windows CI child process exited with code $LASTEXITCODE."
@@ -51,6 +60,7 @@ $env:pnpm_config_store_dir = Join-Path $env:RUNNER_TEMP 'delta-pnpm-store'
 
 Push-Location -LiteralPath $root
 $stage = 'toolchain-preflight'
+Write-Host "Delta Windows CI start stage=$stage"
 try {
   $version = (& node.exe -p 'process.versions.node').Trim()
   if ($LASTEXITCODE -ne 0 -or $version -cne '26.13.1') {
@@ -62,12 +72,14 @@ try {
   }
 
   $stage = 'product-policy'
+  Write-Host "Delta Windows CI start stage=$stage"
   # Verify product policy without the CI-only pnpm child process path.
   # Frozen install and all builds are executed explicitly below via pnpm.cmd.
   Invoke-Checked 'node.exe' @('scripts/delta-verify.mjs')
   # CI must build exactly the same archive that the release worker builds.
   # No pre-built Electron output, alternate package command or reuse flags.
   $stage = 'release-build'
+  Write-Host "Delta Windows CI start stage=$stage"
   $runnerTemp = [System.IO.Path]::GetFullPath($env:RUNNER_TEMP)
   $releaseOutput = Join-Path $runnerTemp ("delta-release-ci-" + [guid]::NewGuid().ToString('N'))
   $portableOutput = Join-Path $releaseOutput 'extracted'
@@ -81,14 +93,18 @@ try {
   }
   catch { }
   $stage = 'package-closure-regression'
+  Write-Host "Delta Windows CI start stage=$stage"
   Invoke-Checked 'pnpm.cmd' @('exec', 'vitest', 'run', 'apps/desktop/tests/prepare-package-set.spec.ts')
   $stage = 'release-acceptance'
+  Write-Host "Delta Windows CI start stage=$stage"
   Invoke-Checked 'node.exe' @((Join-Path $root 'apps/desktop/scripts/verify-delta-release.mjs'),
     '--target', 'x86_64-pc-windows-msvc', '--version', $releaseVersion, '--output-dir', $releaseOutput)
   $stage = 'release-privacy'
+  Write-Host "Delta Windows CI start stage=$stage"
   Invoke-Checked 'python.exe' @((Join-Path $env:CENTRAL_CI_AW_ROOT 'scripts/artifact-privacy-scan.py'),
     $releaseOutput, (Join-Path $env:CENTRAL_CI_AW_ROOT 'policies/security.json'), '--diagnostics')
   $stage = 'release-archive-extraction'
+  Write-Host "Delta Windows CI start stage=$stage"
   $sevenZip = Join-Path $env:ProgramFiles '7-Zip/7z.exe'
   $archive = Join-Path $releaseOutput 'Delta-win-x64.zip'
   if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
@@ -97,6 +113,7 @@ try {
   Invoke-Checked $sevenZip @('x', '-y', "-o$portableOutput", $archive)
 
   $stage = 'portable-output-layout'
+  Write-Host "Delta Windows CI start stage=$stage"
   $children = @(Get-ChildItem -LiteralPath $portableOutput -Force | Select-Object -ExpandProperty Name | Sort-Object -CaseSensitive)
   if (($children -join ',') -cne 'App,Data,Other') {
     throw 'Delta portable output must contain exactly App, Data and Other directories.'
@@ -117,6 +134,7 @@ try {
   }
 
   $stage = 'portable-checksum-verification'
+  Write-Host "Delta Windows CI start stage=$stage"
   $sumPath = Join-Path $portableOutput 'Other/SHA256SUMS.txt'
   $sumLines = @(Get-Content -LiteralPath $sumPath)
   if ($sumLines.Count -lt 10) { throw 'Delta portable checksum manifest is unexpectedly small.' }
@@ -148,6 +166,7 @@ try {
   # Redirect application data for the brief --version launch; do not inspect,
   # migrate, or delete the runner account's normal profile.
   $stage = 'portable-relocation'
+  Write-Host "Delta Windows CI start stage=$stage"
   $runnerTemp = [System.IO.Path]::GetFullPath($env:RUNNER_TEMP)
   $isolated = [System.IO.Path]::GetFullPath((Join-Path $runnerTemp 'delta-windows-portable'))
   $runnerTempPrefix = $runnerTemp.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
@@ -182,6 +201,7 @@ try {
     $env:DSH_HOME = Join-Path $relocated 'Data/Home'
     $env:DSH_DESKTOP_USER_DATA_DIR = Join-Path $relocated 'Data/UserData'
     $stage = 'relocated-executable-startup'
+    Write-Host "Delta Windows CI start stage=$stage"
     $startupWatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
       $process = Start-Process -FilePath $exe -ArgumentList '--version' -PassThru -WindowStyle Hidden

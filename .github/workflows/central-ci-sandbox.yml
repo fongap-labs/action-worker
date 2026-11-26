@@ -523,6 +523,17 @@ jobs:
           path: ${{ runner.temp }}/delta-pnpm-store
           key: delta-win-x64-node26.13.1-pnpm11.28.5-${{ hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') }}
 
+      # On a lockfile change, reuse only the exact control baseline store when available.
+      # All entries still undergo the target's frozen install; never save from a PR.
+      - name: Restore Delta Windows baseline pnpm store
+        id: delta_pnpm_baseline_cache
+        if: inputs.repository == 'fongap-labs/delta' && inputs.is_private == 'false' && steps.delta_pnpm_cache.outputs.cache-hit != 'true' && hashFiles('ci-control/pnpm-lock.yaml', 'ci-control/pnpm-workspace.yaml') != '' && hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') != hashFiles('ci-control/pnpm-lock.yaml', 'ci-control/pnpm-workspace.yaml')
+        continue-on-error: true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/delta-pnpm-store
+          key: delta-win-x64-node26.13.1-pnpm11.28.5-${{ hashFiles('ci-control/pnpm-lock.yaml', 'ci-control/pnpm-workspace.yaml') }}
+
       - name: Run trusted Windows CI
         env:
           CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
@@ -555,8 +566,129 @@ jobs:
           }
 
           $log = Join-Path $env:RUNNER_TEMP "central-ci-windows.log"
+          $isPublicDelta = $env:TARGET_PRIVATE -eq "false" -and
+            $matches.Count -eq 1 -and $relative -eq 'tests/packs/delta/windows-desktop-ci.ps1'
+          $liveStages = @(
+            'toolchain-preflight', 'product-policy', 'release-build', 'package-closure-regression',
+            'release-acceptance', 'release-privacy', 'release-archive-extraction',
+            'portable-output-layout', 'portable-checksum-verification',
+            'portable-relocation', 'relocated-executable-startup'
+          )
           try {
-            & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" *> $log
+            if ($isPublicDelta) {
+              # Stream fixed phase names and bounded numbers only; retain the full local log.
+              # Progress is informational and never replaces the process exit verdict.
+              & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" *>&1 |
+                Tee-Object -FilePath $log |
+                ForEach-Object {
+                  $line = [string]$_
+                  if ($line -cmatch '^Delta Windows CI (?:start stage=([a-z-]+)|heartbeat stage=([a-z-]+) elapsed_s=[0-9]{1,5}|timing stage=([a-z-]+) duration_ms=[0-9]{1,12})
+              throw "Central Windows CI returned exit code $LASTEXITCODE."
+            }
+          }
+          catch {
+            if ($env:TARGET_PRIVATE -eq "false" -and (Test-Path $log)) {
+              Get-Content $log
+            }
+            else {
+              Write-Error "Central Windows CI failed for $env:TARGET_REPOSITORY. Detailed output is suppressed because the target repository is private."
+            }
+            exit 1
+          }
+
+          # Public Delta CI prints only reviewed stage names and bounded
+          # numerical durations. Private target logs stay private.
+          if ($env:TARGET_PRIVATE -eq "false" -and
+              $matches.Count -eq 1 -and
+              $relative -eq 'tests/packs/delta/windows-desktop-ci.ps1' -and
+              (Test-Path -LiteralPath $log)) {
+            $allowlistedStages = @(
+              'product-policy', 'release-privacy', 'frozen-install', 'host-build',
+              'shared-plugin-build', 'delta-code-build', 'desktop-build',
+            'local-diagnostics-smoke', 'unsigned-directory-pack-and-host-smoke',
+            'electron-output-reuse',
+            'portable-directory-stage', 'portable-output-layout',
+            'portable-checksum-verification',
+              'portable-relocation', 'relocated-executable-startup',
+              'package-rebuild', 'package-dsh-pack', 'package-host-pack',
+              'package-vendor-pack', 'package-native-build', 'package-native-pack',
+              'package-runtime-prepare', 'package-assets-prepare',
+              'package-dsh-prepare', 'package-electron-builder', 'package-runtime-smoke'
+            )
+            $metricsPattern = '^Delta Windows CI timing stage=([a-z-]+) duration_ms=([0-9]{1,12})$'
+            Get-Content -LiteralPath $log |
+              Where-Object { $_ -cmatch $metricsPattern -and $allowlistedStages -ccontains $Matches[1] } |
+              Select-Object -First 24 |
+              ForEach-Object { Write-Host $_ }
+          }
+
+          Write-Host "Central Windows CI passed for $env:TARGET_REPOSITORY."
+
+      # repository_dispatch runs under Action Worker main, not Delta main.
+      # A non-PR dispatch is insufficient proof of the target's default branch.
+      # Validate the actual checked-out SHA against live Delta main just before
+      # attempting to seed a shared cache; target PRs are always read-only.
+      - name: Verify current Delta main cache seed
+        id: delta_main_cache_seed
+        if: success() && inputs.repository == 'fongap-labs/delta' && inputs.is_private == 'false' && inputs.pr_number == '0' && steps.delta_pnpm_cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expected = $env:EXPECTED_HEAD_SHA
+          if ($expected -cnotmatch '^[0-9a-f]{40}$') { exit 0 }
+          $targetRoot = Join-Path $env:GITHUB_WORKSPACE 'target'
+          $checkout = & git -C $targetRoot rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $checkout -cne $expected) { exit 0 }
+
+          # Only a public fixed GitHub remote; no credentials or target-provided URL.
+          $remote = @( & git -c credential.helper= ls-remote https://github.com/fongap-labs/delta.git refs/heads/main 2>$null )
+          if ($LASTEXITCODE -ne 0 -or $remote.Count -ne 1) { exit 0 }
+          $match = [regex]::Match([string]$remote[0], '^([0-9a-f]{40})\s+refs/heads/main$')
+          if (-not $match.Success -or $match.Groups[1].Value -cne $expected) { exit 0 }
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value 'eligible=true'
+
+      # Only a verified, current public Delta main run may write this cache.
+      # CI success and the frozen install never depend on the cache being present.
+      - name: Save verified Delta main pnpm store
+        if: success() && inputs.repository == 'fongap-labs/delta' && inputs.is_private == 'false' && inputs.pr_number == '0' && steps.delta_main_cache_seed.outputs.eligible == 'true' && steps.delta_pnpm_cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/delta-pnpm-store
+          key: delta-win-x64-node26.13.1-pnpm11.28.5-${{ hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') }}
+
+      # Only centrally authorized private Windows suites may export numeric failure indices.
+      # The source code, test names, paths and stderr stay in runner-local log.
+      # This diagnostic cannot change or bypass any CI success verdict.
+      - name: Export private test index
+        id: private_diag
+        if: always() && inputs.is_private == 'true' && inputs.private_windows_numeric_diagnostic == 'true'
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP "central-ci-windows.log"
+          if (-not (Test-Path -LiteralPath $log -PathType Leaf)) { exit 0 }
+          $body = Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue
+          if ([string]::IsNullOrEmpty($body)) { exit 0 }
+          $failures = [regex]::Matches($body, '(?m)^WC_TEST_FAIL_INDEX=([1-9][0-9]{0,2})(?![0-9])')
+          if ($failures.Count -gt 0 -and $failures.Count -le 999) {
+            # Publish up to five distinct numeric indices, never private names,
+            # paths or log contents. The failure verdict remains unchanged.
+            $indices = @($failures | Select-Object -First 5 | ForEach-Object { [int]$_.Groups[1].Value })
+            $joined = $indices -join '.'
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ("windows_diagnostic=wc-tests-{0}-{1}" -f $joined, $failures.Count)
+          }
+) {
+                    $phase = @($Matches[1], $Matches[2], $Matches[3]) | Where-Object { $_ } | Select-Object -First 1
+                    if ($liveStages -ccontains $phase) { Write-Host $line }
+                  }
+                }
+            }
+            else {
+              & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" *> $log
+            }
             if ($LASTEXITCODE -ne 0) {
               throw "Central Windows CI returned exit code $LASTEXITCODE."
             }

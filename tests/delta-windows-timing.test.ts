@@ -53,4 +53,10 @@ test("public success prints only bounded numeric timings and never private logs"
   assert.match(step, /Where-Object \{ \$_ -cmatch/);
   assert.match(step, /Write-Error "Central Windows CI failed/);
   assert.match(step, /exit 1/);
+  assert.match(step, /Tee-Object -FilePath \$log/);
+  assert.match(step, /heartbeat stage=/);
+  assert.match(step, /\$liveStages -ccontains \$phase/);
+  assert.match(windows, /scripts\/delta-windows-phase\.ts/);
+  assert.match(windows, /'release-build' \{ 3600 \}/);
+  assert.match(windows, /'release-privacy' \{ 900 \}/);
 });

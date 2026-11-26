@@ -24,6 +24,12 @@ test("only public Delta may restore a pinned cache for its exact Windows depende
     suite,
     /\$env:pnpm_config_store_dir = Join-Path \$env:RUNNER_TEMP 'delta-pnpm-store'/
   );
+  assert.match(windows, /Restore Delta Windows baseline pnpm store/);
+  assert.match(windows, /steps\.delta_pnpm_cache\.outputs\.cache-hit != 'true'/);
+  assert.match(
+    windows,
+    /key: delta-win-x64-node26\.13\.1-pnpm11\.28\.5-\$\{\{ hashFiles\('ci-control\/pnpm-lock\.yaml', 'ci-control\/pnpm-workspace\.yaml'\) \}\}/
+  );
   assert.doesNotMatch(windows, /restore-keys:/);
   assert.doesNotMatch(windows, /uses: actions\/cache@/);
 });
