@@ -3,7 +3,7 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$TargetRoot,
-  [switch]$DeferReleasePrivacy
+  [switch]$DraftRemediation
 )
 
 Set-StrictMode -Version Latest
@@ -17,6 +17,9 @@ function Invoke-Checked {
   try {
     $timeoutSeconds = switch ($script:stage) {
       'product-policy' { 120 }
+      'draft-frozen-install' { 600 }
+      'draft-typecheck' { 900 }
+      'draft-privacy-regression' { 600 }
       'release-build' { 3600 }
       'package-closure-regression' { 300 }
       'release-acceptance' { 900 }
@@ -77,6 +80,26 @@ try {
   # Verify product policy without the CI-only pnpm child process path.
   # Frozen install and all builds are executed explicitly below via pnpm.cmd.
   Invoke-Checked 'node.exe' @('scripts/delta-verify.mjs')
+  if ($DraftRemediation) {
+    # Source-only incident checks. No release artifact, runtime preparation or portable smoke.
+    $stage = 'draft-frozen-install'
+    Write-Host "Delta Windows CI start stage=$stage"
+    Invoke-Checked 'pnpm.cmd' @('install', '--frozen-lockfile')
+    $stage = 'draft-typecheck'
+    Write-Host "Delta Windows CI start stage=$stage"
+    Invoke-Checked 'pnpm.cmd' @('run', 'typecheck', '--serial')
+    $stage = 'draft-privacy-regression'
+    Write-Host "Delta Windows CI start stage=$stage"
+    Invoke-Checked 'pnpm.cmd' @('exec', 'vitest', 'run',
+      'apps/desktop/tests/privacy-runtime-wiring.spec.ts',
+      'apps/desktop/tests/host-process.spec.ts',
+      'apps/desktop/tests/prepare-package-set.spec.ts',
+      'packages/bundle/web-app/tests/product-analytics.spec.ts',
+      'packages/llm/llm-deepseek/tests/extensions.spec.ts',
+      'packages/llm/llm-deepseek/tests/loader-composition.spec.ts')
+    Write-Host 'Delta draft source checks completed; complete release CI required before merge.'
+    return
+  }
   # CI must build exactly the same archive that the release worker builds.
   # No pre-built Electron output, alternate package command or reuse flags.
   $stage = 'release-build'
@@ -102,12 +125,8 @@ try {
     '--target', 'x86_64-pc-windows-msvc', '--version', $releaseVersion, '--output-dir', $releaseOutput)
   $stage = 'release-privacy'
   Write-Host "Delta Windows CI start stage=$stage"
-  if ($DeferReleasePrivacy) {
-    Write-Host 'Delta draft privacy scan deferred; not a complete CI verdict.'
-  } else {
-    Invoke-Checked 'python.exe' @((Join-Path $env:CENTRAL_CI_AW_ROOT 'scripts/artifact-privacy-scan.py'),
-      $releaseOutput, (Join-Path $env:CENTRAL_CI_AW_ROOT 'policies/security.json'), '--diagnostics')
-  }
+  Invoke-Checked 'python.exe' @((Join-Path $env:CENTRAL_CI_AW_ROOT 'scripts/artifact-privacy-scan.py'),
+    $releaseOutput, (Join-Path $env:CENTRAL_CI_AW_ROOT 'policies/security.json'), '--diagnostics')
   $stage = 'release-archive-extraction'
   Write-Host "Delta Windows CI start stage=$stage"
   $sevenZip = Join-Path $env:ProgramFiles '7-Zip/7z.exe'

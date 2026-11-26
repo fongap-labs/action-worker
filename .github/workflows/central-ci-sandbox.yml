@@ -51,7 +51,7 @@ on:
         required: true
         type: string
       delta_privacy_deferred:
-        description: Trusted temporary Delta dev draft incident scope; never valid CI evidence
+        description: Trusted temporary Delta dev draft source-only checks; never valid CI evidence
         required: false
         type: string
         default: "false"
@@ -575,7 +575,8 @@ jobs:
           $isPublicDelta = $env:TARGET_PRIVATE -eq "false" -and
             $routeMatches.Count -eq 1 -and $relative -eq 'tests/packs/delta/windows-desktop-ci.ps1'
           $liveStages = @(
-            'toolchain-preflight', 'product-policy', 'release-build', 'package-closure-regression',
+            'toolchain-preflight', 'product-policy', 'draft-frozen-install', 'draft-typecheck',
+            'draft-privacy-regression', 'release-build', 'package-closure-regression',
             'release-acceptance', 'release-privacy', 'release-archive-extraction',
             'portable-output-layout', 'portable-checksum-verification',
             'portable-relocation', 'relocated-executable-startup'
@@ -585,8 +586,8 @@ jobs:
             if (-not $isPublicDelta -or $env:TARGET_REPOSITORY -cne 'fongap-labs/delta' -or $env:CENTRAL_CI_PR_NUMBER -cne '99') {
               throw 'Invalid Delta draft privacy deferral scope.'
             }
-            $draftArgs.DeferReleasePrivacy = $true
-            Write-Host '::notice::Delta draft release privacy scan deferred; final evidence remains pending.'
+            $draftArgs.DraftRemediation = $true
+            Write-Host '::notice::Delta draft source checks only; full release CI required before merge.'
           }
           try {
             if ($isPublicDelta) {
@@ -628,6 +629,7 @@ jobs:
               (Test-Path -LiteralPath $log)) {
             $allowlistedStages = @(
               'product-policy', 'release-privacy', 'frozen-install', 'host-build',
+              'draft-frozen-install', 'draft-typecheck', 'draft-privacy-regression',
               'shared-plugin-build', 'delta-code-build', 'desktop-build',
             'local-diagnostics-smoke', 'unsigned-directory-pack-and-host-smoke',
             'electron-output-reuse',
