@@ -9,9 +9,9 @@ import {
   getJsonArray,
   getJsonString,
   isJsonRecord,
-  runGithubCli,
   statusAwareReader,
 } from "./github-api.ts";
+import { squashManagedPull } from "./managed-pr-squash.ts";
 import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
@@ -225,22 +225,7 @@ async function main(): Promise<void> {
     reader,
     policy,
     identity,
-    async (scope) =>
-      JSON.parse(
-        await runGithubCli(
-          [
-            "api",
-            "--method",
-            "PUT",
-            `repos/${scope.repository}/pulls/${scope.prNumber}/merge`,
-            "-f",
-            `sha=${scope.headSha}`,
-            "-f",
-            "merge_method=squash",
-          ],
-          writeToken
-        )
-      ) as unknown,
+    (scope) => squashManagedPull(scope.repository, scope.prNumber, scope.headSha, writeToken),
     async (scope, sha) => {
       const status = {
         repository: scope.repository,
