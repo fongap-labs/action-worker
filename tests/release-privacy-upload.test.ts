@@ -18,6 +18,8 @@ test("first release artifact upload is blocked behind a trusted privacy scanner"
   const workflow = parse(
     await readFile(".github/workflows/release-app.yml", "utf8")
   ) as ReleaseWorkflow;
+  const prepare = workflow.jobs.prepare as { outputs?: Record<string, string> } | undefined;
+  assert.equal(prepare?.outputs?.python_version, "${{ steps.runtime.outputs.python }}");
   const build = workflow.jobs.build;
   assert.ok(build);
   const steps = build.steps ?? [];
@@ -32,7 +34,10 @@ test("first release artifact upload is blocked behind a trusted privacy scanner"
   assert.match(steps[checkout]?.uses ?? "", /^actions\/checkout@[a-f0-9]{40}$/);
   assert.equal(steps[checkout]?.with?.ref, "${{ github.sha }}");
   assert.equal(steps[checkout]?.with?.["persist-credentials"], false);
-  assert.equal(steps[python]?.with?.["python-version"], "3.12");
+  assert.equal(
+    steps[python]?.with?.["python-version"],
+    "${{ needs.prepare.outputs.python_version }}"
+  );
   assert.match(steps[scan]?.run ?? "", /python .*artifact-privacy-scan\.py/);
   assert.match(steps[scan]?.run ?? "", /policies\/security\.json/);
   assert.match(steps[scan]?.run ?? "", /RUNNER_TEMP\/release-build/);

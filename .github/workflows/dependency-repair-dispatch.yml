@@ -38,10 +38,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve dependency repair status scope
         id: status_scope
@@ -208,10 +212,14 @@ jobs:
           path: control
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node control/scripts/resolve-runtime-versions.mjs --github-output control
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve dependency repair publish scope
         id: publish_scope
@@ -291,10 +299,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve final dependency repair status scope
         id: status_scope

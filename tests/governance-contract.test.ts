@@ -368,7 +368,9 @@ test("skills README is beginner-friendly", async () => {
 test("runtime and machine policies preserve trust boundaries", async () => {
   const pkg = await json("package.json");
   assert.equal(pkg.private, true);
-  assert.deepEqual(pkg.engines, { node: ">=24" });
+  const versions = await json("policies/dependency-versions.json");
+  const catalog = versions.catalog as Record<string, { version: string | null }>;
+  assert.deepEqual(pkg.engines, { node: catalog["tool:node"]?.version });
   const scripts = pkg.scripts as Record<string, unknown>;
   assert.equal(scripts.typecheck, "tsc --noEmit");
   assert.match(String(scripts.test), /^node --test/);
@@ -477,7 +479,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "AW_CONTROL_TOKEN",
     "AW_AI_AGENT_CONFIG",
     "persist-credentials: false",
-    "node-version: 24",
+    "node-version: ${{ steps.runtime.outputs.node }}",
     "validate-pr-payload.ts",
     "validate-control-access.ts",
     "set-pr-status.ts",
@@ -567,7 +569,7 @@ test("AI review runs as its own advisory workflow after the gate", async () => {
     "AI_GATEWAY_URL",
     "AIG_ACCESS_KEY_AGENT",
     "persist-credentials: false",
-    "node-version: 24",
+    "node-version: ${{ steps.runtime.outputs.node }}",
     "validate-pr-payload.ts",
     "validate-control-access.ts",
     "check-review-target.ts",
@@ -684,7 +686,7 @@ test("task dispatch keeps the publication credential in the central control step
     "compgen -e",
     "action-worker-base-env.names",
     "action-worker-repository-vars.json",
-    "node-version: 24",
+    "node-version: ${{ steps.runtime.outputs.node }}",
     "Checkout private task source",
     "Checkout public task source",
     "repository: ${{ github.event.client_payload.repository }}",
@@ -889,7 +891,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "source_sha",
     "artifact_run_id",
     "AW_CONTROL_TOKEN",
-    "node-version: 24",
+    "node-version: ${{ steps.runtime.outputs.node }}",
     "RELEASE_REQUEST_JSON",
     "node scripts/publish-release.ts",
   ]);
@@ -1299,7 +1301,7 @@ test("self CI requires deterministic security checks", async () => {
     "SECURITY_RESULT",
     "validate-naming-rules.ts",
     "actionlint",
-    "node-version: 24",
+    "node-version: ${{ steps.runtime.outputs.node }}",
     "npm run typecheck",
     "npm test",
     "validate-merge",
