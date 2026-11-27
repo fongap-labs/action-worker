@@ -47,3 +47,19 @@ test("organization configuration scope audit is automatic and bound to protected
     assert.doesNotMatch(JSON.stringify(workflow.jobs[name]), /upload-artifact|download-artifact/);
   }
 });
+
+test("public no-op proposals do not mint target-scoped credentials", () => {
+  const workflow = parse(readFileSync(".github/workflows/audit-config-scope.yml", "utf8"));
+  const steps = workflow.jobs["propose-dependencies"].steps as Array<{
+    id?: string;
+    if?: string;
+    env?: Record<string, string>;
+  }>;
+  const plan = steps.find((step) => step.id === "plan");
+  assert.equal(plan?.env?.AW_PROPOSAL_READ_TOKEN, "${{ github.token }}");
+  for (const id of ["scope", "read", "writer"]) {
+    const step = steps.find((item) => item.id === id);
+    assert.equal(step?.if, "inputs.confirm && steps.plan.outputs.changed == 'true'");
+    assert.ok(step && plan && steps.indexOf(step) > steps.indexOf(plan));
+  }
+});

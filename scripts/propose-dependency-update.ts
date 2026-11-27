@@ -13,6 +13,7 @@ import {
 } from "./dependency-version-policy.ts";
 import {
   decodeGithubContent,
+  GithubHttpError,
   GithubReader,
   getGithubJsonIfExists,
   getJsonArray,
@@ -836,6 +837,15 @@ async function authorize(repository: string, api: string): Promise<void> {
   );
 }
 
+export function requiresProposalAuthorization(
+  stage: "compute" | "prepare" | "publish",
+  changeCount: number
+): boolean {
+  return stage === "publish" || (stage === "prepare" && changeCount > 0);
+}
+
+let failurePhase = "initialization";
+
 async function main(): Promise<void> {
   const stage = process.argv[2];
   if (
@@ -955,9 +965,15 @@ async function main(): Promise<void> {
   validateRepositoryCapability(repository, grants, "pr");
   const reader = new GithubReader(api, token("AW_PROPOSAL_READ_TOKEN"));
   const scope: Scope = { repository, branch, isPrivate: false };
-  if (stage !== "compute") await authorize(repository, api);
+  failurePhase = "public-snapshot";
   const snapshot = await readSnapshot(reader, repository, branch, false);
+  failurePhase = "public-plan";
   const result = buildEngineeringProposal(policy, repository, branch, snapshot, today, true);
+  if (requiresProposalAuthorization(stage, result.changes.length)) {
+    failurePhase = "administrator-authorization";
+    await authorize(repository, api);
+  }
+  failurePhase = stage;
   const identity = proposalIdentity(snapshot, result.changes, branch);
   if (stage === "compute") {
     const pnpmVersion = policy.catalog.get("tool:pnpm")?.version;
@@ -1046,8 +1062,14 @@ async function main(): Promise<void> {
 }
 
 if (isMain(import.meta.url)) {
-  main().catch(() => {
-    console.error("::error::Dependency proposal failed closed; details withheld.");
+  main().catch((error: unknown) => {
+    const category =
+      error instanceof GithubHttpError
+        ? `HTTP ${error.status} (${error.kind})`
+        : error instanceof CliError
+          ? `validation (${error.exitCode})`
+          : "unexpected error";
+    console.error(`::error::Dependency proposal failed closed: ${failurePhase}; ${category}.`);
     process.exitCode = 1;
   });
 }

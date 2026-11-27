@@ -9,6 +9,7 @@ type Job = {
   concurrency?: unknown;
   permissions?: unknown;
   steps?: Array<{
+    name?: string;
     uses?: unknown;
     id?: string;
     if?: string;
@@ -217,10 +218,17 @@ test("only approved entry, diagnostics and private operations expose manual disp
       const source = await readFile(`${workflowDirectory}/${file}`, "utf8");
       assert.match(source, /scripts\/propose-dependency-update\.ts prepare/);
       assert.match(source, /scripts\/propose-dependency-update\.ts publish/);
-      assert.equal(
-        source.match(/if: inputs\.confirm && steps\.plan\.outputs\.changed == 'true'/g)?.length,
-        3
+      const gatedSteps = steps.filter(
+        (step) => step.if === "inputs.confirm && steps.plan.outputs.changed == 'true'"
       );
+      const gatedNames = gatedSteps.map((step) => step.name);
+      assert.deepEqual(gatedNames, [
+        "Resolve managed PR scope",
+        "Mint proposal read token",
+        "Download public proposal evidence",
+        "Mint target-scoped proposal writer",
+        "Revalidate and publish proposal",
+      ]);
       continue;
     }
     if (kind === "privateAgent") {
