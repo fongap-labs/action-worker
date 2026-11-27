@@ -18,6 +18,24 @@ export function assertBranchReleaseVersion(
   );
 }
 
+/** Validate the actual Git tag, not just the manifest's claimed version or channel. */
+export function assertBranchReleaseTag(
+  branch: string,
+  releaseKey: string,
+  version: string,
+  isPrerelease: boolean,
+  tag: string
+): void {
+  assertBranchReleaseVersion(branch, version, isPrerelease);
+  if (
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(releaseKey) ||
+    tag !== `${releaseKey}-v${version}` ||
+    !(branch === "dev" ? betaVersion : stableVersion).test(version)
+  ) {
+    throw new CliError("Release tag does not match the verified branch and version.", 65);
+  }
+}
+
 export function assertBranchDeployEnvironment(branch: string, environment: string): void {
   if (
     (branch === "main" && environment === "production") ||

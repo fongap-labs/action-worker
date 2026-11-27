@@ -9,6 +9,7 @@ import {
   verifyBetaReleaseSource,
 } from "./beta-release-authorization.ts";
 import {
+  assertBranchReleaseTag,
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
 } from "./branch-publication-policy.ts";
@@ -405,22 +406,14 @@ async function main(): Promise<void> {
   await validateRequest(requestPath);
   const request = asRequest(await readJson(requestPath));
   const isBeta = request.source_branch === "dev";
-  const releaseWriteToken = isBeta
-    ? (process.env.AW_BETA_RELEASE_WRITE_API_TOKEN ?? "")
-    : (process.env.AW_RELEASE_WRITE_API_TOKEN ?? "");
+  const releaseWriteToken = process.env.AW_RELEASE_WRITE_API_TOKEN ?? "";
   if (!releaseWriteToken)
     throw new CliError("Scoped release writer is required; no PAT fallback.", 77);
   if (
-    isBeta
-      ? !process.env.AW_BETA_RELEASE_WRITE_API_TOKEN ||
-        Boolean(
-          process.env.AW_RELEASE_WRITE_API_TOKEN ||
-            process.env.AW_NPM_DISPATCH_TOKEN ||
-            process.env.AW_RELEASE_PR_WRITE_API_TOKEN
-        )
-      : Boolean(process.env.AW_BETA_RELEASE_WRITE_API_TOKEN)
+    isBeta &&
+    (process.env.AW_NPM_DISPATCH_TOKEN || process.env.AW_RELEASE_PR_WRITE_API_TOKEN)
   ) {
-    throw new CliError("Release writer credentials do not match the source branch.", 77);
+    throw new CliError("Beta release cannot receive formal-only publication capabilities.", 77);
   }
   const sourceRepository = request.source_repository;
   const sourceSha = request.source_sha;
@@ -627,6 +620,7 @@ async function main(): Promise<void> {
     tag = buildTag(manifest.release_key, manifest.version);
     const name = buildReleaseTitle(manifest.release_name, manifest.version);
     const isPrerelease = manifest.prerelease ?? false;
+    assertBranchReleaseTag(sourceBranch, manifest.release_key, manifest.version, isPrerelease, tag);
     const licenseExpression = manifest.license?.expression ?? "Apache-2.0";
     const licenseFile = manifest.license?.file ?? "";
 
@@ -941,6 +935,7 @@ async function main(): Promise<void> {
         betaRepositoryPolicy
       );
     }
+    assertBranchReleaseTag(sourceBranch, manifest.release_key, manifest.version, isPrerelease, tag);
     isPublishAttempted = true;
     await runGithubCli(
       [

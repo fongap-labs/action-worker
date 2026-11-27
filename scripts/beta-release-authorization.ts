@@ -44,7 +44,7 @@ export function betaReleaseEnabled(
   );
 }
 
-/** Formal tag protection is prepared without granting the independent Beta writer. */
+/** Formal tag protection reserves direct formal tag writes to the governed App. */
 export function formalTagProtection(
   policy: unknown,
   repository: string,

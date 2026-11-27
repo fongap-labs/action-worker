@@ -50,7 +50,7 @@ function reader(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test("release readiness requires both live formal tag isolation and independent App setup", async () => {
+test("release readiness requires both live formal tag isolation and shared App setup", async () => {
   assert.deepEqual(
     await planBetaReleaseReadiness(reader(), repository, control, grants, policy, true),
     { probe: true }
@@ -113,8 +113,8 @@ test("readiness is part of the existing protected settings workflow, not a publi
   assert.equal(probe.if, "steps.beta_plan.outputs.probe == 'true'");
   assert.equal(probe.with.repositories, "${{ steps.beta_plan.outputs.repository_name }}");
   assert.equal(probe.with["permission-contents"], "write");
-  assert.equal(probe.with["client-id"], "${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID }}");
-  assert.equal(probe.with["private-key"], "${{ secrets.AW_BETA_RELEASE_APP_PRIVATE_KEY }}");
+  assert.equal(probe.with["client-id"], "${{ vars.AW_APP_CLIENT_ID }}");
+  assert.equal(probe.with["private-key"], "${{ secrets.AW_APP_PRIVATE_KEY }}");
   assert.match(
     JSON.stringify(workflow.jobs["apply-control-plane"]),
     /audit-beta-readiness.ts deploy/

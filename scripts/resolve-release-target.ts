@@ -5,7 +5,7 @@ import {
   verifyBetaReleaseSource,
 } from "./beta-release-authorization.ts";
 import {
-  assertBranchReleaseVersion,
+  assertBranchReleaseTag,
   assertMainPublicationBranch,
 } from "./branch-publication-policy.ts";
 import {
@@ -41,10 +41,14 @@ export function releaseTargetFromArtifact(
   if (!isJsonRecord(manifest) || typeof manifest.target_repository !== "string") {
     throw new CliError("::error::Release manifest has no target repository.", 65);
   }
-  assertBranchReleaseVersion(
+  const releaseKey = getJsonString(manifest, "release_key");
+  const version = getJsonString(manifest, "version");
+  assertBranchReleaseTag(
     isJsonRecord(request) ? String(request.source_branch ?? "main") : "main",
-    getJsonString(manifest, "version"),
-    manifest.prerelease === true
+    releaseKey,
+    version,
+    manifest.prerelease === true,
+    `${releaseKey}-v${version}`
   );
   const target = manifest.target_repository;
   const scope = resolveGithubApiScope(target, controlRepository, policy, "release-target");

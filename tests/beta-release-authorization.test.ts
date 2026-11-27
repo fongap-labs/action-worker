@@ -14,8 +14,9 @@ const repository = "fongap-labs/example";
 const control = "fongap-labs/action-worker";
 const grants = { [repository]: ["pr", "release-source", "release-target"] };
 
-test("Beta publication is disabled by default before any source reads", async () => {
-  assert.equal(betaReleaseEnabled(readBetaReleasePolicy(), repository, grants, control), false);
+test("Beta publication uses existing grants; closed policy denies before source reads", async () => {
+  assert.equal(betaReleaseEnabled(readBetaReleasePolicy(), repository, grants, control), true);
+  const closed = { schema_version: 1, mode: "closed" };
   await assert.rejects(
     verifyBetaReleaseSource(
       {
@@ -26,7 +27,7 @@ test("Beta publication is disabled by default before any source reads", async ()
       repository,
       "a".repeat(40),
       control,
-      readBetaReleasePolicy(),
+      closed,
       grants
     ),
     /disabled/
