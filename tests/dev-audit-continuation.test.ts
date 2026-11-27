@@ -112,5 +112,12 @@ test("completion only runs the existing dev audit, not the rest of intake", () =
   );
   assert.equal(step.run, "node scripts/audit-dev-writes.ts");
   assert.equal(step.env.DEV_WRITE_AUDIT_MODE, "merge");
+  const wake = audit.steps.find(
+    (item: { name?: string }) => item.name === "Wake authorized Beta deployment intake"
+  );
+  assert.equal(wake.if, "steps.audit.outputs.beta_push_wake == 'true'");
+  assert.match(wake.run, /event_type:"run-intake"/);
+  assert.equal(intake.concurrency.group, "intake");
+  assert.equal(intake.concurrency["cancel-in-progress"], false);
   assert.ok(intake.on.schedule.length);
 });

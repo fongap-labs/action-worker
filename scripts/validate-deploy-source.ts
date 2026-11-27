@@ -4,6 +4,7 @@ import {
   resolveBetaDeployTarget,
   verifyBetaDeploySource,
 } from "./beta-deploy-authorization.ts";
+import { assertBetaPushReceipt } from "./beta-push-dispatch.ts";
 import {
   assertBranchDeployEnvironment,
   assertMainPublicationBranch,
@@ -88,7 +89,7 @@ export function parseDeployRequest(value: unknown): DeployRequest {
     throw new CliError("::error::Deploy request is invalid.", 64);
   }
   if (value.source_branch === "dev") {
-    if (value.environment !== "beta" || !["manual", "schedule"].includes(String(value.trigger))) {
+    if (value.environment !== "beta" || !["manual", "schedule", "push"].includes(String(value.trigger))) {
       throw new CliError("Dev deployment requires an explicit Beta request and trigger.", 65);
     }
   } else if (value.environment === "beta") {
@@ -102,7 +103,8 @@ export function assertBetaDeployIngress(request: DeployRequest, event: string): 
   if (request.source_branch !== "dev") return;
   if (
     (event === "workflow_dispatch" && request.trigger === "manual") ||
-    (event === "repository_dispatch" && request.trigger === "schedule")
+    (event === "repository_dispatch" &&
+      (request.trigger === "schedule" || request.trigger === "push"))
   ) {
     return;
   }
@@ -257,6 +259,15 @@ async function main(): Promise<void> {
   if (branch === "dev") {
     if (!betaTarget) throw new CliError("Beta deployment target is unavailable.", 77);
     assertBetaDeployTrigger(betaTarget, trigger, manifest);
+    if (trigger === "push") {
+      await assertBetaPushReceipt(
+        reader,
+        request.source_repository,
+        product.name,
+        resolvedSha,
+        request.request_id
+      );
+    }
     if (
       manifest.runner_backend !== "github-hosted" ||
       manifest.runner_labels_json !== '["ubuntu-24.04"]'

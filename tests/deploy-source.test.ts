@@ -119,12 +119,14 @@ test("Beta deploy requests bind dev, beta and the authorized ingress", () => {
   const scheduled = parseDeployRequest({ ...request, trigger: "schedule" });
   assert.doesNotThrow(() => assertBetaDeployIngress(scheduled, "repository_dispatch"));
   assert.throws(() => assertBetaDeployIngress(scheduled, "workflow_dispatch"));
+  const pushed = parseDeployRequest({ ...request, trigger: "push" });
+  assert.doesNotThrow(() => assertBetaDeployIngress(pushed, "repository_dispatch"));
+  assert.throws(() => assertBetaDeployIngress(pushed, "workflow_dispatch"));
   for (const change of [
     { source_branch: "main" },
     { source_branch: undefined },
     { environment: "production" },
     { environment: undefined },
-    { trigger: "push" },
     { trigger: undefined },
   ]) {
     assert.throws(() => parseDeployRequest({ ...request, ...change }));

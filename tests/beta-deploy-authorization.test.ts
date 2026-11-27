@@ -153,4 +153,13 @@ test("scheduled Beta requires explicit permission on the existing credential tar
   assert.doesNotThrow(() => assertBetaDeployTrigger(grant, "schedule", manifest));
   assert.throws(() => assertBetaDeployTrigger(grant, "push", { ...manifest, automatic: true }));
   assert.throws(() => assertBetaDeployTrigger(grant, "schedule", { ...manifest, schedule: [] }));
+  const pushGrant = resolveBetaDeployTarget(
+    { ...policy, targets: { [repository]: { ...target, allow_push: true } } },
+    repository,
+    ""
+  );
+  assert.doesNotThrow(() =>
+    assertBetaDeployTrigger(pushGrant, "push", { automatic: true, schedule: [] })
+  );
+  assert.throws(() => assertBetaDeployTrigger(pushGrant, "schedule", manifest));
 });

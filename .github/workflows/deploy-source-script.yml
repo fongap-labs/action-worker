@@ -106,7 +106,8 @@ jobs:
           set -Eeuo pipefail
           request="$(jq -ce 'select(
             (((.source_branch // "main") == "main") and ((.environment // "") != "beta")) or
-            (.source_branch == "dev" and .environment == "beta" and .trigger == "schedule")
+            (.source_branch == "dev" and .environment == "beta" and
+              (.trigger == "schedule" or .trigger == "push"))
           )' <<< "$PAYLOAD")"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
           echo "source_branch=$(jq -r '.source_branch // "main"' <<< "$request")" >> "$GITHUB_OUTPUT"

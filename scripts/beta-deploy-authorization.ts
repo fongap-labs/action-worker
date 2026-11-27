@@ -10,6 +10,7 @@ export type BetaDeployTarget = {
   credential_environment: string;
   credentials: Record<string, Binding>;
   allow_schedule?: boolean;
+  allow_push?: boolean;
 };
 
 export function readBetaDeployPolicy(): unknown {
@@ -60,9 +61,10 @@ export function parseBetaDeployTargets(policy: unknown): Map<string, BetaDeployT
       key.split("/")[1] === "action-worker" ||
       !isJsonRecord(target) ||
       Object.keys(target).some(
-        (name) => !["credential_environment", "credentials", "allow_schedule"].includes(name)
+        (name) => !["credential_environment", "credentials", "allow_schedule", "allow_push"].includes(name)
       ) ||
       (target.allow_schedule !== undefined && typeof target.allow_schedule !== "boolean") ||
+      (target.allow_push !== undefined && typeof target.allow_push !== "boolean") ||
       typeof target.credential_environment !== "string" ||
       !/^beta-[a-z0-9][a-z0-9-]{0,48}-ops$/.test(target.credential_environment) ||
       environments.has(target.credential_environment) ||
@@ -94,6 +96,7 @@ export function parseBetaDeployTargets(policy: unknown): Map<string, BetaDeployT
       credential_environment: target.credential_environment,
       credentials,
       ...(target.allow_schedule === undefined ? {} : { allow_schedule: target.allow_schedule }),
+      ...(target.allow_push === undefined ? {} : { allow_push: target.allow_push }),
     });
   }
   return targets;
@@ -115,13 +118,24 @@ export function assertBetaDeployTrigger(
   manifest: { automatic: boolean; schedule: readonly string[] }
 ): void {
   if (
-    manifest.automatic ||
+    (manifest.automatic && target.allow_push !== true) ||
     (manifest.schedule.length > 0 && target.allow_schedule !== true) ||
     (trigger !== "manual" &&
-      !(trigger === "schedule" && target.allow_schedule === true && manifest.schedule.length > 0))
+      !(trigger === "schedule" && target.allow_schedule === true && manifest.schedule.length > 0) &&
+      !(trigger === "push" && target.allow_push === true && manifest.automatic))
   ) {
     throw new CliError("Beta deployment trigger is not centrally authorized.", 77);
   }
+}
+
+export function hasBetaPushGrant(
+  targets: ReadonlyMap<string, BetaDeployTarget>,
+  repository: string
+): boolean {
+  return [...targets].some(
+    ([key, grant]) =>
+      (key === repository || key.startsWith(repository + "/")) && grant.allow_push === true
+  );
 }
 
 export function selectBetaDeployVariables(
