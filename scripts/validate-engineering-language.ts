@@ -137,8 +137,7 @@ export function engineeringLineViolation(
     if (
       (path === ".github/workflows/apply-repository-settings.yml" &&
         line.trim() === 'workflows: ["自动 · 总控调度"]') ||
-      (path === ".github/workflows/intake.yml" &&
-        line.trim() === 'workflows: ["自动 · PR 分发"]')
+      (path === ".github/workflows/intake.yml" && line.trim() === 'workflows: ["自动 · PR 分发"]')
     ) {
       return null;
     }

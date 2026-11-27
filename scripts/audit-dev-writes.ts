@@ -9,8 +9,8 @@ import {
 } from "./dev-bootstrap-authorization.ts";
 import { recoverInterruptedDevBootstrap } from "./dev-bootstrap-recovery.ts";
 import {
-  devMergeReceiptContext,
   DevWritePendingError,
+  devMergeReceiptContext,
   hasVerifiedDevWriteGuard,
   verifyRecordedDevWrite,
 } from "./dev-write-guard.ts";
