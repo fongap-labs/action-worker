@@ -96,12 +96,9 @@ test("transfer receipt binds actual squash tree and both synthetic parents", () 
     )
   );
   assert.throws(() =>
-    verifyTransferCommit(
-      scope,
-      writeSha,
-      merged,
-      commit,
-      { ...snapshot, tree: { sha: scope.baseSha } }
-    )
+    verifyTransferCommit(scope, writeSha, merged, commit, {
+      ...snapshot,
+      tree: { sha: scope.baseSha },
+    })
   );
 });

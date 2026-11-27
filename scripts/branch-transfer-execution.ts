@@ -68,10 +68,7 @@ export function assertTransferReady(
     !title ||
     (titleFingerprint !== "" && prTitleFingerprint(title) !== titleFingerprint)
   ) {
-    throw new CliError(
-      "Authorized transfer snapshot or PR title changed, or PR is not ready.",
-      75
-    );
+    throw new CliError("Authorized transfer snapshot or PR title changed, or PR is not ready.", 75);
   }
   if (!evaluatePrTrust(pull, [], scope.headSha).trusted) {
     throw new CliError("Transfer PR author is not trusted for central CI.", 77);
@@ -139,7 +136,10 @@ async function main(): Promise<void> {
       controlRepository
     )
   ) {
-    throw new CliError("Both managed branches must have enabled strict protected merge policy.", 75);
+    throw new CliError(
+      "Both managed branches must have enabled strict protected merge policy.",
+      75
+    );
   }
   await requireLiveProtection(reader, repository, controlRepository);
   if ((await resolveTransferPrNumber(reader, repository, prNumber)) !== prNumber) {

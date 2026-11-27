@@ -108,7 +108,10 @@ test("legacy bridge notifications can only wake intake for open public same-repo
 
 test("managed transfers never enter ordinary governance", () => {
   const repo = { full_name: repository };
-  for (const [source, target] of [["dev", "main"], ["main", "dev"]]) {
+  for (const [source, target] of [
+    ["dev", "main"],
+    ["main", "dev"],
+  ]) {
     const pull = {
       head: { ref: source, repo },
       base: { ref: target, repo },
