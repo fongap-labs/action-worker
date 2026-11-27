@@ -221,16 +221,14 @@ test("only approved entry, diagnostics and private operations expose manual disp
       const gatedSteps = steps.filter(
         (step) => step.if === "inputs.confirm && steps.plan.outputs.changed == 'true'"
       );
-      assert.deepEqual(
-        gatedSteps.map((step) => step.name),
-        [
-          "Resolve managed PR scope",
-          "Mint proposal read token",
-          "Download public proposal evidence",
-          "Mint target-scoped proposal writer",
-          "Revalidate and publish proposal",
-        ]
-      );
+      const gatedNames = gatedSteps.map((step) => step.name);
+      assert.deepEqual(gatedNames, [
+        "Resolve managed PR scope",
+        "Mint proposal read token",
+        "Download public proposal evidence",
+        "Mint target-scoped proposal writer",
+        "Revalidate and publish proposal",
+      ]);
       continue;
     }
     if (kind === "privateAgent") {
