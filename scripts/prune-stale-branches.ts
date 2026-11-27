@@ -63,7 +63,9 @@ export function parseBranchPruneManifest(raw: string, defaultBranch: string): Br
 }
 
 export function isProtectedBranch(branch: string, defaultBranch: string): boolean {
-  return isReservedMergeSourceRef(branch) || branch === defaultBranch || branch.startsWith("legacy/");
+  return (
+    isReservedMergeSourceRef(branch) || branch === defaultBranch || branch.startsWith("legacy/")
+  );
 }
 
 function openPullHeads(value: unknown): Set<string> {

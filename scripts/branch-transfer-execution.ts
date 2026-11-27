@@ -337,8 +337,8 @@ async function main(): Promise<void> {
   }
   await requireLiveProtection(reader, repository, controlRepository);
   const originalPr = stagingRef ? Number(process.env.TRANSFER_ORIGINAL_PR ?? "") : prNumber;
-  const originalHead = stagingRef ? process.env.TRANSFER_ORIGINAL_HEAD ?? "" : headSha;
-  const originalSnapshot = stagingRef ? process.env.TRANSFER_ORIGINAL_SNAPSHOT ?? "" : snapshot;
+  const originalHead = stagingRef ? (process.env.TRANSFER_ORIGINAL_HEAD ?? "") : headSha;
+  const originalSnapshot = stagingRef ? (process.env.TRANSFER_ORIGINAL_SNAPSHOT ?? "") : snapshot;
   const titleFingerprint = process.env.TRANSFER_TITLE_FINGERPRINT ?? "";
   if (stage === "execute" && !/^[0-9a-f]{64}$/.test(titleFingerprint)) {
     throw new CliError("Missing locked transfer title fingerprint.", 75);

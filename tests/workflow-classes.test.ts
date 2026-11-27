@@ -294,7 +294,10 @@ test("only approved entry, diagnostics and private operations expose manual disp
         stagingWriter?.if,
         "inputs.confirm && inputs.operation == 'transfer' && steps.plan.outputs.transfer_mode == 'staged'"
       );
-      assert.equal(stagingWriter?.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
+      assert.equal(
+        stagingWriter?.with?.repositories,
+        "${{ steps.api_scope.outputs.repository_name }}"
+      );
       assert.equal(stagingWriter?.with?.["permission-pull-requests"], "write");
       assert.equal(writer.if, "inputs.confirm && inputs.operation == 'initialize-dev'");
       assert.equal(writer.uses, "./.github/actions/mint-app-token");

@@ -21,7 +21,11 @@ import {
 
 const shaPattern = /^[0-9a-f]{40}$/;
 export const transferPreparationContext = "Transfer Preparation";
-type Writer = (method: "POST" | "PATCH" | "DELETE", path: string, body?: unknown) => Promise<unknown>;
+type Writer = (
+  method: "POST" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown
+) => Promise<unknown>;
 type Publish = (
   sha: string,
   context: string,
@@ -172,7 +176,8 @@ export async function createStagedTransfer(
       if (scope) {
         if (
           scope.baseSha !== intent.baseSha ||
-          mergeTree(scope, await reader.get(`${prefix}/git/commits/${scope.mergeSha}`)) !== intent.treeSha
+          mergeTree(scope, await reader.get(`${prefix}/git/commits/${scope.mergeSha}`)) !==
+            intent.treeSha
         ) {
           throw new CliError("Staged PR snapshot changed during creation.", 75);
         }

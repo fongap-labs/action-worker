@@ -8,7 +8,10 @@ import {
   transferStageRef,
   verifyIntentObjects,
 } from "../scripts/branch-transfer-intent.ts";
-import { createStagedTransfer, verifyStagedTransferProof } from "../scripts/branch-transfer-staging.ts";
+import {
+  createStagedTransfer,
+  verifyStagedTransferProof,
+} from "../scripts/branch-transfer-staging.ts";
 import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const repository = "fongap-labs/product";
@@ -47,28 +50,40 @@ function world(target: "main" | "dev" = "main") {
     [`${prefix}/git/commits/${baseSha}`, { sha: baseSha, tree: { sha: baseTree } }],
     [`${prefix}/git/commits/${sourceSha}`, { sha: sourceSha, tree: { sha: sourceTree } }],
     [`${prefix}/git/commits/${anchorSha}`, { sha: anchorSha, tree: { sha: baseTree } }],
-    [`${prefix}/compare/${baseSha}...${sourceSha}`, {
-      status: "diverged",
-      ahead_by: 3,
-      behind_by: 1,
-      merge_base_commit: { sha: mergeSha },
-    }],
-    [`${prefix}/compare/${anchorSha}...${sourceSha}`, {
-      status: "ahead",
-      ahead_by: 1,
-      behind_by: 0,
-      merge_base_commit: { sha: anchorSha },
-    }],
-    [`${prefix}/commits?sha=${sourceSha}&per_page=100&page=1`, [
-      { sha: sourceSha, commit: { tree: { sha: sourceTree } } },
-      { sha: anchorSha, commit: { tree: { sha: baseTree } } },
-    ]],
+    [
+      `${prefix}/compare/${baseSha}...${sourceSha}`,
+      {
+        status: "diverged",
+        ahead_by: 3,
+        behind_by: 1,
+        merge_base_commit: { sha: mergeSha },
+      },
+    ],
+    [
+      `${prefix}/compare/${anchorSha}...${sourceSha}`,
+      {
+        status: "ahead",
+        ahead_by: 1,
+        behind_by: 0,
+        merge_base_commit: { sha: anchorSha },
+      },
+    ],
+    [
+      `${prefix}/commits?sha=${sourceSha}&per_page=100&page=1`,
+      [
+        { sha: sourceSha, commit: { tree: { sha: sourceTree } } },
+        { sha: anchorSha, commit: { tree: { sha: baseTree } } },
+      ],
+    ],
     [`${prefix}/git/ref/pull/103/merge`, { object: { sha: mergeSha } }],
-    [`${prefix}/git/commits/${mergeSha}`, {
-      sha: mergeSha,
-      parents: [{ sha: baseSha }, { sha: sourceSha }],
-      tree: { sha: mergedTree },
-    }],
+    [
+      `${prefix}/git/commits/${mergeSha}`,
+      {
+        sha: mergeSha,
+        parents: [{ sha: baseSha }, { sha: sourceSha }],
+        tree: { sha: mergedTree },
+      },
+    ],
   ]);
   const reader = {
     async get(path: string): Promise<unknown> {
@@ -91,7 +106,10 @@ test("squash divergence can repeat in either direction using an ancestral equal 
     assert.equal(p.intent.treeSha, sourceTree);
     assert.equal(transferStageRef(p.intent, runId), `aw-transfer/${w.source}/103/42`);
     await verifyIntentObjects(w.reader, p.intent);
-    w.entries.set(`${prefix}/git/commits/${sourceSha}`, { sha: sourceSha, tree: { sha: baseTree } });
+    w.entries.set(`${prefix}/git/commits/${sourceSha}`, {
+      sha: sourceSha,
+      tree: { sha: baseTree },
+    });
     assert.equal((await w.plan()).kind, "noop");
   }
 });
@@ -122,7 +140,10 @@ test("independent target content needs an exact clean integrated tree; conflicts
 test("an unproved history anchor or changed protected source cannot authorize staging", async () => {
   const w = world();
   w.entries.set(`${prefix}/compare/${anchorSha}...${sourceSha}`, {
-    status: "diverged", ahead_by: 1, behind_by: 1, merge_base_commit: { sha: mergeSha },
+    status: "diverged",
+    ahead_by: 1,
+    behind_by: 1,
+    merge_base_commit: { sha: mergeSha },
   });
   await assert.rejects(w.plan(), /not an ancestor/);
   w.entries.set(`${prefix}/branches/dev`, { commit: { sha: stageHead } });
@@ -179,7 +200,9 @@ test("staging creates only a new ref and exact PR; signed proof binds original i
         }
         if (path.endsWith("/git/refs")) {
           assert.deepEqual(body, { ref: `refs/heads/${ref}`, sha: stageHead });
-          w.entries.set(`${prefix}/branches/${encodeURIComponent(ref)}`, { commit: { sha: stageHead } });
+          w.entries.set(`${prefix}/branches/${encodeURIComponent(ref)}`, {
+            commit: { sha: stageHead },
+          });
           return {};
         }
         if (path.endsWith("/pulls")) {
@@ -196,13 +219,22 @@ test("staging creates only a new ref and exact PR; signed proof binds original i
       },
       async (sha, context, state, description) => {
         w.entries.set(`${prefix}/commits/${sha}/status`, {
-          statuses: [{
-            context,
-            state,
-            target_url: runUrl,
-            created_at: "2026-11-27T00:00:00Z",
-            description: signedStatusDescription({ repository, sha, context, state, description, targetUrl: runUrl }),
-          }],
+          statuses: [
+            {
+              context,
+              state,
+              target_url: runUrl,
+              created_at: "2026-11-27T00:00:00Z",
+              description: signedStatusDescription({
+                repository,
+                sha,
+                context,
+                state,
+                description,
+                targetUrl: runUrl,
+              }),
+            },
+          ],
         });
       },
       p.intent,
@@ -221,7 +253,10 @@ test("staging creates only a new ref and exact PR; signed proof binds original i
     assert.deepEqual(proof.intent, p.intent);
     await assert.rejects(verifyStagedTransferProof(reader, result.scope, ref, 43, runUrl));
     w.entries.set(`${prefix}/commits/${stageHead}/status`, { statuses: [] });
-    await assert.rejects(verifyStagedTransferProof(reader, result.scope, ref, runId, runUrl), /Missing signed/);
+    await assert.rejects(
+      verifyStagedTransferProof(reader, result.scope, ref, runId, runUrl),
+      /Missing signed/
+    );
   } finally {
     if (previous === undefined) delete process.env.AW_STATUS_KEYRING;
     else process.env.AW_STATUS_KEYRING = previous;

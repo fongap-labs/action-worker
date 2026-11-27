@@ -135,12 +135,12 @@ export async function verifyRecordedTransferWrite(
     if (
       preparation.createdAt > mergedAt ||
       !(await hasVerifiedControlStatus(reader, preparation.statuses, "Transfer Preparation", {
-          controlRepository,
-          targetRepository: repository,
-          targetSha: headSha,
-          workflowPaths: [transferWorkflowPath],
-          runAttempts: 1,
-        }))
+        controlRepository,
+        targetRepository: repository,
+        targetSha: headSha,
+        workflowPaths: [transferWorkflowPath],
+        runAttempts: 1,
+      }))
     ) {
       throw new CliError("Staged transfer preparation is not independently verified.", 65);
     }

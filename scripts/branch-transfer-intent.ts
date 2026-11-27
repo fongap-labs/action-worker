@@ -205,7 +205,11 @@ export async function readTransferPlan(
   }
   const baseTree = commitTree(baseSha, await reader.get(`${prefix}/git/commits/${baseSha}`));
   const sourceTree = commitTree(sourceSha, await reader.get(`${prefix}/git/commits/${sourceSha}`));
-  const intent = (mode: TransferIntent["mode"], treeSha: string, basisSha: string): TransferIntent => ({
+  const intent = (
+    mode: TransferIntent["mode"],
+    treeSha: string,
+    basisSha: string
+  ): TransferIntent => ({
     repository,
     prNumber,
     targetBranch,
@@ -289,7 +293,10 @@ export function intentFromStageCommit(commit: unknown): TransferIntent {
 }
 
 /** Independently verify the original source, target and the selected immutable content basis. */
-export async function verifyIntentObjects(reader: JsonReader, intent: TransferIntent): Promise<void> {
+export async function verifyIntentObjects(
+  reader: JsonReader,
+  intent: TransferIntent
+): Promise<void> {
   const value = validateTransferIntent(intent);
   const prefix = `repos/${value.repository}`;
   const baseTree = commitTree(
