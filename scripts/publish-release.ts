@@ -33,7 +33,6 @@ import {
 import { sha256File } from "./lib/stream-file-hash.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
-import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { dispatchAndWaitForNpm } from "./release-npm-dispatch.ts";
 import { selectPreTagNpmAsset, verifyPublishedNpmBeforeTag } from "./release-npm-gate.ts";
 import { assertMatchingPublishedRelease } from "./release-published-replay.ts";
@@ -43,6 +42,7 @@ import {
   selectVerifiedReleaseNotes,
   type TwoPhaseReleasePolicy,
 } from "./release-two-phase-mode.ts";
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
