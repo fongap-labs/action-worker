@@ -85,8 +85,7 @@ export async function verifyBootstrapSource(
 ): Promise<void> {
   if (
     !repositoryPattern.test(repository) ||
-    !shaPattern.test(sha) ||
-    repository === controlRepository
+    !shaPattern.test(sha)
   ) {
     throw new CliError("Development initialization target is invalid.", 65);
   }

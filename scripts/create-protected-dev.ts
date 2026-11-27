@@ -65,7 +65,6 @@ export async function createProtectedDevBranch(
 ): Promise<void> {
   if (
     !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) ||
-    repository === "fongap-labs/action-worker" ||
     !/^[0-9a-f]{40}$/.test(sha) ||
     !Number.isSafeInteger(integrationId) ||
     integrationId < 1
@@ -232,7 +231,6 @@ export async function deleteTemporaryDevGuard(
 ): Promise<void> {
   if (
     !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) ||
-    repository === "fongap-labs/action-worker" ||
     !Number.isSafeInteger(id) ||
     id < 1
   ) {

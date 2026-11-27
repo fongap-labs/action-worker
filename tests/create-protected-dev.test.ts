@@ -8,15 +8,15 @@ import {
 import { CliError } from "../scripts/runtime-command.ts";
 
 const repository = "fongap-labs/example";
-const prefix = `repos/${repository}`;
 const sha = "a".repeat(40);
-const rulesPath = `${prefix}/rulesets`;
 const policy = JSON.parse(readFileSync("policies/rulesets.json", "utf8")) as {
   rulesets: Array<Record<string, unknown>>;
 };
 const original = policy.rulesets.find((rule) => rule.name === "Protect Dev Branch")!;
 
-function fixture(failWrite = false, reorderRules = false) {
+function fixture(failWrite = false, reorderRules = false, target = repository) {
+  const prefix = `repos/${target}`;
+  const rulesPath = `${prefix}/rulesets`;
   const rules = new Map<number, Record<string, unknown>>([[12, structuredClone(original)]]);
   const events: string[] = [];
   let dev = "";
@@ -119,6 +119,15 @@ test("bootstrap integration is derived from the existing reviewed policy", () =>
 test("GitHub may reorder the restored rule array without changing branch protection", async () => {
   const f = fixture(false, true);
   await createProtectedDevBranch(f.reader, f.admin, f.createRef, repository, sha, 42);
+  assert.equal(f.getDev(), sha);
+  assert.deepEqual(f.events, ["guard", "update", "create", "update", "cleanup"]);
+  assert.deepEqual([...f.rules], [[12, original]]);
+});
+
+test("controller dev uses the same protected creation procedure and restored lock", async () => {
+  const target = "fongap-labs/action-worker";
+  const f = fixture(false, false, target);
+  await createProtectedDevBranch(f.reader, f.admin, f.createRef, target, sha, 42);
   assert.equal(f.getDev(), sha);
   assert.deepEqual(f.events, ["guard", "update", "create", "update", "cleanup"]);
   assert.deepEqual([...f.rules], [[12, original]]);

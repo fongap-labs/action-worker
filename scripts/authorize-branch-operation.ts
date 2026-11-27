@@ -95,7 +95,14 @@ async function main(): Promise<void> {
     protectionToken,
     [repository]
   );
-  await assertManualBranchAuthorization(reader, controlRepository, repository, runId, attempt);
+  await assertManualBranchAuthorization(
+    reader,
+    controlRepository,
+    repository,
+    runId,
+    attempt,
+    isDevBootstrap(operation)
+  );
   const sha =
     stage === "plan"
       ? await resolveBranchSourceSha(reader, operation, repository, prNumber, requestedSha)
