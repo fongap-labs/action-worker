@@ -109,7 +109,6 @@ jobs:
       target_branch: ${{ steps.payload.outputs.target_branch }}
       approved: ${{ steps.payload.outputs.target_branch == 'main' && steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
       dev_approved: ${{ steps.dev_admission.outputs.admitted == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
-      dev_head: ${{ steps.resolved.outputs.head_sha }}
       dev_base: ${{ steps.resolved.outputs.base_sha }}
     env:
       AW_AI_AGENT_CONFIG: ${{ vars.AW_AI_AGENT_CONFIG }}
@@ -777,7 +776,7 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
-          HEAD_SHA: ${{ needs.govern.outputs.dev_head }}
+          HEAD_SHA: ${{ github.event.client_payload.head_sha }}
           BASE_SHA: ${{ needs.govern.outputs.dev_base }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/dev-merge-execution.ts authorize
@@ -815,7 +814,7 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
-          HEAD_SHA: ${{ needs.govern.outputs.dev_head }}
+          HEAD_SHA: ${{ github.event.client_payload.head_sha }}
           BASE_SHA: ${{ needs.govern.outputs.dev_base }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/dev-merge-execution.ts execute

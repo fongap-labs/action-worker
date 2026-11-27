@@ -17,6 +17,10 @@ const request = { repository, head_sha: sha, pr_number: 40, ci_run_id: runId };
 
 test("CI follow-ups require a complete revision-bound dispatch payload", () => {
   assert.deepEqual(parseFollowUpRequest(request), request);
+  assert.deepEqual(parseFollowUpRequest({ ...request, target_branch: "dev" }), {
+    ...request,
+    target_branch: "dev",
+  });
   assert.deepEqual(parseFollowUpRequest({ ...request, pr_number: 0 }), {
     ...request,
     pr_number: 0,
@@ -27,6 +31,8 @@ test("CI follow-ups require a complete revision-bound dispatch payload", () => {
     { ...request, pr_number: -1 },
     { ...request, repository: "other" },
     { ...request, unexpected: "value" },
+    { ...request, target_branch: "other" },
+    { ...request, target_branch: "dev", pr_number: 0 },
   ]) {
     assert.throws(() => parseFollowUpRequest(invalid));
   }
@@ -126,5 +132,64 @@ test("only current CI follow-ups can dispatch scans, audit main or deploy", asyn
     const step = steps.find((item) => item.name === name);
     assert.ok(step, `Missing ${name} step`);
     assert.match(step.if ?? "", /steps\.verified\.outputs\.current == 'true'/);
+    assert.match(step.if ?? "", /steps\.verified\.outputs\.target_branch == 'main'/);
   }
+});
+
+test("dev follow-up requires its own signed evidence and ordinary public same-repo PR", () => {
+  const devRequest = { ...request, target_branch: "dev" as const };
+  const pull = {
+    state: "open",
+    base: { ref: "dev", repo: { full_name: repository, private: false } },
+    head: { sha, ref: "fix/example", repo: { full_name: repository } },
+  };
+  assert.equal(isCurrentFollowUpTarget(devRequest, pull), true);
+  assert.equal(isCurrentFollowUpTarget(request, pull), false);
+  assert.equal(
+    isCurrentFollowUpTarget(devRequest, { ...pull, base: { ...pull.base, ref: "main" } }),
+    false
+  );
+  assert.equal(
+    isCurrentFollowUpTarget(devRequest, { ...pull, head: { ...pull.head, ref: "main" } }),
+    false
+  );
+  assert.equal(
+    isCurrentFollowUpTarget(devRequest, {
+      ...pull,
+      head: { ...pull.head, repo: { full_name: "other/repo" } },
+    }),
+    false
+  );
+  assert.equal(
+    isCurrentFollowUpTarget(devRequest, {
+      ...pull,
+      base: { ...pull.base, repo: { full_name: repository, private: true } },
+    }),
+    false
+  );
+  const status = attestFixtureStatuses(
+    {
+      statuses: [
+        {
+          context: "Dev CI Evidence",
+          state: "success",
+          target_url: `https://github.com/${controlRepository}/actions/runs/${runId}`,
+        },
+      ],
+    },
+    repository,
+    sha
+  );
+  assert.equal(
+    matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, "dev"),
+    true
+  );
+  assert.equal(
+    matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, "main"),
+    false
+  );
+  assert.equal(
+    matchesFollowUpEvidence(status, controlRepository, runId + 1, repository, sha, "dev"),
+    false
+  );
 });

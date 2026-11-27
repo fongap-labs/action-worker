@@ -71,6 +71,7 @@ test("CI success resumes PR governance only after signed source and completed ru
   assert.match(resume.if ?? "", /pr_number > 0/);
   assert.match(resume.run ?? "", /run-pr-governance/);
   assert.match(resume.run ?? "", /--arg request_id "ci-done-\$CI_RUN_ID"/);
+  assert.match(resume.run ?? "", /target_branch:\$target_branch/);
   assert.ok(steps.indexOf(verified) < steps.indexOf(resume));
 });
 
@@ -82,8 +83,9 @@ test("CI failure and prepare failure reopen a red gate only after status publica
   assert.match(resume.if ?? "", /steps\.ci_publish\.outputs\.published == 'true'/);
   assert.match(resume.if ?? "", /steps\.ci_publish\.outcome == 'failure'/);
   assert.match(resume.run ?? "", /run-pr-governance/);
-  assert.match(resume.run ?? "", /current_head/);
-  assert.match(resume.run ?? "", /\$current_head" == "\$TARGET_HEAD_SHA/);
+  assert.match(resume.run ?? "", /\.head\.sha == \$head/);
+  assert.match(resume.run ?? "", /\.base\.ref == \$branch/);
+  assert.match(resume.run ?? "", /target_branch:\$target_branch/);
   assert.ok(steps.indexOf(publish) < steps.indexOf(resume));
   const failureSteps = workflow(".github/workflows/central-ci-dispatch.yml").jobs[
     "prepare-failure"
@@ -93,6 +95,7 @@ test("CI failure and prepare failure reopen a red gate only after status publica
   assert.match(failed.run ?? "", /echo "published=true"/);
   assert.match(recover.if ?? "", /steps\.prepare_publish\.outputs\.published == 'true'/);
   assert.match(recover.run ?? "", /run-pr-governance/);
+  assert.match(recover.run ?? "", /target_branch:\$target_branch/);
   assert.ok(failureSteps.indexOf(failed) < failureSteps.indexOf(recover));
 });
 
@@ -132,4 +135,13 @@ test("dev write credential follows the reviewed protection boundary", () => {
   assert.ok(steps.indexOf(mint) < steps.indexOf(execute));
   const audit = workflow(".github/workflows/intake.yml").jobs["dev-writes"]!.steps;
   assert.equal(step(audit, "Audit managed dev branches").run, "node scripts/audit-dev-writes.ts");
+});
+
+test("dev merge reads the already validated immutable event head instead of masked job output", () => {
+  const content = readFileSync(".github/workflows/handle-pr-dispatch.yml", "utf8");
+  assert.doesNotMatch(content, /needs\.govern\.outputs\.dev_head/);
+  assert.doesNotMatch(content, /\bdev_head:/);
+  const merge = content.slice(content.indexOf("  dev-merge:"));
+  assert.equal(merge.split("HEAD_SHA: ${{ github.event.client_payload.head_sha }}").length - 1, 2);
+  assert.match(content, /run: test "\$REQUESTED_HEAD" = "\$RESOLVED_HEAD"/);
 });
