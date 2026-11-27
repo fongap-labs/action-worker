@@ -11,8 +11,8 @@ const staticJob = workflow.slice(workflow.indexOf("  static:"), workflow.indexOf
 
 test("CI contract job reuses trusted lockfile-scoped npm cache", () => {
   assert.match(contract, /uses: actions\/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1/);
-  assert.match(contract, /node-version: 24\s+cache: npm/);
-  assert.match(staticJob, /node-version: 24\s+cache: npm/);
+  assert.match(contract, /node-version: \$\{\{ steps\.runtime\.outputs\.node \}\}\s+cache: npm/);
+  assert.match(staticJob, /node-version: \$\{\{ steps\.runtime\.outputs\.node \}\}\s+cache: npm/);
   assert.doesNotMatch(contract, /restore-keys:/);
 });
 
