@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import type { JsonReader } from "./ci-evidence.ts";
-import { type PrCiScope, prCiScopeDescription, readCurrentTransferScope } from "./ci-scope-receipt.ts";
+import {
+  type PrCiScope,
+  prCiScopeDescription,
+  readCurrentTransferScope,
+} from "./ci-scope-receipt.ts";
 import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { evaluatePrTrust } from "./pr-trust.ts";
 import { isManagedTransferDirection } from "./resolve-pr-facts.ts";
@@ -59,17 +63,19 @@ export function transferIntentDescription(intent: TransferIntent): string {
   // A regenerated native merge commit is equivalent only if its exact parents and tree
   // are independently verified. Its timestamp-dependent SHA is not part of the semantic intent.
   const digest = createHash("sha256")
-    .update(JSON.stringify([
-      "action-worker-transfer-intent-v1",
-      value.repository,
-      value.prNumber,
-      value.targetBranch,
-      value.baseSha,
-      value.sourceSha,
-      value.treeSha,
-      value.mode,
-      value.mode === "merge-tree" ? "" : value.basisSha,
-    ]))
+    .update(
+      JSON.stringify([
+        "action-worker-transfer-intent-v1",
+        value.repository,
+        value.prNumber,
+        value.targetBranch,
+        value.baseSha,
+        value.sourceSha,
+        value.treeSha,
+        value.mode,
+        value.mode === "merge-tree" ? "" : value.basisSha,
+      ])
+    )
     .digest("base64url");
   return `intent-v1=${digest}`;
 }
@@ -104,10 +110,10 @@ export function mergeTree(scope: PrCiScope, value: unknown): string {
 export function isAncestorComparison(compare: unknown, ancestor: string): boolean {
   return (
     isJsonRecord(compare) &&
-    (compare.status === "ahead" || compare.status === "identical") &&
     compare.behind_by === 0 &&
     Number.isSafeInteger(compare.ahead_by) &&
-    Number(compare.ahead_by) >= 0 &&
+    ((compare.status === "ahead" && Number(compare.ahead_by) > 0) ||
+      (compare.status === "identical" && compare.ahead_by === 0)) &&
     getJsonString(compare.merge_base_commit, "sha") === ancestor
   );
 }
@@ -151,8 +157,22 @@ export async function readTransferPlan(
   sourceSha: string
 ): Promise<TransferPlan> {
   const prefix = `repos/${repository}`;
-  if (!repositoryPattern.test(repository) || !Number.isSafeInteger(prNumber) || prNumber < 1 || !shaPattern.test(sourceSha)) {
+  if (
+    !repositoryPattern.test(repository) ||
+    !Number.isSafeInteger(prNumber) ||
+    prNumber < 1 ||
+    !shaPattern.test(sourceSha)
+  ) {
     throw new CliError("Invalid managed transfer request.", 75);
+  }
+  const repo = await reader.get(prefix);
+  if (
+    !isJsonRecord(repo) ||
+    repo.private !== false ||
+    repo.default_branch !== "main" ||
+    repo.full_name !== repository
+  ) {
+    throw new CliError("Transfer planning requires a public managed downstream repository.", 75);
   }
   const pull = await reader.get(`${prefix}/pulls/${prNumber}`);
   if (
@@ -186,21 +206,33 @@ export async function readTransferPlan(
   const baseTree = commitTree(baseSha, await reader.get(`${prefix}/git/commits/${baseSha}`));
   const sourceTree = commitTree(sourceSha, await reader.get(`${prefix}/git/commits/${sourceSha}`));
   const intent = (mode: TransferIntent["mode"], treeSha: string, basisSha: string): TransferIntent => ({
-    repository, prNumber, targetBranch, baseSha, sourceSha, treeSha, basisSha, mode,
+    repository,
+    prNumber,
+    targetBranch,
+    baseSha,
+    sourceSha,
+    treeSha,
+    basisSha,
+    mode,
   });
   if (baseTree === sourceTree) {
     return { kind: "noop", intent: intent("no-change", baseTree, sourceSha), title };
   }
   const comparison = await reader.get(`${prefix}/compare/${baseSha}...${sourceSha}`);
   if (!isJsonRecord(comparison)) throw new CliError("Transfer comparison is unavailable.", 75);
-  if (comparison.status === "behind" && comparison.ahead_by === 0 &&
-      getJsonNumber(comparison, "behind_by") > 0 &&
-      getJsonString(comparison.merge_base_commit, "sha") === sourceSha) {
+  if (
+    comparison.status === "behind" &&
+    comparison.ahead_by === 0 &&
+    getJsonNumber(comparison, "behind_by") > 0 &&
+    getJsonString(comparison.merge_base_commit, "sha") === sourceSha
+  ) {
     return { kind: "noop", intent: intent("no-change", baseTree, sourceSha), title };
   }
   if (comparison.status === "ahead" && isAncestorComparison(comparison, baseSha)) {
     const scope = await readCurrentTransferScope(reader, repository, prNumber, sourceSha);
-    if (!scope || scope.baseSha !== baseSha) throw new CliError("Direct transfer snapshot is not ready.", 75);
+    if (!scope || scope.baseSha !== baseSha) {
+      throw new CliError("Direct transfer snapshot is not ready.", 75);
+    }
     return { kind: "direct", scope, title };
   }
   if (
@@ -224,7 +256,9 @@ export async function readTransferPlan(
     const scope = await readCurrentTransferScope(reader, repository, prNumber, sourceSha);
     if (scope && scope.baseSha === baseSha) {
       const tree = mergeTree(scope, await reader.get(`${prefix}/git/commits/${scope.mergeSha}`));
-      if (tree === baseTree) return { kind: "noop", intent: intent("no-change", tree, scope.mergeSha), title };
+      if (tree === baseTree) {
+        return { kind: "noop", intent: intent("no-change", tree, sourceSha), title };
+      }
       return { kind: "staged", intent: intent("merge-tree", tree, scope.mergeSha), title };
     }
   }
@@ -258,8 +292,14 @@ export function intentFromStageCommit(commit: unknown): TransferIntent {
 export async function verifyIntentObjects(reader: JsonReader, intent: TransferIntent): Promise<void> {
   const value = validateTransferIntent(intent);
   const prefix = `repos/${value.repository}`;
-  const baseTree = commitTree(value.baseSha, await reader.get(`${prefix}/git/commits/${value.baseSha}`));
-  const sourceTree = commitTree(value.sourceSha, await reader.get(`${prefix}/git/commits/${value.sourceSha}`));
+  const baseTree = commitTree(
+    value.baseSha,
+    await reader.get(`${prefix}/git/commits/${value.baseSha}`)
+  );
+  const sourceTree = commitTree(
+    value.sourceSha,
+    await reader.get(`${prefix}/git/commits/${value.sourceSha}`)
+  );
   const basis = await reader.get(`${prefix}/git/commits/${value.basisSha}`);
   if (value.mode === "source-tree") {
     if (
@@ -270,14 +310,24 @@ export async function verifyIntentObjects(reader: JsonReader, intent: TransferIn
         value.basisSha
       )
     ) {
-      throw new CliError("Staged transfer source tree no longer proves the target content baseline.", 75);
+      throw new CliError(
+        "Staged transfer source tree no longer proves the target content baseline.",
+        75
+      );
     }
   } else if (value.mode === "merge-tree") {
     if (
-      mergeTree({
-        repository: value.repository, prNumber: value.prNumber, targetBranch: value.targetBranch,
-        baseSha: value.baseSha, headSha: value.sourceSha, mergeSha: value.basisSha,
-      }, basis) !== value.treeSha
+      mergeTree(
+        {
+          repository: value.repository,
+          prNumber: value.prNumber,
+          targetBranch: value.targetBranch,
+          baseSha: value.baseSha,
+          headSha: value.sourceSha,
+          mergeSha: value.basisSha,
+        },
+        basis
+      ) !== value.treeSha
     ) {
       throw new CliError("Staged transfer does not match the integrated merge tree.", 75);
     }

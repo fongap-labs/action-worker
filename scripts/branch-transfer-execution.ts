@@ -411,7 +411,13 @@ async function main(): Promise<void> {
         prNumber = observed.prNumber;
         snapshot = prCiScopeDescription(observed);
       } else {
-        observed = await readCurrentStagedTransferScope(reader, repository, prNumber, headSha, stagingRef);
+        observed = await readCurrentStagedTransferScope(
+          reader,
+          repository,
+          prNumber,
+          headSha,
+          stagingRef
+        );
       }
     }
   } else {

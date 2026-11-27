@@ -5,6 +5,7 @@ import { isProtectedBranch, parseBranchPruneManifest } from "../scripts/prune-st
 test("branch pruner always preserves managed, default and legacy branches", () => {
   assert.equal(isProtectedBranch("main", "main"), true);
   assert.equal(isProtectedBranch("dev", "main"), true);
+  assert.equal(isProtectedBranch("aw-transfer/dev/103/42", "main"), true);
   assert.equal(isProtectedBranch("main", "dev"), true);
   assert.equal(isProtectedBranch("legacy/v1.0.0", "main"), true);
   assert.equal(isProtectedBranch("legacy/v0.2.x", "main"), true);

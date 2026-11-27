@@ -286,13 +286,20 @@ test("only approved entry, diagnostics and private operations expose manual disp
       const writers = (job.steps ?? []).filter(
         (step) => step.with?.["permission-contents"] === "write"
       );
-      assert.equal(writers.length, 1);
-      const writer = writers[0]!;
-      assert.equal(writer.id, "ref_app");
+      assert.equal(writers.length, 2);
+      const writer = writers.find((step) => step.id === "ref_app")!;
+      assert.ok(writer);
+      const stagingWriter = writers.find((step) => step.id === "stage_writer")!;
+      assert.equal(
+        stagingWriter?.if,
+        "inputs.confirm && inputs.operation == 'transfer' && steps.plan.outputs.transfer_mode == 'staged'"
+      );
+      assert.equal(stagingWriter?.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
+      assert.equal(stagingWriter?.with?.["permission-pull-requests"], "write");
       assert.equal(writer.if, "inputs.confirm && inputs.operation == 'initialize-dev'");
       assert.equal(writer.uses, "./.github/actions/mint-app-token");
       assert.equal(writer.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
-      assert.equal(source.match(/permission-contents: write/g)?.length, 2);
+      assert.equal(source.match(/permission-contents: write/g)?.length, 3);
       assert.doesNotMatch(source, /name: branch-transfer/);
       const execute = workflow.jobs?.["transfer-execute"] as Job & {
         environment?: { name: string; deployment: boolean };

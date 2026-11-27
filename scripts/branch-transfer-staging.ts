@@ -13,12 +13,21 @@ import { type PrCiScope, readCurrentStagedTransferScope } from "./ci-scope-recei
 import { getGithubJsonIfExists, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { isManagedTransferDirection, isStagedTransferDirection } from "./resolve-pr-facts.ts";
 import { CliError } from "./runtime-command.ts";
-import { latestAttestedStatus, originalStatusDescription, statusRunAttempt } from "./status-attestation.ts";
+import {
+  latestAttestedStatus,
+  originalStatusDescription,
+  statusRunAttempt,
+} from "./status-attestation.ts";
 
 const shaPattern = /^[0-9a-f]{40}$/;
 export const transferPreparationContext = "Transfer Preparation";
 type Writer = (method: "POST" | "PATCH" | "DELETE", path: string, body?: unknown) => Promise<unknown>;
-type Publish = (sha: string, context: string, state: "success" | "failure", description: string) => Promise<void>;
+type Publish = (
+  sha: string,
+  context: string,
+  state: "success" | "failure",
+  description: string
+) => Promise<void>;
 
 export function transferStageWriter(token: string): Writer {
   if (!token) throw new CliError("Missing dedicated transfer staging token.", 77);
@@ -77,7 +86,9 @@ export async function verifyStagedTransferProof(
   }
   verifyStageCommit(intent, scope.headSha, commit);
   await verifyIntentObjects(reader, intent);
-  if (mergeTree(scope, await reader.get(`${prefix}/git/commits/${scope.mergeSha}`)) !== intent.treeSha) {
+  if (
+    mergeTree(scope, await reader.get(`${prefix}/git/commits/${scope.mergeSha}`)) !== intent.treeSha
+  ) {
     throw new CliError("Staged PR merge tree differs from the authorized intent.", 75);
   }
   const statuses = await reader.get(`${prefix}/commits/${scope.headSha}/status`);
@@ -94,7 +105,10 @@ export async function verifyStagedTransferProof(
     statusRunAttempt(proof) !== 1 ||
     !Number.isFinite(createdAt)
   ) {
-    throw new CliError("Missing signed preparation proof from the current authorized transfer.", 75);
+    throw new CliError(
+      "Missing signed preparation proof from the current authorized transfer.",
+      75
+    );
   }
   return { intent, createdAt, statuses };
 }
@@ -148,10 +162,18 @@ export async function createStagedTransfer(
       throw new CliError("Staged PR creation did not return the expected identity.", 75);
     }
     for (let attempt = 0; attempt < 10; attempt += 1) {
-      const scope = await readCurrentStagedTransferScope(reader, intent.repository, prNumber, sha, ref);
+      const scope = await readCurrentStagedTransferScope(
+        reader,
+        intent.repository,
+        prNumber,
+        sha,
+        ref
+      );
       if (scope) {
-        if (scope.baseSha !== intent.baseSha ||
-            mergeTree(scope, await reader.get(`${prefix}/git/commits/${scope.mergeSha}`)) !== intent.treeSha) {
+        if (
+          scope.baseSha !== intent.baseSha ||
+          mergeTree(scope, await reader.get(`${prefix}/git/commits/${scope.mergeSha}`)) !== intent.treeSha
+        ) {
           throw new CliError("Staged PR snapshot changed during creation.", 75);
         }
         await assertCurrent();
@@ -164,10 +186,13 @@ export async function createStagedTransfer(
     // Close only a positively identified staging PR. Never mutate either managed ref.
     if (prNumber > 0) {
       const pull = await reader.get(`${prefix}/pulls/${prNumber}`);
-      if (isJsonRecord(pull) && pull.state === "open" &&
-          getJsonString(pull.head, "ref") === ref &&
-          getJsonString(pull.head, "sha") === sha &&
-          isStagedTransferDirection(pull, intent.repository)) {
+      if (
+        isJsonRecord(pull) &&
+        pull.state === "open" &&
+        getJsonString(pull.head, "ref") === ref &&
+        getJsonString(pull.head, "sha") === sha &&
+        isStagedTransferDirection(pull, intent.repository)
+      ) {
         await write("PATCH", `${prefix}/pulls/${prNumber}`, { state: "closed" });
       }
     }
@@ -224,15 +249,19 @@ export async function closeUnusedStagedTransfer(
   if (pull.state !== "open") throw new CliError("Invalid staged PR state.", 75);
   const commit = await reader.get(`${prefix}/git/commits/${headSha}`);
   const intent = intentFromStageCommit(commit);
-  if (intent.repository !== repository ||
-      intent.targetBranch !== getJsonString(pull.base, "ref") ||
-      transferStageRef(intent, runId) !== ref) {
+  if (
+    intent.repository !== repository ||
+    intent.targetBranch !== getJsonString(pull.base, "ref") ||
+    transferStageRef(intent, runId) !== ref
+  ) {
     throw new CliError("Refusing cleanup outside the current staging intent.", 75);
   }
   verifyStageCommit(intent, headSha, commit);
   const statuses = await reader.get(`${prefix}/commits/${headSha}/status`);
   const proof = latestAttestedStatus(statuses, {
-    repository, sha: headSha, context: transferPreparationContext,
+    repository,
+    sha: headSha,
+    context: transferPreparationContext,
   });
   if (
     proof?.state !== "success" ||
