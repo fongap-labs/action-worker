@@ -108,3 +108,17 @@ test("changed dev protection wakes the existing intake, while unchanged settings
   const intake = parse(readFileSync(".github/workflows/intake.yml", "utf8"));
   assert.equal(intake.jobs["pull-requests"].if, "github.event_name != 'workflow_run'");
 });
+
+test("the controller uses the same single settings writer as every managed repository", () => {
+  const workflow = readFileSync(".github/workflows/apply-repository-settings.yml", "utf8");
+  assert.equal(workflow.match(/node scripts\/apply-repository-settings\.ts/g)?.length, 1);
+  const settings = parse(workflow);
+  const steps = settings.jobs["apply-managed"].steps;
+  const writer = steps.find((step: { id?: string }) => step.id === "applied");
+  assert.equal(writer.env.AW_STATUS_KEYRING, "${{ secrets.AW_STATUS_KEYRING }}");
+  assert.equal(writer.env.TARGET_REPOSITORY, "${{ matrix.repository }}");
+  assert.match(
+    settings.jobs["resolve-managed"].outputs.repositories,
+    /steps\.policy\.outputs\.repositories/
+  );
+});
