@@ -8,6 +8,8 @@ type Step = {
   id?: string;
   uses?: string;
   env?: Record<string, string>;
+  run?: string;
+  if?: string;
   with?: Record<string, string>;
 };
 
@@ -77,4 +79,38 @@ test("dependency repair never uses the read credential to push generated changes
   assert.match(script, /gitPushEnvironment\(pushToken\)/);
   assert.doesNotMatch(script, /gitPushEnvironment\(token\)/);
   assert.match(script, /no control PAT fallback is permitted/);
+});
+
+test("Node repair adapters reuse central versions and cannot publish arbitrary files", async () => {
+  const source = await readFile(".github/workflows/dependency-repair-dispatch.yml", "utf8");
+  const workflow = parse(source) as { jobs: Record<string, Job> };
+  const steps = workflow.jobs.compute?.steps ?? [];
+  const find = (name: string) => {
+    const step = steps.find((item) => item.name === name);
+    assert.ok(step);
+    return step;
+  };
+  assert.match(find("Resolve central Node repair versions").run ?? "", /resolve-runtime-versions/);
+  assert.equal(
+    find("Setup central Node for lock repair").with?.["node-version"],
+    "${{ steps.runtime.outputs.node }}"
+  );
+  assert.match(find("Verify public Node repair scope").run ?? "", /IS_PRIVATE.*false/);
+  assert.ok(
+    steps.indexOf(find("Verify public Node repair scope")) <
+      steps.indexOf(find("Checkout private target source"))
+  );
+  assert.match(find("Install central pnpm repair tool").run ?? "", /--ignore-scripts/);
+  assert.match(find("Run npm lock adapter").run ?? "", /--package-lock-only --ignore-scripts/);
+  assert.match(
+    find("Run pnpm lock adapter").run ?? "",
+    /--lockfile-only --ignore-scripts --ignore-pnpmfile/
+  );
+  assert.ok(
+    steps.indexOf(find("Confine generated outputs")) > steps.indexOf(find("Run pnpm lock adapter"))
+  );
+  assert.equal(
+    find("Run pnpm lock adapter").env?.PNPM_VERSION,
+    "${{ steps.runtime.outputs.pnpm }}"
+  );
 });

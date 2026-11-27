@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
   parseDependencyRepairManifest,
   parseDependencyRepairRequest,
   resolveDependencyRepairFacts,
+  resolveRepairFile,
   selectDependencyRepair,
 } from "../scripts/dependency-repair.ts";
 import { needsDependencyRepair } from "../scripts/intake-open-prs.ts";
@@ -216,4 +220,89 @@ test("repair manifest path interpolates the repository and base SHA", () => {
     repairManifestPath("fongap-labs/delta", baseSha),
     `repos/fongap-labs/delta/contents/.github/dependency-repair.json?ref=${baseSha}`
   );
+});
+
+test("Node lock repair grants use central tools and one exact lockfile in the working directory", () => {
+  const npm = {
+    ...manifest.repairs[0],
+    id: "npm-lock",
+    adapter: "npm-lock",
+    tool_version: "central",
+    working_directory: "apps/web",
+    trigger_paths: ["apps/web/package.json", "apps/web/packages/app/package.json"],
+    output_paths: ["apps/web/package-lock.json"],
+  };
+  const pnpm = {
+    ...npm,
+    id: "pnpm-lock",
+    adapter: "pnpm-lock",
+    trigger_paths: ["apps/web/package.json", "apps/web/pnpm-workspace.yaml"],
+    output_paths: ["apps/web/pnpm-lock.yaml"],
+  };
+  assert.deepEqual(parseDependencyRepairManifest({ ...manifest, repairs: [npm, pnpm] }), {
+    ...manifest,
+    repairs: [npm, pnpm],
+  });
+  for (const rule of [
+    { ...npm, tool_version: "11.0.0" },
+    { ...npm, output_paths: ["apps/web/package-lock.json", "src/main.ts"] },
+    { ...npm, output_paths: ["package-lock.json"] },
+    { ...npm, trigger_paths: ["apps/other/package.json"] },
+    { ...npm, working_directory: ".git", output_paths: [".git/package-lock.json"] },
+    { ...pnpm, output_paths: ["apps/web/package-lock.json"] },
+    { ...manifest.repairs[0], output_paths: [".git/config"] },
+  ]) {
+    assert.throws(() => parseDependencyRepairManifest({ ...manifest, repairs: [rule] }));
+  }
+});
+
+test("Node lock repair is restricted to public main PRs and never managed head branches", () => {
+  const rule = {
+    ...manifest.repairs[0],
+    id: "npm-lock",
+    adapter: "npm-lock",
+    tool_version: "central",
+    trigger_paths: ["package.json"],
+    output_paths: ["package-lock.json"],
+  };
+  const grant = parseDependencyRepairManifest({ ...manifest, repairs: [rule] });
+  const facts = {
+    repository: "fongap-labs/example",
+    pr_number: 7,
+    head_sha: sha,
+    head_ref: "dependabot/npm/example",
+    base_sha: baseSha,
+    base_ref: "main",
+    is_public: true,
+    actor: "dependabot[bot]",
+    changed_paths: ["package.json"],
+  };
+  assert.equal(selectDependencyRepair(grant, facts)?.adapter, "npm-lock");
+  assert.equal(selectDependencyRepair(grant, { ...facts, base_ref: "dev" }), null);
+  assert.equal(selectDependencyRepair(grant, { ...facts, is_public: false }), null);
+  assert.equal(selectDependencyRepair(grant, { ...facts, head_ref: "main" }), null);
+  assert.equal(selectDependencyRepair(grant, { ...facts, head_ref: "dev" }), null);
+});
+
+test("repair file grants reject symlinks in the output and every ancestor", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "repair-path-"));
+  try {
+    const root = join(directory, "repository");
+    const outside = join(directory, "outside");
+    await mkdir(root);
+    await mkdir(outside);
+    await writeFile(join(root, "package-lock.json"), "{}");
+    await writeFile(join(outside, "package-lock.json"), "{}");
+    await symlink(outside, join(root, "linked"), "junction");
+    assert.equal(
+      await resolveRepairFile(root, "package-lock.json"),
+      join(root, "package-lock.json")
+    );
+    assert.equal(await resolveRepairFile(root, "uv.lock", true), join(root, "uv.lock"));
+    await assert.rejects(resolveRepairFile(root, "linked/package-lock.json"));
+    await assert.rejects(resolveRepairFile(root, "linked/uv.lock", true));
+    await assert.rejects(resolveRepairFile(root, ".git/config", true));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

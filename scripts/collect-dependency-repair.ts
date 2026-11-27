@@ -1,5 +1,6 @@
 import { copyFile, mkdir, stat } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
+import { resolveRepairFile } from "./dependency-repair.ts";
 import {
   appendLines,
   CliError,
@@ -81,7 +82,7 @@ async function main(): Promise<void> {
   }
 
   for (const relative of changed) {
-    const source = confined(targetRoot, relative);
+    const source = await resolveRepairFile(targetRoot, relative);
     const details = await stat(source);
     if (!details.isFile() || details.size > 50 * 1024 * 1024) {
       throw new CliError(
@@ -91,6 +92,7 @@ async function main(): Promise<void> {
     }
     const destination = confined(stagingRoot, relative);
     await mkdir(dirname(destination), { recursive: true });
+    await resolveRepairFile(stagingRoot, relative, true);
     await copyFile(source, destination);
   }
 
