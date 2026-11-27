@@ -25,6 +25,7 @@ import { takeProtectionReadToken, withProtectionReads } from "./protection-read-
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { resolveCiCapabilities } from "./resolve-ci-capabilities.ts";
 import { changedFiles, resolveCiControlDecision } from "./resolve-ci-control-ref.ts";
+import { isManagedTransferDirection } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
@@ -33,7 +34,7 @@ export function assertTransferCompare(scope: PrCiScope, compare: unknown): void 
   if (
     !isJsonRecord(compare) ||
     compare.status !== "ahead" ||
-    getJsonNumber(compare, "behind_by") !== 0 ||
+    compare.behind_by !== 0 ||
     getJsonNumber(compare, "ahead_by") < 1 ||
     getJsonString(compare.merge_base_commit, "sha") !== scope.baseSha
   ) {
@@ -54,6 +55,9 @@ export function assertTransferReady(
   if (
     prCiScopeDescription(scope) !== expected ||
     !isJsonRecord(pull) ||
+    pull.number !== scope.prNumber ||
+    !isManagedTransferDirection(pull, scope.repository) ||
+    getJsonString(pull.base, "ref") !== scope.targetBranch ||
     pull.state !== "open" ||
     pull.draft !== false ||
     pull.mergeable !== true ||

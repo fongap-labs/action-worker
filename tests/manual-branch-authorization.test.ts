@@ -28,7 +28,13 @@ test("branch authorization reuses admin-ops and never signs an unchecked request
   });
   assert.equal(workflow.on.workflow_dispatch.inputs.source_sha?.required, false);
   assert.equal(workflow.on.workflow_dispatch.inputs.transfer_snapshot?.required, false);
-  assert.deepEqual(Object.keys(workflow.jobs), ["authorize"]);
+  assert.deepEqual(Object.keys(workflow.jobs), [
+    "authorize",
+    "transfer-governance",
+    "transfer-linux",
+    "transfer-windows",
+    "transfer-execute",
+  ]);
   const job = workflow.jobs.authorize!;
   assert.deepEqual(job.environment, { name: "admin-ops", deployment: false });
   const steps = job.steps;
@@ -70,7 +76,11 @@ test("branch authorization reuses admin-ops and never signs an unchecked request
   assert.ok(steps.indexOf(ref) < steps.indexOf(approve));
   assert.equal(approve.env?.AW_DEV_REF_TOKEN, "${{ steps.ref_app.outputs.token }}");
   assert.doesNotMatch(source, /name: branch-transfer/);
-  assert.equal(source.match(/permission-contents: write/g)?.length, 1);
+  assert.equal(source.match(/permission-contents: write/g)?.length, 2);
+  assert.equal(source.match(/permission-pull-requests: write/g)?.length, 1);
+  assert.ok(source.includes("needs.transfer-governance.result == 'success'"));
+  assert.ok(source.includes("needs.transfer-linux.result == 'success'"));
+  assert.ok(source.includes("scripts/branch-transfer-execution.ts execute"));
 });
 
 test("source SHA is automatically resolved from main or PR HEAD when omitted", async () => {

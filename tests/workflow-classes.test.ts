@@ -267,7 +267,13 @@ test("only approved entry, diagnostics and private operations expose manual disp
     }
     if (kind === "branchAuthorization") {
       assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], file);
-      assert.deepEqual(Object.keys(workflow.jobs ?? {}), ["authorize"]);
+      assert.deepEqual(Object.keys(workflow.jobs ?? {}), [
+        "authorize",
+        "transfer-governance",
+        "transfer-linux",
+        "transfer-windows",
+        "transfer-execute",
+      ]);
       const job = workflow.jobs?.authorize as Job & {
         environment?: { name: string; deployment: boolean };
         if?: string;
@@ -286,8 +292,27 @@ test("only approved entry, diagnostics and private operations expose manual disp
       assert.equal(writer.if, "inputs.confirm && inputs.operation == 'initialize-dev'");
       assert.equal(writer.uses, "./.github/actions/mint-app-token");
       assert.equal(writer.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
-      assert.equal(source.match(/permission-contents: write/g)?.length, 1);
+      assert.equal(source.match(/permission-contents: write/g)?.length, 2);
       assert.doesNotMatch(source, /name: branch-transfer/);
+      const execute = workflow.jobs?.["transfer-execute"] as Job & {
+        environment?: { name: string; deployment: boolean };
+        if?: string;
+        needs?: string[];
+      };
+      assert.deepEqual(execute.environment, { name: "admin-ops", deployment: false });
+      assert.deepEqual(execute.needs, [
+        "authorize",
+        "transfer-governance",
+        "transfer-linux",
+        "transfer-windows",
+      ]);
+      assert.ok(execute.if?.includes("inputs.confirm"));
+      const transferWriters = (execute.steps ?? []).filter(
+        (step) => step.with?.["permission-contents"] === "write"
+      );
+      assert.equal(transferWriters.length, 1);
+      assert.equal(transferWriters[0]?.id, "transfer_writer");
+      assert.equal(transferWriters[0]?.with?.["permission-pull-requests"], "write");
       assert.match(source, /if: inputs.confirm/);
       assert.match(source, /scripts\/authorize-branch-operation\.ts verify/);
       assert.match(source, /scripts\/authorize-branch-operation\.ts approve/);
