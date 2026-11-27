@@ -5,6 +5,7 @@ import { parse } from "yaml";
 import {
   completedDevMergePublisher,
   matchesCompletedDevMerge,
+  requiresDevBootstrapAudit,
 } from "../scripts/audit-dev-writes.ts";
 import { engineeringLineViolation } from "../scripts/validate-engineering-language.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
@@ -102,8 +103,11 @@ test("completion only runs the existing dev audit, not the rest of intake", () =
   assert.match(audit.if, /github\.event\.workflow_run\.event == 'repository_dispatch'/);
   assert.equal(audit.environment, undefined);
   const full = intake.jobs["dev-writes"];
-  assert.equal(full.if, "github.event_name != 'workflow_run'");
+  assert.equal(full.needs, "dev-merge-audit");
+  assert.match(full.if, /needs\.dev-merge-audit\.outputs\.bootstrap_required == 'true'/);
+  assert.match(full.if, /github\.event_name != 'workflow_run'/);
   assert.equal(full.environment.name, "admin-ops");
+  assert.equal(audit.outputs.bootstrap_required, "${{ steps.audit.outputs.bootstrap_required }}");
   for (const item of audit.steps) {
     assert.doesNotMatch(JSON.stringify(item), /AW_ADMIN_TOKEN|AW_PROTECTION_READ_TOKEN/);
   }
@@ -111,7 +115,10 @@ test("completion only runs the existing dev audit, not the rest of intake", () =
     (item: { name?: string }) => item.name === "Audit managed dev branches"
   );
   assert.equal(step.run, "node scripts/audit-dev-writes.ts");
-  assert.equal(step.env.DEV_WRITE_AUDIT_MODE, "merge");
+  assert.equal(
+    step.env.DEV_WRITE_AUDIT_MODE,
+    "${{ github.event_name == 'workflow_run' && 'merge' || 'sweep' }}"
+  );
   const wake = audit.steps.find(
     (item: { name?: string }) => item.name === "Wake authorized Beta deployment intake"
   );
@@ -120,4 +127,53 @@ test("completion only runs the existing dev audit, not the rest of intake", () =
   assert.equal(intake.concurrency.group, "intake");
   assert.equal(intake.concurrency["cancel-in-progress"], false);
   assert.ok(intake.on.schedule.length);
+});
+
+test("only signed bootstrap or a matching public baseline requests admin reconciliation", async () => {
+  let reads = 0;
+  const reader = {
+    async get(path: string) {
+      assert.equal(path, `repos/${repository}/branches/main`);
+      reads += 1;
+      return { commit: { sha } };
+    },
+  };
+  const receipt = {
+    context: "Dev Bootstrap Authorization",
+    state: "success",
+    description: `init-v1=${sha}`,
+  };
+  const merged = {
+    context: "Dev Merge Receipt",
+    state: "success",
+    description: `merge-v1=${mergeSha}`,
+  };
+  const signed = (status: typeof receipt) =>
+    attestFixtureStatuses({ statuses: [status] }, repository, sha);
+  const check = (statuses: unknown, isPublic = true, automatic = true) =>
+    requiresDevBootstrapAudit(reader, repository, sha, statuses, control, isPublic, automatic);
+  assert.equal(await check(signed(receipt)), true);
+  assert.equal(await check(signed(merged)), false);
+  assert.equal(await check({ statuses: [] }, false), false);
+  assert.equal(await check({ statuses: [] }, true, false), false);
+  assert.equal(
+    await requiresDevBootstrapAudit(reader, control, sha, { statuses: [] }, control, true, true),
+    false
+  );
+  assert.equal(reads, 0);
+  assert.equal(await check({ statuses: [] }), true);
+  assert.equal(await check({ statuses: [receipt] }), true);
+  assert.equal(reads, 2);
+  assert.equal(
+    await requiresDevBootstrapAudit(
+      { get: async () => ({ commit: { sha: mergeSha } }) },
+      repository,
+      sha,
+      { statuses: [] },
+      control,
+      true,
+      true
+    ),
+    false
+  );
 });

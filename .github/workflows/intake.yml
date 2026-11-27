@@ -255,8 +255,9 @@ jobs:
         run: node scripts/audit-branch-drift.ts
 
   dev-writes:
-    if: github.event_name != 'workflow_run'
-    name: Dev write audit
+    needs: dev-merge-audit
+    if: ${{ !cancelled() && needs.dev-merge-audit.result == 'success' && needs.dev-merge-audit.outputs.bootstrap_required == 'true' && github.event_name != 'workflow_run' }}
+    name: Dev bootstrap reconciliation
     environment:
       name: admin-ops
       deployment: false
@@ -331,16 +332,18 @@ jobs:
 
   dev-merge-audit:
     if: >-
-      github.event_name == 'workflow_run' &&
+      github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.event == 'repository_dispatch')
-    name: Dev merge write audit
+    name: Dev write audit
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
+    outputs:
+      bootstrap_required: ${{ steps.audit.outputs.bootstrap_required }}
 
     steps:
       - name: Checkout control plane
@@ -403,8 +406,8 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
           DEV_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          DEV_WRITE_AUDIT_TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
-          DEV_WRITE_AUDIT_MODE: merge
+          DEV_WRITE_AUDIT_TRIGGER_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
+          DEV_WRITE_AUDIT_MODE: ${{ github.event_name == 'workflow_run' && 'merge' || 'sweep' }}
         run: node scripts/audit-dev-writes.ts
 
       - name: Mint control dispatch token
