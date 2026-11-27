@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { scanOpenPullRequests } from "../scripts/intake-open-prs.ts";
+import { scanOpenPullRequests, shouldResumeDevMerge } from "../scripts/intake-open-prs.ts";
 import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
@@ -730,4 +731,83 @@ test("intake routes trusted public dev PRs without consuming main gates or repai
   assert.deepEqual(reserved, ["Dev PR Governance"]);
   assert.equal(result.dispatched, 1);
   assert.equal(result.blocked_unauthorized, 2);
+});
+
+test("a green dev PR wakes only after a newer trusted baseline and live enrollment", async () => {
+  const repository = "fongap-labs/example";
+  const control = "fongap-labs/action-worker";
+  const scope = {
+    repository,
+    prNumber: 7,
+    targetBranch: "dev",
+    baseSha: shaB,
+    headSha: shaA,
+    mergeSha: shaC,
+  };
+  const policy = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
+  const enrolled = { ...policy, dev_merge_repositories: [repository] };
+  const prior = { run_id: 55, updated_at: "2026-11-26T10:00:00Z" };
+  const baseStatus = {
+    context: "Dev Write Guard",
+    state: "success",
+    description: `init-v1=${shaB}`,
+    created_at: "2026-11-26T11:00:00Z",
+    target_url: `https://github.com/${control}/actions/runs/56`,
+  };
+  const rules = [
+    { type: "pull_request" },
+    {
+      type: "required_status_checks",
+      parameters: {
+        strict_required_status_checks_policy: true,
+        required_status_checks: [{ context: "validate-merge-dev", integration_id: 5609149 }],
+      },
+    },
+  ];
+  const prefix = `repos/${repository}`;
+  const responses = new Map<string, unknown>([
+    [`${prefix}/commits/${shaB}/status`, { statuses: [baseStatus] }],
+    [
+      `repos/${control}/actions/runs/56`,
+      {
+        id: 56,
+        repository: { full_name: control },
+        path: ".github/workflows/intake.yml",
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        run_started_at: "2026-11-26T10:59:00Z",
+        updated_at: "2026-11-26T11:01:00Z",
+      },
+    ],
+    [`${prefix}/issues?state=open&per_page=100&page=1`, []],
+    [`repos/${control}/actions/runs/55`, { status: "completed" }],
+    [`${prefix}/rules/branches/dev`, rules],
+  ]);
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.ok(responses.has(path), path);
+      return attestFixtureResponseForPath(path, responses.get(path));
+    },
+  };
+  assert.equal(await shouldResumeDevMerge(reader, enrolled, scope, control, prior), true);
+  assert.equal(await shouldResumeDevMerge(reader, policy, scope, control, prior), false);
+  assert.equal(
+    await shouldResumeDevMerge(reader, enrolled, scope, control, {
+      ...prior,
+      updated_at: "2026-11-26T11:02:00Z",
+    }),
+    false
+  );
+  responses.set(`${prefix}/rules/branches/dev`, [...rules, { type: "update" }]);
+  assert.equal(await shouldResumeDevMerge(reader, enrolled, scope, control, prior), false);
+  responses.set(`${prefix}/rules/branches/dev`, rules);
+  responses.set(`repos/${control}/actions/runs/55`, { status: "in_progress" });
+  assert.equal(await shouldResumeDevMerge(reader, enrolled, scope, control, prior), false);
+  responses.set(`repos/${control}/actions/runs/55`, { status: "completed" });
+  responses.set(`${prefix}/issues?state=open&per_page=100&page=1`, [
+    { number: 614, title: "Dev write incident: example", author_association: "OWNER" },
+  ]);
+  responses.set(`${prefix}/issues/614/comments?per_page=100`, []);
+  assert.equal(await shouldResumeDevMerge(reader, enrolled, scope, control, prior), false);
 });

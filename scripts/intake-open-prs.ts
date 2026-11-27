@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
 import { trustedControlRunId } from "./ci-evidence.ts";
 import {
   devGovernanceReceipt,
+  type PrCiScope,
   prCiScopeDescription,
   readCurrentPrCiScope,
 } from "./ci-scope-receipt.ts";
@@ -10,16 +12,23 @@ import {
   resolveDependencyRepairFacts,
   selectDependencyRepair,
 } from "./dependency-repair.ts";
+import { devMergePolicyEnabled } from "./dev-merge-execution.ts";
+import { hasVerifiedDevWriteGuard } from "./dev-write-guard.ts";
 import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
+import { findActiveIncidents } from "./main-write-incidents.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { evaluatePrTrust } from "./pr-trust.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { isManagedBranchRef } from "./resolve-pr-facts.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
-import { hasValidStatusAttestation, originalStatusDescription } from "./status-attestation.ts";
+import {
+  hasValidStatusAttestation,
+  latestAttestedStatus,
+  originalStatusDescription,
+} from "./status-attestation.ts";
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
@@ -309,6 +318,71 @@ async function repairState(
   return "dispatch";
 }
 
+/** A newer trusted base can wake a green but unmerged dev PR once. This is not merge admission. */
+export async function shouldResumeDevMerge(
+  reader: GithubGet,
+  rulesetPolicy: unknown,
+  scope: PrCiScope,
+  controlRepository: string,
+  governance: Pick<StatusFact, "run_id" | "updated_at">
+): Promise<boolean> {
+  if (
+    scope.targetBranch !== "dev" ||
+    !rulesetPolicy ||
+    !devMergePolicyEnabled(rulesetPolicy, scope.repository, controlRepository)
+  ) {
+    return false;
+  }
+  const prior = Date.parse(governance.updated_at);
+  if (!Number.isFinite(prior)) return false;
+  const prefix = `repos/${scope.repository}`;
+  const statuses = await reader.get(`${prefix}/commits/${scope.baseSha}/status`);
+  const guard = latestAttestedStatus(statuses, {
+    repository: scope.repository,
+    sha: scope.baseSha,
+    context: "Dev Write Guard",
+  });
+  const guardAt = Date.parse(getJsonString(guard, "created_at"));
+  // A retry publishes new governance statuses. The same base audit cannot wake it again.
+  if (guard?.state !== "success" || !Number.isFinite(guardAt) || guardAt <= prior) return false;
+  if (
+    !(await hasVerifiedDevWriteGuard(
+      reader,
+      scope.repository,
+      scope.baseSha,
+      statuses,
+      controlRepository
+    )) ||
+    (await findActiveIncidents(reader, scope.repository, "dev")).length > 0
+  ) {
+    return false;
+  }
+  const run = await reader.get(`repos/${controlRepository}/actions/runs/${governance.run_id}`);
+  if (getJsonString(run, "status") !== "completed") return false;
+  // Wait for repository settings to apply the enrolled policy. The merge executor
+  // still performs its own privileged live protection and signed admission checks.
+  const rules = await reader.get(`${prefix}/rules/branches/dev`);
+  if (!Array.isArray(rules)) return false;
+  const live = rules.filter(isJsonRecord);
+  if (live.some((rule) => rule.type === "update")) return false;
+  return (
+    live.some((rule) => rule.type === "pull_request") &&
+    live.some(
+      (rule) =>
+        rule.type === "required_status_checks" &&
+        isJsonRecord(rule.parameters) &&
+        rule.parameters.strict_required_status_checks_policy === true &&
+        Array.isArray(rule.parameters.required_status_checks) &&
+        rule.parameters.required_status_checks.some(
+          (check) =>
+            isJsonRecord(check) &&
+            check.context === "validate-merge-dev" &&
+            check.integration_id === 5609149
+        )
+    )
+  );
+}
+
 export async function scanOpenPullRequests(
   policyValue: unknown,
   reader: GithubGet,
@@ -316,7 +390,8 @@ export async function scanOpenPullRequests(
   controlRepository: string,
   dispatchRepair?: Dispatch,
   reserve?: Reserve,
-  onlyRepository = ""
+  onlyRepository = "",
+  rulesetPolicy?: unknown
 ): Promise<IntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr").filter(
     (repository) =>
@@ -390,6 +465,17 @@ export async function scanOpenPullRequests(
               gate.description !== expected ||
               gate.run_id !== governance.run_id ||
               evidence.description !== prCiScopeDescription(scope)
+            ) {
+              action = "dispatch";
+            } else if (
+              pull.pull.draft === false &&
+              (await shouldResumeDevMerge(
+                reader,
+                rulesetPolicy,
+                scope,
+                controlRepository,
+                governance
+              ))
             ) {
               action = "dispatch";
             }
@@ -649,7 +735,8 @@ async function main(): Promise<void> {
         description
       );
     },
-    target
+    target,
+    parseJson(readFileSync("policies/rulesets.json", "utf8"), "Invalid ruleset policy.", 65)
   );
 
   console.log(JSON.stringify(result));
