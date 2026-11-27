@@ -165,12 +165,19 @@ test("engineering proposal resolves only catalogued dev dependencies", () => {
     ]),
   };
   const publicResult = buildEngineeringProposal(policy, repo, "dev", snapshot, date, true);
-  const manifestResult = JSON.parse(publicResult.changes.find((item) => item.path === "package.json")?.content ?? "");
+  const manifestResult = JSON.parse(
+    publicResult.changes.find((item) => item.path === "package.json")?.content ?? ""
+  );
   assert.equal(publicResult.lockPath, "package-lock.json");
-  assert.equal(manifestResult.devDependencies.typescript, policy.catalog.get("npm:typescript")?.version);
+  assert.equal(
+    manifestResult.devDependencies.typescript,
+    policy.catalog.get("npm:typescript")?.version
+  );
   assert.equal(manifestResult.devDependencies.vite, "7.0.0");
   const privateResult = buildEngineeringProposal(policy, repo, "main", snapshot, date, false);
   assert.equal(privateResult.lockPath, null);
-  const privateManifest = JSON.parse(privateResult.changes.find((item) => item.path === "package.json")?.content ?? "");
+  const privateManifest = JSON.parse(
+    privateResult.changes.find((item) => item.path === "package.json")?.content ?? ""
+  );
   assert.equal(privateManifest.devDependencies.typescript, "6.0.3");
 });
