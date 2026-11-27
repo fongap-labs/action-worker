@@ -35,7 +35,6 @@ export async function resolveDevSettings(
   const repositories = repositoriesForCapability(policy, "pr");
   const changed: string[] = [];
   for (const repository of repositories) {
-    if (repository === controlRepository) continue;
     const prefix = `repos/${repository}`;
     const branch = await getGithubJsonIfExists(`${prefix}/branches/dev`, (path) =>
       reader.get(path)

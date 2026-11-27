@@ -358,3 +358,18 @@ test("temporary Delta #99 draft deferral never produces passing CI evidence", ()
   assert.ok(sandbox.includes("$draftArgs.DraftRemediation = $true"));
   assert.ok(windows.includes("  Invoke-Checked 'python.exe'"));
 });
+
+test("controller dev reuses full self CI, without secrets or a second merge writer", () => {
+  const start = workflow.indexOf("  controller-dev-ci:");
+  const end = workflow.indexOf("  linux:", start);
+  const job = workflow.slice(start, end);
+  assert.match(job, /uses: \.\/\.github\/workflows\/validate-ci\.yml/);
+  assert.match(job, /dev_merge_sha: \$\{\{ needs\.prepare\.outputs\.merge_sha \}\}/);
+  assert.doesNotMatch(job, /secrets:|permission-contents: write/);
+  assert.match(workflow, /CONTROLLER_DEV_RESULT:/);
+  assert.match(workflow, /LINUX_RESULT="\$CONTROLLER_DEV_RESULT"/);
+  const self = readFileSync(".github/workflows/validate-ci.yml", "utf8");
+  assert.match(self, /workflow_call:/);
+  assert.match(self, /inputs\.dev_merge_sha == '' && github\.event_name == 'pull_request'/);
+  assert.match(self, /Require private inventory validation before controller contract changes/);
+});

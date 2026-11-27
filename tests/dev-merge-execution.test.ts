@@ -98,9 +98,21 @@ test("automatic policy derives dev rules for every eligible repository without a
       true
     );
   }
-  for (const repository of [identity.controlRepository, "outside/example"]) {
-    assert.equal(devMergePolicyEnabled(policy, repository, identity.controlRepository), false);
-  }
+  assert.equal(devMergePolicyEnabled(policy, "outside/example", identity.controlRepository), false);
+  const controller = managedRepositoryRulesets(
+    policy,
+    identity.controlRepository,
+    identity.controlRepository
+  );
+  const main = controller.find((rule) => rule.name === "Protect Main Branch");
+  const dev = controller.find((rule) => rule.name === "Protect Dev Branch");
+  assert.equal(protectedMergeRuleset(main, "main", true), true);
+  assert.equal(protectedMergeRuleset(main, "main"), false);
+  assert.equal(protectedMergeRuleset(dev, "dev", true), true);
+  assert.equal(
+    devMergePolicyEnabled(policy, identity.controlRepository, identity.controlRepository),
+    true
+  );
   assert.equal(Object.hasOwn(policy, "dev_merge_repositories"), false);
   assert.throws(() =>
     managedRepositoryRulesets(

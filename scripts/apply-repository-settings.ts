@@ -139,7 +139,6 @@ export function managedRepositoryRulesets(
   if (
     mode === "closed" ||
     !isDevReady ||
-    repository === controlRepository ||
     !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository)
   ) {
     return scoped;
@@ -178,7 +177,6 @@ export async function isDevEnrollmentReady(
   repository: string,
   controlRepository: string
 ): Promise<boolean> {
-  if (repository === controlRepository) return false;
   const prefix = `repos/${repository}`;
   const metadata = await reader.get(prefix);
   if (!isJsonRecord(metadata) || metadata.full_name !== repository) {

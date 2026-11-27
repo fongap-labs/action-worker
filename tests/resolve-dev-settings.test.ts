@@ -32,6 +32,8 @@ test("settings continuation selects current signed guards from the completed aud
   };
   const responses = new Map<string, unknown>([
     [runPath, run],
+    [`repos/${control}/branches/dev`, { commit: { sha } }],
+    [`repos/${control}/commits/${sha}/status`, { statuses: [] }],
     [`repos/${alpha}/branches/dev`, { commit: { sha } }],
     [`repos/${beta}/branches/dev`, { commit: { sha } }],
     [
@@ -48,6 +50,12 @@ test("settings continuation selects current signed guards from the completed aud
   };
   const resolve = () => resolveDevSettings(reader, policy, control, runId);
   assert.deepEqual(await resolve(), [alpha]);
+  responses.set(
+    `repos/${control}/commits/${sha}/status`,
+    attestFixtureStatuses({ statuses: [status] }, control, sha)
+  );
+  assert.deepEqual(await resolve(), [control, alpha].sort());
+  responses.set(`repos/${control}/commits/${sha}/status`, { statuses: [] });
   responses.set(
     `repos/${alpha}/commits/${sha}/status`,
     attestFixtureStatuses({ statuses: [{ ...status, target_url: target + "1" }] }, alpha, sha)

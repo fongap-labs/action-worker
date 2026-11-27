@@ -17,7 +17,11 @@ const appId = 5609149;
 const shaPattern = /^[0-9a-f]{40}$/;
 
 /** The central ruleset, not an environment flag or a dispatch payload, controls activation. */
-export function protectedMergeRuleset(value: unknown, branch: "main" | "dev"): boolean {
+export function protectedMergeRuleset(
+  value: unknown,
+  branch: "main" | "dev",
+  isController = false
+): boolean {
   if (
     !isJsonRecord(value) ||
     value.target !== "branch" ||
@@ -44,6 +48,7 @@ export function protectedMergeRuleset(value: unknown, branch: "main" | "dev"): b
   const pr = rules.find((rule) => rule.type === "pull_request")?.parameters;
   const checks = rules.find((rule) => rule.type === "required_status_checks")?.parameters;
   const context = branch === "dev" ? "validate-merge-dev" : "validate-merge";
+  const integrationId = branch === "main" && isController ? 15368 : appId;
   return (
     isJsonRecord(pr) &&
     Array.isArray(pr.allowed_merge_methods) &&
@@ -53,7 +58,8 @@ export function protectedMergeRuleset(value: unknown, branch: "main" | "dev"): b
     checks.strict_required_status_checks_policy === true &&
     Array.isArray(checks.required_status_checks) &&
     checks.required_status_checks.some(
-      (check) => isJsonRecord(check) && check.context === context && check.integration_id === appId
+      (check) =>
+        isJsonRecord(check) && check.context === context && check.integration_id === integrationId
     )
   );
 }
@@ -71,12 +77,17 @@ export function devMergePolicyEnabled(
     ) &&
     protectedMergeRuleset(
       rulesets.find((rule) => rule.name === "Protect Main Branch"),
-      "main"
+      "main",
+      repository === controlRepository
     )
   );
 }
 
-async function requireLiveProtection(reader: JsonReader, repository: string): Promise<void> {
+async function requireLiveProtection(
+  reader: JsonReader,
+  repository: string,
+  controlRepository: string
+): Promise<void> {
   const rulesets = getJsonArray(
     await reader.get(`repos/${repository}/rulesets?includes_parents=false&per_page=100`)
   );
@@ -90,7 +101,7 @@ async function requireLiveProtection(reader: JsonReader, repository: string): Pr
     const detail = await reader.get(
       `repos/${repository}/rulesets/${rule.id}?includes_parents=false`
     );
-    if (!protectedMergeRuleset(detail, branch)) {
+    if (!protectedMergeRuleset(detail, branch, repository === controlRepository)) {
       throw new CliError("Live branch protection does not match the reviewed merge boundary.", 75);
     }
   }
@@ -114,9 +125,6 @@ export async function authorizeDevMerge(
     return undefined;
   }
   const { repository, prNumber, headSha, baseSha, runUrl, controlRepository } = identity;
-  if (repository === controlRepository) {
-    throw new CliError("Development merge of the control repository is not enabled.", 75);
-  }
   const source = await reader.get(`repos/${repository}`);
   if (
     !isJsonRecord(source) ||
@@ -126,7 +134,7 @@ export async function authorizeDevMerge(
   ) {
     throw new CliError("Dev merge requires a protected public managed repository.", 75);
   }
-  await requireLiveProtection(reader, repository);
+  await requireLiveProtection(reader, repository, controlRepository);
   // The first dev baseline requires its own reviewed authorization. No implicit main trust.
   await assertTrustedDevWrite(reader, repository, baseSha, controlRepository);
   const scope = await verifyDevMergeAdmission(
