@@ -42,6 +42,8 @@ export function withProtectionReads(
     try {
       result = await privileged.get(path);
     } catch (error) {
+      // Preserve the exact platform capability verdict; never translate generic 403s to it.
+      if (error instanceof GithubHttpError && error.kind === "plan-restriction") throw error;
       if (
         error instanceof GithubHttpError &&
         (error.status === 404 || error.kind === "permission")

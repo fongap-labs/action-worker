@@ -6,10 +6,12 @@ import {
   bootstrapApprovalComment,
   DevBootstrapPendingError,
   isClosedDevProtection,
+  readClosedDevProtection,
   verifyAuthorizedDevBootstrap,
   verifyAutomaticDevAdoption,
   verifyBootstrapSource,
 } from "../scripts/dev-bootstrap-authorization.ts";
+import { GithubHttpError } from "../scripts/github-api.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/example";
@@ -168,10 +170,18 @@ test("adoption reuses the manual admin workflow but cannot mint a branch-write t
     workflow,
     /if: inputs\.confirm && inputs\.operation == 'initialize-dev'\n\s+id: ref_app/
   );
-  assert.match(script, /if \(!adopt\) \{\n\s+await initializeProtectedDev/);
+  const creation = script.slice(
+    script.indexOf("    if (!adopt) {"),
+    script.indexOf("    if (\n      (await verifyBootstrapSource")
+  );
+  assert.ok(creation.startsWith("    if (!adopt) {"));
+  assert.match(creation, /if \(protection === "compensating"\) \{/);
+  assert.match(creation, /await initializeCompensatedDev\(/);
+  assert.match(creation, /else \{\n\s+await initializeProtectedDev\(/);
+  assert.equal(script.match(/await initialize(?:Compensated|Protected)Dev\(/g)?.length, 2);
   assert.match(
     script,
-    /verifyBootstrapSource\(reader, repository, sha, controlRepository, adopt\)/
+    /verifyBootstrapSource\(\s*reader,\s*repository,\s*sha,\s*controlRepository,\s*adopt\s*\)/
   );
 });
 
@@ -273,5 +283,28 @@ test("controller bootstrap requires closed protection and trusted main, not auto
   await assert.rejects(
     verifyBootstrapSource(reader, control, sha, control, true),
     /closed live protection/
+  );
+});
+
+test("only an explicit private plan restriction permits compensated initialization", async () => {
+  const limited = new GithubHttpError(403, undefined, { kind: "plan-restriction" });
+  const reader = (error: unknown) => ({
+    async get(): Promise<unknown> {
+      throw error;
+    },
+  });
+  assert.equal(await readClosedDevProtection(reader(limited), repository, true), "compensating");
+  await assert.rejects(readClosedDevProtection(reader(limited), repository, false), /HTTP 403/);
+  for (const error of [
+    new GithubHttpError(403, undefined, { kind: "permission" }),
+    new GithubHttpError(403, undefined, { kind: "primary-rate-limit" }),
+    new GithubHttpError(404),
+    new GithubHttpError(500),
+  ]) {
+    await assert.rejects(readClosedDevProtection(reader(error), repository, true));
+  }
+  await assert.rejects(
+    readClosedDevProtection({ get: async () => [] }, repository, true),
+    /Closed development ruleset is missing/
   );
 });

@@ -5,7 +5,12 @@ import {
   postMergeRemediationStatusPrefix,
   trustedControlRunId,
 } from "./ci-evidence.ts";
-import { getGithubJsonIfExists, getJsonString, isJsonRecord } from "./github-api.ts";
+import {
+  GithubHttpError,
+  getGithubJsonIfExists,
+  getJsonString,
+  isJsonRecord,
+} from "./github-api.ts";
 import { assertNoOpenManagedWriteIncidents } from "./main-write-incidents.ts";
 import { CliError } from "./runtime-command.ts";
 import { latestAttestedStatus, originalStatusDescription } from "./status-attestation.ts";
@@ -60,11 +65,31 @@ export function isClosedDevProtection(value: unknown): boolean {
   );
 }
 
-async function assertClosedDevProtection(reader: JsonReader, repository: string): Promise<void> {
-  const rules = await reader.get(
-    `repos/${repository}/rulesets?includes_parents=false&per_page=100`
-  );
-  if (!Array.isArray(rules)) throw new CliError("Development rulesets unavailable.", 75);
+export type DevProtectionMode = "native" | "compensating";
+
+/** Only a confirmed private repository and explicit platform plan rejection qualify. */
+export async function readClosedDevProtection(
+  reader: JsonReader,
+  repository: string,
+  isPrivate: boolean
+): Promise<DevProtectionMode> {
+  let rules: unknown;
+  try {
+    rules = await reader.get(`repos/${repository}/rulesets?includes_parents=false&per_page=100`);
+  } catch (error) {
+    if (
+      isPrivate &&
+      error instanceof GithubHttpError &&
+      error.status === 403 &&
+      error.kind === "plan-restriction"
+    ) {
+      return "compensating";
+    }
+    throw error;
+  }
+  if (!Array.isArray(rules) || rules.length >= 100) {
+    throw new CliError("Development rulesets unavailable.", 75);
+  }
   const matches = rules.filter((rule) => getJsonString(rule, "name") === "Protect Dev Branch");
   const rule = matches[0];
   if (!isJsonRecord(rule) || matches.length !== 1 || !Number.isSafeInteger(rule.id)) {
@@ -74,6 +99,7 @@ async function assertClosedDevProtection(reader: JsonReader, repository: string)
   if (!isClosedDevProtection(detail)) {
     throw new CliError("Development initialization requires closed live protection.", 75);
   }
+  return "native";
 }
 
 export async function verifyBootstrapSource(
@@ -82,7 +108,7 @@ export async function verifyBootstrapSource(
   sha: string,
   controlRepository: string,
   isExistingDevRequired: boolean
-): Promise<void> {
+): Promise<DevProtectionMode> {
   if (!repositoryPattern.test(repository) || !shaPattern.test(sha)) {
     throw new CliError("Development initialization target is invalid.", 65);
   }
@@ -90,12 +116,12 @@ export async function verifyBootstrapSource(
   if (
     !isJsonRecord(repo) ||
     repo.full_name !== repository ||
-    repo.private !== false ||
+    typeof repo.private !== "boolean" ||
     repo.default_branch !== "main"
   ) {
-    throw new CliError("Development initialization requires a public managed repository.", 75);
+    throw new CliError("Development initialization requires a verified managed repository.", 75);
   }
-  await assertClosedDevProtection(reader, repository);
+  const protection = await readClosedDevProtection(reader, repository, repo.private);
   const main = await reader.get(`repos/${repository}/branches/main`);
   const dev = await getGithubJsonIfExists(`repos/${repository}/branches/dev`, (path) =>
     reader.get(path)
@@ -130,6 +156,7 @@ export async function verifyBootstrapSource(
   ) {
     throw new CliError("Development initialization requires a trusted current main SHA.", 75);
   }
+  return protection;
 }
 
 export async function verifyAuthorizedDevBootstrap(
@@ -202,7 +229,13 @@ export async function verifyAutomaticDevAdoption(
   }
   const main = await reader.get(`repos/${repository}/branches/main`);
   if (!isJsonRecord(main) || getJsonString(main.commit, "sha") !== sha) return undefined;
-  await verifyBootstrapSource(reader, repository, sha, controlRepository, true);
+  const metadata = await reader.get(`repos/${repository}`);
+  if (!isJsonRecord(metadata) || metadata.private !== false) return undefined;
+  if (
+    (await verifyBootstrapSource(reader, repository, sha, controlRepository, true)) !== "native"
+  ) {
+    return undefined;
+  }
   const current = await reader.get(`repos/${repository}/branches/dev`);
   if (!isJsonRecord(current) || getJsonString(current.commit, "sha") !== sha) {
     throw new CliError("Development adoption branch identity changed.", 75);
