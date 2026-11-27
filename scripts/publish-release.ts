@@ -409,10 +409,7 @@ async function main(): Promise<void> {
   const releaseWriteToken = process.env.AW_RELEASE_WRITE_API_TOKEN ?? "";
   if (!releaseWriteToken)
     throw new CliError("Scoped release writer is required; no PAT fallback.", 77);
-  if (
-    isBeta &&
-    (process.env.AW_NPM_DISPATCH_TOKEN || process.env.AW_RELEASE_PR_WRITE_API_TOKEN)
-  ) {
+  if (isBeta && (process.env.AW_NPM_DISPATCH_TOKEN || process.env.AW_RELEASE_PR_WRITE_API_TOKEN)) {
     throw new CliError("Beta release cannot receive formal-only publication capabilities.", 77);
   }
   const sourceRepository = request.source_repository;

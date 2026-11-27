@@ -53,9 +53,7 @@ test("Beta build artifacts cannot use the formal artifact namespace", () => {
 
 test("actual tag and version must match the verified branch before publication", () => {
   const key = "delta";
-  assert.doesNotThrow(() =>
-    assertBranchReleaseTag("main", key, "1.2.3", false, "delta-v1.2.3")
-  );
+  assert.doesNotThrow(() => assertBranchReleaseTag("main", key, "1.2.3", false, "delta-v1.2.3"));
   assert.doesNotThrow(() =>
     assertBranchReleaseTag("dev", key, "1.2.3-beta.1", true, "delta-v1.2.3-beta.1")
   );
