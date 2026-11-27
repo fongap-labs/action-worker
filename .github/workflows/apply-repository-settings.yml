@@ -12,6 +12,7 @@ on:
       - policies/repository-access.json
       - policies/rulesets.json
       - scripts/apply-repository-settings.ts
+      - scripts/resolve-dev-settings.ts
       - scripts/apply-review-models.ts
       - scripts/bootstrap-status-signing.ts
       - scripts/status-signing-keys.ts
@@ -19,6 +20,10 @@ on:
       - .github/actions/mint-app-token/action.yml
       - policies/review-models.json
       - .github/workflows/apply-repository-settings.yml
+  workflow_run:
+    workflows: ["自动 · 总控调度"]
+    types: [completed]
+    branches: [main]
   schedule:
     - cron: "43 * * * *"
 
@@ -32,6 +37,7 @@ concurrency:
 
 jobs:
   apply-control-plane:
+    if: github.event_name != 'workflow_run'
     name: Apply control-plane settings
     environment:
       name: admin-ops
@@ -42,6 +48,7 @@ jobs:
       - name: Check out control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
 
       - name: Setup Node
@@ -64,6 +71,7 @@ jobs:
         run: node scripts/apply-review-models.ts "$TARGET_REPOSITORY"
 
   bootstrap-signing:
+    if: github.event_name != 'workflow_run'
     name: Bootstrap CI evidence signing keys
     environment:
       name: admin-ops
@@ -74,6 +82,7 @@ jobs:
       - name: Check out control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
 
       - name: Setup Node
@@ -101,15 +110,21 @@ jobs:
         run: node scripts/bootstrap-status-signing.ts
 
   resolve-managed:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     name: Resolve managed repositories
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      repositories: ${{ steps.policy.outputs.repositories }}
+      repositories: ${{ github.event_name == 'workflow_run' && steps.dev_settings.outputs.repositories || steps.policy.outputs.repositories }}
     steps:
       - name: Check out control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
 
       - name: Setup Node
@@ -121,8 +136,31 @@ jobs:
         id: policy
         run: node scripts/repository-policy.ts list pr
 
+      - name: Mint scoped dev settings read token
+        if: github.event_name == 'workflow_run'
+        id: dev_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.policy.outputs.read_repositories_csv }}
+          permission-actions: read
+          permission-contents: read
+          permission-statuses: read
+
+      - name: Resolve changed dev audit subjects
+        if: github.event_name == 'workflow_run'
+        id: dev_settings
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.dev_read.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          AUDIT_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: node scripts/resolve-dev-settings.ts
+
   apply-managed:
     needs: resolve-managed
+    if: needs.resolve-managed.outputs.repositories != '[]' && needs.resolve-managed.outputs.repositories != ''
     name: Apply managed settings · ${{ matrix.repository }}
     environment:
       name: admin-ops
@@ -137,6 +175,7 @@ jobs:
       - name: Check out control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
 
       - name: Setup Node
