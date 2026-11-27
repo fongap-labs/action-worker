@@ -339,7 +339,9 @@ export async function shouldRetryDevOperation(
   const current = await reader.get(`repos/${controlRepository}/branches/main`);
   const head = isJsonRecord(current) ? getJsonString(current.commit, "sha") : "";
   if (!shaPattern.test(head) || head === run.head_sha) return false;
-  const jobs = await reader.get(`repos/${controlRepository}/actions/runs/${runId}/jobs?per_page=100`);
+  const jobs = await reader.get(
+    `repos/${controlRepository}/actions/runs/${runId}/jobs?per_page=100`
+  );
   return (
     isJsonRecord(jobs) &&
     Array.isArray(jobs.jobs) &&
