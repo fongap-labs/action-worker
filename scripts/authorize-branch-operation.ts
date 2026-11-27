@@ -7,12 +7,7 @@ import {
   devBootstrapContext,
   verifyBootstrapSource,
 } from "./dev-bootstrap-authorization.ts";
-import {
-  getJsonNumber,
-  getJsonString,
-  isJsonRecord,
-  statusAwareReader,
-} from "./github-api.ts";
+import { getJsonNumber, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
