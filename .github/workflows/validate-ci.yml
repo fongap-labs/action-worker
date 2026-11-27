@@ -256,7 +256,6 @@ jobs:
           set -Eeuo pipefail
           if [ -n "$DEV_MERGE_SHA" ]; then
             node runtime-control/scripts/resolve-runtime-versions.mjs --github-output runtime-control
-            rm -rf runtime-control
           else
             node scripts/resolve-runtime-versions.mjs --github-output .
           fi
@@ -267,16 +266,31 @@ jobs:
           node-version: ${{ steps.runtime.outputs.node }}
           cache: npm
 
+      - name: Enforce trusted dev dependency version drift gate
+        if: inputs.dev_merge_sha != ''
+        working-directory: runtime-control
+        shell: bash
+        env:
+          BASE_SHA: ${{ inputs.dev_base_sha }}
+          MERGE_SHA: ${{ inputs.dev_merge_sha }}
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts
+          node scripts/validate-dependency-drift.ts local "$GITHUB_REPOSITORY" dev "$BASE_SHA" "$MERGE_SHA" "$GITHUB_WORKSPACE"
+
+      - name: Remove trusted dev runtime checkout
+        if: inputs.dev_merge_sha != ''
+        run: rm -rf runtime-control
+
       - name: Install TypeScript toolchain
         run: npm ci
 
       - name: Enforce central dependency version drift gate
-        if: github.event_name == 'pull_request' || inputs.dev_merge_sha != ''
+        if: github.event_name == 'pull_request' && inputs.dev_merge_sha == ''
         env:
-          BASE_SHA: ${{ inputs.dev_base_sha || github.event.pull_request.base.sha }}
-          MERGE_SHA: ${{ inputs.dev_merge_sha || github.sha }}
-          TARGET_BRANCH: ${{ inputs.dev_merge_sha != '' && 'dev' || 'main' }}
-        run: node scripts/validate-dependency-drift.ts local "$GITHUB_REPOSITORY" "$TARGET_BRANCH" "$BASE_SHA" "$MERGE_SHA" "$GITHUB_WORKSPACE"
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.sha }}
+        run: node scripts/validate-dependency-drift.ts local "$GITHUB_REPOSITORY" main "$BASE_SHA" "$MERGE_SHA" "$GITHUB_WORKSPACE"
 
       - name: Type-check TypeScript
         run: npm run typecheck
