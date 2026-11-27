@@ -3,6 +3,7 @@ import { prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.t
 import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { loadGateContract, requiredGateContexts } from "./governance-gate-contract.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
+import { squashManagedPull } from "./managed-pr-squash.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { isManagedBranchRef } from "./resolve-pr-facts.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
@@ -388,10 +389,7 @@ async function main(): Promise<void> {
   // GitHub still applies protected branch rules. Matching the exact PR head
   // prevents a newer revision from being merged by this older governance run.
   try {
-    await runGithubCli(
-      ["pr", "merge", number, "--repo", repository, "--squash", "--match-head-commit", headSha],
-      writeToken
-    );
+    await squashManagedPull(repository, Number(number), headSha, writeToken);
   } catch (error) {
     // Do not convert an ordinary merge failure into success. Only a separately
     // verified, already-completed merge of this exact approved PR head qualifies.

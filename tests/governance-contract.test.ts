@@ -1001,9 +1001,14 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "latestAttestedStatus",
     "requiredGateContexts",
     "loadGateContract",
-    "--match-head-commit",
-    "--squash",
+    "squashManagedPull(repository, Number(number), headSha, writeToken)",
   ]);
+  const squash = await text("scripts/managed-pr-squash.ts");
+  requireText(squash, ["merge_method=squash", "sha=${headSha}", "result.merged !== true"]);
+  assert.match(
+    await text("scripts/dev-merge-execution.ts"),
+    /squashManagedPull\(scope\.repository/
+  );
   const { loadGateContract, requiredGateContexts } = await import(
     "../scripts/governance-gate-contract.ts"
   );
