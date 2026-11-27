@@ -151,7 +151,6 @@ jobs:
           AW_INVENTORY_TOKEN: ${{ steps.inventory.outputs.token }}
         run: node scripts/propose-dependency-update.ts discover
 
-
   compute-proposals:
     name: Compute public dependency proposal / ${{ matrix.repository }} / ${{ matrix.branch }}
     needs: discover-proposals
