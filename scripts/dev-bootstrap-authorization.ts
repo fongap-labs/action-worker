@@ -6,9 +6,9 @@ import {
   trustedControlRunId,
 } from "./ci-evidence.ts";
 import {
+  GithubHttpError,
   getGithubJsonIfExists,
   getJsonString,
-  GithubHttpError,
   isJsonRecord,
 } from "./github-api.ts";
 import { assertNoOpenManagedWriteIncidents } from "./main-write-incidents.ts";
@@ -231,7 +231,9 @@ export async function verifyAutomaticDevAdoption(
   if (!isJsonRecord(main) || getJsonString(main.commit, "sha") !== sha) return undefined;
   const metadata = await reader.get(`repos/${repository}`);
   if (!isJsonRecord(metadata) || metadata.private !== false) return undefined;
-  if ((await verifyBootstrapSource(reader, repository, sha, controlRepository, true)) !== "native") {
+  if (
+    (await verifyBootstrapSource(reader, repository, sha, controlRepository, true)) !== "native"
+  ) {
     return undefined;
   }
   const current = await reader.get(`repos/${repository}/branches/dev`);

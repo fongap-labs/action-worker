@@ -1,9 +1,6 @@
 import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
-import {
-  isClosedDevProtection,
-  readClosedDevProtection,
-} from "./dev-bootstrap-authorization.ts";
+import { isClosedDevProtection, readClosedDevProtection } from "./dev-bootstrap-authorization.ts";
 import {
   GithubReader,
   getGithubJsonIfExists,

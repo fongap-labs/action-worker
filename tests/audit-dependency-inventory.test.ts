@@ -7,6 +7,7 @@ import {
   inspectRef,
   inventoryDependencies,
 } from "../scripts/audit-dependency-inventory.ts";
+import { parseDependencyPolicy } from "../scripts/dependency-version-policy.ts";
 import { GithubHttpError } from "../scripts/github-api.ts";
 
 test("inventory reads npm declarations without leaking remote specifications", () => {
@@ -112,11 +113,25 @@ test("new repositories are discovered without grants, and private details stay r
       { full_name: "example/old", private: false, archived: true },
     ],
     "example",
-    []
+    [],
+    parseDependencyPolicy(
+      {
+        schema_version: 1,
+        mode: "advisory",
+        default_class: "project",
+        catalog: { "npm:react": { class: "engineering", version: "19.0.0" } },
+        exceptions: [],
+      },
+      "example"
+    ),
+    "2026-11-27"
   );
   assert.equal(result.inventory_repositories, 4);
   assert.equal(result.private_repositories, 1);
   assert.equal(result.skipped, 1);
+  assert.equal(result.policy_counts.matching, 1);
+  assert.equal(result.policy_counts.different, 2);
+  assert.equal(result.public_policy_findings.length, 1);
   assert.equal(result.common_public_dependencies[0]?.differentDeclarations, true);
   assert.equal(result.common_public_dependencies[0]?.key, "main/npm:react");
   assert.doesNotMatch(JSON.stringify(result), /hidden/);
