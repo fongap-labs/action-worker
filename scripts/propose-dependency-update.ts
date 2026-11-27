@@ -128,9 +128,12 @@ export function buildNodeProposal(
     }
   }
   const manifest = files.get("package.json");
-  const managers = ["package-lock.json", "pnpm-lock.yaml", "npm-shrinkwrap.json", "yarn.lock"].filter(
-    (path) => files.has(path)
-  );
+  const managers = [
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "npm-shrinkwrap.json",
+    "yarn.lock",
+  ].filter((path) => files.has(path));
   if (
     manifest &&
     managers.length === 1 &&
@@ -211,7 +214,10 @@ async function assertPublicMain(reader: Reader, repository: string): Promise<voi
   }
 }
 
-async function readHead(reader: Reader, repository: string): Promise<{ sha: string; tree: string }> {
+async function readHead(
+  reader: Reader,
+  repository: string
+): Promise<{ sha: string; tree: string }> {
   await assertPublicMain(reader, repository);
   const ref = await reader.get("repos/" + repository + "/branches/main");
   if (!isJsonRecord(ref) || ref.name !== "main" || !isJsonRecord(ref.commit)) {
@@ -346,7 +352,8 @@ export async function publishNodeProposal(
       }),
       "sha"
     );
-    if (!shaPattern.test(commit)) throw new CliError("GitHub did not confirm the proposal commit.", 75);
+    if (!shaPattern.test(commit))
+      throw new CliError("GitHub did not confirm the proposal commit.", 75);
     if ((await readHead(reader, repository)).sha !== snapshot.sha) {
       throw new CliError("Main moved before dependency proposal branch creation.", 75);
     }
@@ -405,7 +412,8 @@ async function main(): Promise<void> {
       new GithubReader(api, token("AW_INVENTORY_TOKEN"))
     );
     const targets = discoverProposalTargets(inventory, grants, exclusions);
-    if (targets.length > 64) throw new CliError("Proposal batch exceeds the bounded matrix size.", 65);
+    if (targets.length > 64)
+      throw new CliError("Proposal batch exceeds the bounded matrix size.", 65);
     await appendLines(process.env.GITHUB_OUTPUT, [
       "count=" + targets.length,
       "matrix=" + JSON.stringify({ repository: targets }),
@@ -451,7 +459,11 @@ async function main(): Promise<void> {
       "identity=" + identity,
     ]);
     console.log(
-      JSON.stringify({ repository, files: changes.map((change) => change.path), automatic_writes: false })
+      JSON.stringify({
+        repository,
+        files: changes.map((change) => change.path),
+        automatic_writes: false,
+      })
     );
     return;
   }

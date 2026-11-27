@@ -196,7 +196,10 @@ test("only approved entry, diagnostics and private operations expose manual disp
       const source = await readFile(`${workflowDirectory}/${file}`, "utf8");
       assert.match(source, /scripts\/propose-dependency-update\.ts prepare/);
       assert.match(source, /scripts\/propose-dependency-update\.ts publish/);
-      assert.equal(source.match(/if: inputs\.confirm && steps\.plan\.outputs\.changed == 'true'/g)?.length, 2);
+      assert.equal(
+        source.match(/if: inputs\.confirm && steps\.plan\.outputs\.changed == 'true'/g)?.length,
+        2
+      );
       continue;
     }
     if (kind === "privateAgent") {

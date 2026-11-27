@@ -16,7 +16,11 @@ test("organization configuration scope audit is automatic and bound to protected
   assert.ok(workflow.on.push.paths.includes("policies/deploy-secrets.json"));
   assert.equal(workflow.on.schedule.length, 1);
   assert.deepEqual(workflow.permissions, { contents: "read" });
-  assert.deepEqual(Object.keys(workflow.jobs), ["audit", "discover-proposals", "propose-dependencies"]);
+  assert.deepEqual(Object.keys(workflow.jobs), [
+    "audit",
+    "discover-proposals",
+    "propose-dependencies",
+  ]);
 
   const job = workflow.jobs.audit;
   assert.ok(job);

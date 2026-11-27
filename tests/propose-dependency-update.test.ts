@@ -99,17 +99,18 @@ test("ambiguous lock managers and missing locks do not receive engine metadata e
 
 test("pnpm root engine metadata is updated without modifying the resolved lock", () => {
   const files = new Map([
-    [
-      "package.json",
-      JSON.stringify({ engines: { node: ">=22" }, packageManager: "pnpm@11.28.5" }),
-    ],
+    ["package.json", JSON.stringify({ engines: { node: ">=22" }, packageManager: "pnpm@11.28.5" })],
     ["pnpm-lock.yaml", "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies: {}\n"],
     ["CHANGELOG.md", record],
   ]);
   const changes = buildNodeProposal(policy, repo, files, date);
-  assert.equal(changes.some((change) => change.path === "pnpm-lock.yaml"), false);
   assert.equal(
-    JSON.parse(changes.find((change) => change.path === "package.json")?.content ?? "").engines.node,
+    changes.some((change) => change.path === "pnpm-lock.yaml"),
+    false
+  );
+  assert.equal(
+    JSON.parse(changes.find((change) => change.path === "package.json")?.content ?? "").engines
+      .node,
     target
   );
 });
