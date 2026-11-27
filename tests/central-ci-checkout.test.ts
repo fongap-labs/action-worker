@@ -102,6 +102,9 @@ test("controller dev dependency drift gate runs trusted main policy before candi
   assert.equal(cleanup.if, checkout.if);
   assert.equal(cleanup.run, "rm -rf runtime-control");
   const order = [checkout, gate, cleanup, install, mainGate].map((step) => steps.indexOf(step));
-  assert.deepEqual(order, [...order].sort((left, right) => left - right));
+  assert.deepEqual(
+    order,
+    [...order].sort((left, right) => left - right)
+  );
   assert.equal(mainGate.if, "github.event_name == 'pull_request' && inputs.dev_merge_sha == ''");
 });
