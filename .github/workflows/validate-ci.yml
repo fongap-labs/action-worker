@@ -71,7 +71,7 @@ jobs:
       - name: Resolve change range
         id: range
         env:
-          GITHUB_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
+          AW_CI_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
           PR_BASE_SHA: ${{ inputs.dev_base_sha || github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ inputs.dev_head_sha || github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
@@ -114,7 +114,7 @@ jobs:
         id: range
         shell: bash
         env:
-          GITHUB_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
+          AW_CI_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
           PR_BASE_SHA: ${{ inputs.dev_base_sha || github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ inputs.dev_head_sha || github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
@@ -148,7 +148,7 @@ jobs:
         id: range
         shell: bash
         env:
-          GITHUB_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
+          AW_CI_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
           PR_BASE_SHA: ${{ inputs.dev_base_sha || github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ inputs.dev_head_sha || github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
@@ -314,7 +314,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          GITHUB_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
+          AW_CI_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
           BASE_SHA: ${{ inputs.dev_base_sha || (github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before) }}
           HEAD_SHA: ${{ inputs.dev_head_sha || (github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha) }}
         run: |

@@ -136,11 +136,7 @@ export function managedRepositoryRulesets(
     throw new CliError("Invalid development enrollment mode.", 65);
   }
   const scoped = rulesetsForRepository(rulesets, repository, controlRepository);
-  if (
-    mode === "closed" ||
-    !isDevReady ||
-    !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository)
-  ) {
+  if (mode === "closed" || !isDevReady || !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository)) {
     return scoped;
   }
   const main = scoped.find((rule) => rule.name === "Protect Main Branch");
