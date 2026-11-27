@@ -50,7 +50,7 @@ function verifyStageCommit(intent: TransferIntent, sha: string, commit: unknown)
     !Array.isArray(commit.parents) ||
     commit.parents.length !== 1 ||
     getJsonString(commit.parents[0], "sha") !== intent.baseSha ||
-    getJsonString(commit, "message") !== transferStageMessage(intent)
+    getJsonString(commit, "message").trimEnd() !== transferStageMessage(intent)
   ) {
     throw new CliError("Staging commit does not match the authorized target parent and tree.", 75);
   }
@@ -126,9 +126,9 @@ export async function createStagedTransfer(
   const sha = getJsonString(commit, "sha");
   if (!shaPattern.test(sha)) throw new CliError("No staging commit was returned.", 75);
   verifyStageCommit(intent, sha, commit);
-  await publish(sha, transferPreparationContext, "success", transferIntentDescription(intent));
   await assertCurrent();
   await write("POST", `${prefix}/git/refs`, { ref: `refs/heads/${ref}`, sha });
+  await publish(sha, transferPreparationContext, "success", transferIntentDescription(intent));
   let prNumber = 0;
   try {
     const pull = await write("POST", `${prefix}/pulls`, {
@@ -196,4 +196,51 @@ export async function closeOriginalTransfer(
   ) {
     await write("PATCH", `${prefix}/pulls/${intent.prNumber}`, { state: "closed" });
   }
+}
+
+/** Close only this run's unused staging PR. The source PR and protected refs remain untouched. */
+export async function closeUnusedStagedTransfer(
+  reader: JsonReader,
+  write: Writer,
+  repository: string,
+  prNumber: number,
+  headSha: string,
+  ref: string,
+  runId: number,
+  runUrl: string
+): Promise<void> {
+  const prefix = `repos/${repository}`;
+  const pull = await reader.get(`${prefix}/pulls/${prNumber}`);
+  if (
+    !isJsonRecord(pull) ||
+    pull.number !== prNumber ||
+    !isStagedTransferDirection(pull, repository) ||
+    getJsonString(pull.head, "sha") !== headSha ||
+    getJsonString(pull.head, "ref") !== ref
+  ) {
+    throw new CliError("Refusing cleanup of a different staging PR.", 75);
+  }
+  if (pull.state === "closed") return;
+  if (pull.state !== "open") throw new CliError("Invalid staged PR state.", 75);
+  const commit = await reader.get(`${prefix}/git/commits/${headSha}`);
+  const intent = intentFromStageCommit(commit);
+  if (intent.repository !== repository ||
+      intent.targetBranch !== getJsonString(pull.base, "ref") ||
+      transferStageRef(intent, runId) !== ref) {
+    throw new CliError("Refusing cleanup outside the current staging intent.", 75);
+  }
+  verifyStageCommit(intent, headSha, commit);
+  const statuses = await reader.get(`${prefix}/commits/${headSha}/status`);
+  const proof = latestAttestedStatus(statuses, {
+    repository, sha: headSha, context: transferPreparationContext,
+  });
+  if (
+    proof?.state !== "success" ||
+    originalStatusDescription(proof) !== transferIntentDescription(intent) ||
+    statusRunAttempt(proof) !== 1 ||
+    getJsonString(proof, "target_url") !== runUrl
+  ) {
+    throw new CliError("Refusing cleanup of an unsigned staging PR.", 75);
+  }
+  await write("PATCH", `${prefix}/pulls/${prNumber}`, { state: "closed" });
 }

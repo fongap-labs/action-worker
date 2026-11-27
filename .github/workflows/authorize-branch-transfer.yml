@@ -62,7 +62,11 @@ jobs:
       control_ref: ${{ steps.transfer.outputs.control_ref }}
       has_windows: ${{ steps.transfer.outputs.has_windows }}
       linux_shards: ${{ steps.transfer.outputs.linux_shards }}
-      transfer_snapshot: ${{ steps.plan.outputs.transfer_snapshot }}
+      transfer_snapshot: ${{ steps.transfer.outputs.transfer_snapshot }}
+      staging_ref: ${{ steps.transfer.outputs.staging_ref }}
+      original_pr: ${{ steps.transfer.outputs.original_pr }}
+      original_head: ${{ steps.transfer.outputs.original_head }}
+      original_snapshot: ${{ steps.transfer.outputs.original_snapshot }}
     steps:
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -167,6 +171,29 @@ jobs:
           AW_DEV_REF_TOKEN: ${{ steps.ref_app.outputs.token }}
         run: node scripts/authorize-branch-operation.ts approve
 
+      - name: Mint scoped staging creation token
+        if: inputs.confirm && inputs.operation == 'transfer' && steps.plan.outputs.transfer_mode == 'staged'
+        id: stage_writer
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Mint scoped staging proof token
+        if: inputs.confirm && inputs.operation == 'transfer' && steps.plan.outputs.transfer_mode == 'staged'
+        id: stage_status
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-statuses: write
+
       - name: Prepare protected transfer execution
         if: inputs.operation == 'transfer'
         id: transfer
@@ -179,7 +206,8 @@ jobs:
           OPERATOR_CONFIRMED: ${{ inputs.confirm }}
           AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
-          AW_STATUS_API_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.stage_status.outputs.token || steps.app_read.outputs.token }}
+          AW_TRANSFER_STAGE_TOKEN: ${{ steps.stage_writer.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
         run: node scripts/branch-transfer-execution.ts prepare
 
@@ -340,7 +368,7 @@ jobs:
   transfer-execute:
     name: Execute verified transfer
     needs: [authorize, transfer-governance, transfer-linux, transfer-windows]
-    if: ${{ !cancelled() && inputs.confirm && inputs.operation == 'transfer' && needs.authorize.result == 'success' && needs.transfer-governance.result == 'success' && needs.transfer-linux.result == 'success' && ((needs.authorize.outputs.has_windows == 'true' && needs.transfer-windows.result == 'success') || (needs.authorize.outputs.has_windows == 'false' && needs.transfer-windows.result == 'skipped')) }}
+    if: ${{ !cancelled() && inputs.confirm && inputs.operation == 'transfer' && needs.authorize.result == 'success' && needs.authorize.outputs.merge_sha != '' && ((needs.transfer-governance.result == 'success' && needs.transfer-linux.result == 'success' && ((needs.authorize.outputs.has_windows == 'true' && needs.transfer-windows.result == 'success') || (needs.authorize.outputs.has_windows == 'false' && needs.transfer-windows.result == 'skipped'))) || needs.authorize.outputs.staging_ref != '') }}
     environment:
       name: admin-ops
       deployment: false
@@ -389,7 +417,19 @@ jobs:
           repositories: ${{ needs.authorize.outputs.repository_name }}
           permission-statuses: write
 
+      - name: Mint scoped staging cleanup token
+        if: needs.authorize.outputs.staging_ref != ''
+        id: stage_cleanup
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ needs.authorize.outputs.owner }}
+          repositories: ${{ needs.authorize.outputs.repository_name }}
+          permission-pull-requests: write
+
       - name: Mint scoped transfer merge token
+        if: ${{ needs.transfer-governance.result == 'success' && needs.transfer-linux.result == 'success' && ((needs.authorize.outputs.has_windows == 'true' && needs.transfer-windows.result == 'success') || (needs.authorize.outputs.has_windows == 'false' && needs.transfer-windows.result == 'skipped')) }}
         id: transfer_writer
         uses: ./.github/actions/mint-app-token
         with:
@@ -401,6 +441,7 @@ jobs:
           permission-pull-requests: write
 
       - name: Execute verified immutable transfer
+        if: ${{ needs.transfer-governance.result == 'success' && needs.transfer-linux.result == 'success' && ((needs.authorize.outputs.has_windows == 'true' && needs.transfer-windows.result == 'success') || (needs.authorize.outputs.has_windows == 'false' && needs.transfer-windows.result == 'skipped')) }}
         env:
           OPERATION: ${{ inputs.operation }}
           OPERATOR_CONFIRMED: ${{ inputs.confirm }}
@@ -410,6 +451,10 @@ jobs:
           TRANSFER_SNAPSHOT: ${{ needs.authorize.outputs.transfer_snapshot }}
           TRANSFER_TITLE_FINGERPRINT: ${{ needs.authorize.outputs.title_fingerprint }}
           TRANSFER_MERGE_SHA: ${{ needs.authorize.outputs.merge_sha }}
+          TRANSFER_STAGING_REF: ${{ needs.authorize.outputs.staging_ref }}
+          TRANSFER_ORIGINAL_PR: ${{ needs.authorize.outputs.original_pr }}
+          TRANSFER_ORIGINAL_HEAD: ${{ needs.authorize.outputs.original_head }}
+          TRANSFER_ORIGINAL_SNAPSHOT: ${{ needs.authorize.outputs.original_snapshot }}
           TRANSFER_GOVERNANCE_RESULT: ${{ needs.transfer-governance.result }}
           TRANSFER_LINUX_RESULT: ${{ needs.transfer-linux.result }}
           TRANSFER_WINDOWS_RESULT: ${{ needs.transfer-windows.result }}
@@ -431,6 +476,8 @@ jobs:
           PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
           TRANSFER_SNAPSHOT: ${{ needs.authorize.outputs.transfer_snapshot }}
           TRANSFER_TARGET_BRANCH: ${{ needs.authorize.outputs.target_branch }}
+          TRANSFER_STAGING_REF: ${{ needs.authorize.outputs.staging_ref }}
+          AW_TRANSFER_CLEANUP_TOKEN: ${{ steps.stage_cleanup.outputs.token }}
           AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_CONTROL_TOKEN: ${{ steps.transfer_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.transfer_status.outputs.token }}
