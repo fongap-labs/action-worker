@@ -61,7 +61,8 @@ export function parseBetaDeployTargets(policy: unknown): Map<string, BetaDeployT
       key.split("/")[1] === "action-worker" ||
       !isJsonRecord(target) ||
       Object.keys(target).some(
-        (name) => !["credential_environment", "credentials", "allow_schedule", "allow_push"].includes(name)
+        (name) =>
+          !["credential_environment", "credentials", "allow_schedule", "allow_push"].includes(name)
       ) ||
       (target.allow_schedule !== undefined && typeof target.allow_schedule !== "boolean") ||
       (target.allow_push !== undefined && typeof target.allow_push !== "boolean") ||

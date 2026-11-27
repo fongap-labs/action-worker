@@ -89,7 +89,10 @@ export function parseDeployRequest(value: unknown): DeployRequest {
     throw new CliError("::error::Deploy request is invalid.", 64);
   }
   if (value.source_branch === "dev") {
-    if (value.environment !== "beta" || !["manual", "schedule", "push"].includes(String(value.trigger))) {
+    if (
+      value.environment !== "beta" ||
+      !["manual", "schedule", "push"].includes(String(value.trigger))
+    ) {
       throw new CliError("Dev deployment requires an explicit Beta request and trigger.", 65);
     }
   } else if (value.environment === "beta") {
