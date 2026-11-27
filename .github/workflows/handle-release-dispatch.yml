@@ -232,20 +232,13 @@ jobs:
           RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/governed-release-target
         run: node scripts/resolve-release-target.ts
 
-      - name: Verify independent Beta App identity
+      - name: Mint target-only release publication token
         if: steps.release_target.outputs.source_branch == 'dev'
-        env:
-          BETA_CLIENT_ID: ${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID }}
-          MAIN_CLIENT_ID: ${{ vars.AW_APP_CLIENT_ID }}
-        run: test -n "$BETA_CLIENT_ID" && test "$BETA_CLIENT_ID" != "$MAIN_CLIENT_ID"
-
-      - name: Mint Beta-only release publication token
-        if: steps.release_target.outputs.source_branch == 'dev'
-        id: beta_write_app
+        id: release_write_app
         uses: ./.github/actions/mint-app-token
         with:
-          client-id: ${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AW_BETA_RELEASE_APP_PRIVATE_KEY }}
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ steps.release_target.outputs.owner }}
           repositories: ${{ steps.release_target.outputs.repository_name }}
           permission-contents: write
@@ -255,7 +248,7 @@ jobs:
         env:
           AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_CONTROL_TOKEN: ${{ steps.release_read_app.outputs.token }}
-          AW_BETA_RELEASE_WRITE_API_TOKEN: ${{ steps.beta_write_app.outputs.token }}
+          AW_RELEASE_WRITE_API_TOKEN: ${{ steps.release_write_app.outputs.token }}
           AW_RELEASE_TARGET_REPOSITORY: ${{ steps.release_target.outputs.target_repository }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}

@@ -198,31 +198,40 @@ test("Beta target accepts only explicit same-repository dev provenance and reser
   assert.throws(() => resolve({ ...beta, artifact_name: "release" }, target, source));
 });
 
-test("Beta release writer never receives the formal App credentials", async () => {
+test("both channels share the scoped App writer only after the release gate", async () => {
   const content = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
-  type ReleaseStep = { id?: string; if?: string; with?: Record<string, string> };
+  type ReleaseStep = {
+    id?: string;
+    if?: string;
+    name?: string;
+    with?: Record<string, string>;
+    env?: Record<string, string>;
+  };
   const workflow = parse(content) as {
     jobs: { release: { steps: ReleaseStep[] }; "beta-release": { steps: ReleaseStep[] } };
   };
-  const steps = workflow.jobs.release.steps;
-  const main = steps.find((step) => step.id === "release_write_app");
-  const betaSteps = workflow.jobs["beta-release"].steps;
-  const beta = betaSteps.find((step) => step.id === "beta_write_app");
+  for (const [job, branch] of [
+    [workflow.jobs.release, "main"],
+    [workflow.jobs["beta-release"], "dev"],
+  ] as const) {
+    const gateIndex = job.steps.findIndex((step) => step.id === "release_target");
+    const writerIndex = job.steps.findIndex((step) => step.id === "release_write_app");
+    assert.ok(gateIndex >= 0 && writerIndex > gateIndex);
+    const writer = job.steps[writerIndex];
+    assert.equal(writer?.if, `steps.release_target.outputs.source_branch == '${branch}'`);
+    assert.equal(writer?.with?.["client-id"], "${{ vars.AW_APP_CLIENT_ID }}");
+    assert.equal(writer?.with?.["private-key"], "${{ secrets.AW_APP_PRIVATE_KEY }}");
+    assert.equal(writer?.with?.repositories, "${{ steps.release_target.outputs.repository_name }}");
+    assert.equal(writer?.with?.["permission-contents"], "write");
+    const publish = job.steps.find((step) => step.name === "Publish governed release");
+    assert.equal(
+      publish?.env?.AW_RELEASE_WRITE_API_TOKEN,
+      "${{ steps.release_write_app.outputs.token }}"
+    );
+  }
   assert.equal(
-    steps.some((step) => step.id === "beta_write_app"),
+    workflow.jobs["beta-release"].steps.some((step) => step.id === "npm_dispatch_app"),
     false
   );
-  assert.equal(
-    betaSteps.some((step) => step.id === "release_write_app"),
-    false
-  );
-  assert.equal(
-    betaSteps.some((step) => step.id === "npm_dispatch_app"),
-    false
-  );
-  assert.equal(main?.if, "steps.release_target.outputs.source_branch == 'main'");
-  assert.equal(beta?.if, "steps.release_target.outputs.source_branch == 'dev'");
-  assert.equal(beta?.with?.["client-id"], "${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID }}");
-  assert.equal(beta?.with?.["private-key"], "${{ secrets.AW_BETA_RELEASE_APP_PRIVATE_KEY }}");
-  assert.equal(beta?.with?.repositories, "${{ steps.release_target.outputs.repository_name }}");
+  assert.doesNotMatch(content, /AW_BETA_RELEASE_/);
 });

@@ -229,17 +229,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ matrix.repository }}
-          BETA_APP_CONFIGURED: ${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID != '' && vars.AW_BETA_RELEASE_APP_CLIENT_ID != vars.AW_APP_CLIENT_ID && secrets.AW_BETA_RELEASE_APP_PRIVATE_KEY != '' }}
+          BETA_APP_CONFIGURED: ${{ vars.AW_APP_CLIENT_ID != '' && secrets.AW_APP_PRIVATE_KEY != '' }}
         run: node scripts/audit-beta-readiness.ts release-plan
 
-      - name: Probe independent Beta release App permission
+      - name: Probe scoped release App permission
         if: steps.beta_plan.outputs.probe == 'true'
         id: beta_probe
         continue-on-error: true
         uses: ./.github/actions/mint-app-token
         with:
-          client-id: ${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AW_BETA_RELEASE_APP_PRIVATE_KEY }}
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ steps.beta_plan.outputs.repository_name }}
           permission-contents: write

@@ -45,7 +45,7 @@ export async function planBetaReleaseReadiness(
   if (!isAppConfigured) {
     return {
       probe: false,
-      result: { subject: repository, ready: false, reason: "Independent Beta App not configured" },
+      result: { subject: repository, ready: false, reason: "Shared release App not configured" },
     };
   }
   return { probe: true };
@@ -186,8 +186,8 @@ async function main(): Promise<void> {
       subject: repository,
       ready: isReady,
       reason: isReady
-        ? "Independent scoped contents-write token minted; no release or tag written"
-        : "Independent Beta App token could not be verified",
+        ? "Scoped contents-write token minted; no release or tag written"
+        : "Shared release App token could not be verified",
     });
     if (!isReady && betaReleaseMode(policy) === "automatic") {
       throw new CliError("Enabled Beta release is not ready.", 77);
