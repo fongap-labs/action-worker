@@ -1,5 +1,5 @@
 import { getJsonArray, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
-import { stagedTransferSource } from "./resolve-pr-facts.ts";
+import { isReservedMergeSourceRef, stagedTransferSource } from "./resolve-pr-facts.ts";
 import { CliError } from "./runtime-command.ts";
 
 export type ManagedBranch = "main" | "dev";
@@ -113,6 +113,9 @@ export async function resolveManagedBranchMerge(
 
   const source = isJsonRecord(pr) ? getJsonString(pr.head, "ref") : "";
   const managedSource = source === "main" || source === "dev" ? source : stagedTransferSource(source);
+  if (isReservedMergeSourceRef(source) && !managedSource) {
+    throw new CliError("Invalid reserved transfer source; ordinary write attribution is forbidden.", 65);
+  }
   return {
     pr_number: prNumber,
     pr_head_sha: prHeadSha,

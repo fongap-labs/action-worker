@@ -1,5 +1,5 @@
 import { assertManualBranchAuthorization } from "./branch-transfer-approval.ts";
-import { prCiScopeDescription, readCurrentTransferScope } from "./ci-scope-receipt.ts";
+import { readTransferPlan, transferPlanDescription } from "./branch-transfer-intent.ts";
 import { requireToken } from "./control-token.ts";
 import { initializeCompensatedDev, initializeProtectedDev } from "./create-protected-dev.ts";
 import {
@@ -251,9 +251,9 @@ async function main(): Promise<void> {
     ]);
     return;
   }
-  const scope = await readCurrentTransferScope(reader, repository, prNumber, sha);
-  if (!scope) throw new CliError("Branch transfer snapshot is not ready.", 75);
-  const expected = prCiScopeDescription(scope);
+  const plan = await readTransferPlan(reader, repository, prNumber, sha);
+  const expected = transferPlanDescription(plan);
+  const scope = plan.kind === "direct" ? plan.scope : plan.intent;
   if (stage === "plan") {
     if (snapshot && snapshot !== expected) {
       throw new CliError("Specified branch transfer snapshot is no longer current.", 75);
@@ -262,12 +262,16 @@ async function main(): Promise<void> {
       `source_sha=${sha}`,
       `pr_number=${prNumber}`,
       `transfer_snapshot=${expected}`,
+      `transfer_mode=${plan.kind}`,
     ]);
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       "## Cross-branch transfer authorization",
       "",
       `Target: ${scope.targetBranch}; PR: #${scope.prNumber}`,
-      `Base: ${scope.baseSha}; source: ${scope.headSha}; merge: ${scope.mergeSha}`,
+      `Base: ${scope.baseSha}; source: ${sha}; mode: ${plan.kind}`,
+      plan.kind === "direct"
+        ? `Native merge: ${plan.scope.mergeSha}`
+        : `Verified content tree: ${plan.intent.treeSha}; basis: ${plan.intent.basisSha}`,
       "",
       `\`${expected}\``,
       `Source SHA: ${sha} (${requestedSha.trim() ? "manual" : "automatic"})`,
