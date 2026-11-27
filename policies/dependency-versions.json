@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "mode": "advisory",
+  "mode": "ratchet",
   "default_class": "project",
   "catalog": {
     "tool:node": { "class": "toolchain", "version": "26.13.1" },

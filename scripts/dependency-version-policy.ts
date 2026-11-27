@@ -14,7 +14,7 @@ type Exception = {
 };
 export type DependencyPolicy = {
   schema_version: 1;
-  mode: "advisory";
+  mode: "advisory" | "ratchet";
   default_class: "project";
   catalog: Map<string, CatalogEntry>;
   exceptions: Exception[];
@@ -48,7 +48,7 @@ export function parseDependencyPolicy(value: unknown, organization: string): Dep
     !isJsonRecord(value) ||
     !exactKeys(value, ["schema_version", "mode", "default_class", "catalog", "exceptions"]) ||
     value.schema_version !== 1 ||
-    value.mode !== "advisory" ||
+    (value.mode !== "advisory" && value.mode !== "ratchet") ||
     value.default_class !== "project" ||
     !isJsonRecord(value.catalog) ||
     Object.keys(value.catalog).length === 0 ||
@@ -122,7 +122,7 @@ export function parseDependencyPolicy(value: unknown, organization: string): Dep
   }
   return {
     schema_version: 1,
-    mode: "advisory",
+    mode: value.mode,
     default_class: "project",
     catalog,
     exceptions,
