@@ -254,7 +254,8 @@ async function main(): Promise<void> {
   assertDeployTrigger(trigger, manifest);
 
   let writePr: number;
-  if (branch === "dev" && betaTarget) {
+  if (branch === "dev") {
+    if (!betaTarget) throw new CliError("Beta deployment target is unavailable.", 77);
     assertBetaDeployTrigger(betaTarget, trigger, manifest);
     if (
       manifest.runner_backend !== "github-hosted" ||

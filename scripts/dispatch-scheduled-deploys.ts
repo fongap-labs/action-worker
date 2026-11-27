@@ -191,7 +191,9 @@ export async function resolveScheduledDeploys(
       repository !== controlRepository && (!onlyRepository || repository === onlyRepository)
   );
   const betaTargets =
-    betaPolicy === undefined ? new Map<string, BetaDeployTarget>() : parseBetaDeployTargets(betaPolicy);
+    betaPolicy === undefined
+      ? new Map<string, BetaDeployTarget>()
+      : parseBetaDeployTargets(betaPolicy);
   const deploys: ScheduledDeploy[] = [];
   for (const repository of repositories) {
     const headSha = await defaultHead(reader, repository);

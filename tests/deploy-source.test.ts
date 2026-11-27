@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { requireVerifiedCiEvidence } from "../scripts/ci-evidence.ts";
-import { assertBetaDeployIngress, assertExpectedRepository, parseDeployRequest } from "../scripts/validate-deploy-source.ts";
+import {
+  assertBetaDeployIngress,
+  assertExpectedRepository,
+  parseDeployRequest,
+} from "../scripts/validate-deploy-source.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
@@ -108,7 +112,9 @@ test("Beta deploy requests bind dev, beta and the authorized ingress", () => {
     trigger: "manual",
   };
   assert.deepEqual(parseDeployRequest(request), request);
-  assert.doesNotThrow(() => assertBetaDeployIngress(parseDeployRequest(request), "workflow_dispatch"));
+  assert.doesNotThrow(() =>
+    assertBetaDeployIngress(parseDeployRequest(request), "workflow_dispatch")
+  );
   assert.throws(() => assertBetaDeployIngress(parseDeployRequest(request), "repository_dispatch"));
   const scheduled = parseDeployRequest({ ...request, trigger: "schedule" });
   assert.doesNotThrow(() => assertBetaDeployIngress(scheduled, "repository_dispatch"));
