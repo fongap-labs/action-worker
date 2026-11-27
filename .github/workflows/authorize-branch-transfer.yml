@@ -7,7 +7,7 @@ on:
       operation:
         description: 操作类型
         type: choice
-        options: [initialize-dev, transfer]
+        options: [initialize-dev, adopt-dev, transfer]
         required: true
       repository:
         description: 目标仓库（如 delta，自动补全组织名）
@@ -18,7 +18,7 @@ on:
         type: string
         required: false
       pr_number:
-        description: 跨分支 PR 编号（初始化保持 0）
+        description: 跨分支 PR 编号（初始化或纳管保持 0）
         type: number
         default: 0
       confirm:
@@ -111,7 +111,7 @@ jobs:
         run: node scripts/authorize-branch-operation.ts verify
 
       - name: Mint initialization receipt token
-        if: inputs.confirm && inputs.operation == 'initialize-dev'
+        if: inputs.confirm && (inputs.operation == 'initialize-dev' || inputs.operation == 'adopt-dev')
         id: receipt_app
         uses: ./.github/actions/mint-app-token
         with:

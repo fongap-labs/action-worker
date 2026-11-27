@@ -16,6 +16,10 @@ import { postGithubCommitStatus } from "./status-write-retry.ts";
 
 const shaPattern = /^[0-9a-f]{40}$/;
 
+function isDevBootstrap(operation: string): boolean {
+  return operation === "initialize-dev" || operation === "adopt-dev";
+}
+
 export async function resolveBranchSourceSha(
   reader: { get(path: string): Promise<unknown> },
   operation: string,
@@ -24,10 +28,10 @@ export async function resolveBranchSourceSha(
   requestedSha: string
 ): Promise<string> {
   if (
-    !["initialize-dev", "transfer"].includes(operation) ||
+    (!isDevBootstrap(operation) && operation !== "transfer") ||
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
     !Number.isSafeInteger(prNumber) ||
-    (operation === "initialize-dev" ? prNumber !== 0 : prNumber < 1)
+    (isDevBootstrap(operation) ? prNumber !== 0 : prNumber < 1)
   ) {
     throw new CliError("Invalid branch authorization target.", 65);
   }
@@ -38,7 +42,7 @@ export async function resolveBranchSourceSha(
     }
     return requested;
   }
-  const initialize = operation === "initialize-dev";
+  const initialize = isDevBootstrap(operation);
   const path = initialize
     ? `repos/${repository}/branches/main`
     : `repos/${repository}/pulls/${prNumber}`;
@@ -69,9 +73,9 @@ async function main(): Promise<void> {
     process.env.GITHUB_REF !== "refs/heads/main" ||
     process.env.GITHUB_EVENT_NAME !== "workflow_dispatch" ||
     !["plan", "verify", "approve"].includes(stage ?? "") ||
-    !["initialize-dev", "transfer"].includes(operation) ||
+    (!isDevBootstrap(operation) && operation !== "transfer") ||
     !Number.isSafeInteger(prNumber) ||
-    (operation === "initialize-dev" ? prNumber !== 0 || snapshot !== "" : prNumber < 1)
+    (isDevBootstrap(operation) ? prNumber !== 0 || snapshot !== "" : prNumber < 1)
   ) {
     throw new CliError("Branch authorization requires an explicit trusted main dispatch.", 75);
   }
@@ -96,15 +100,18 @@ async function main(): Promise<void> {
     stage === "plan"
       ? await resolveBranchSourceSha(reader, operation, repository, prNumber, requestedSha)
       : requestedSha;
-  if (operation === "initialize-dev") {
+  if (isDevBootstrap(operation)) {
+    const adopt = operation === "adopt-dev";
     const identity = bootstrapApprovalComment(repository, sha, runId, attempt);
-    await verifyBootstrapSource(reader, repository, sha, controlRepository, false);
+    await verifyBootstrapSource(reader, repository, sha, controlRepository, adopt);
     if (stage === "plan") {
       await appendLines(process.env.GITHUB_OUTPUT, [`source_sha=${sha}`, "transfer_snapshot="]);
       await appendLines(process.env.GITHUB_STEP_SUMMARY, [
         "## Development initialization authorization",
         "",
-        "Source and administrator identity verified; the check stage does not create a branch.",
+        adopt
+          ? "Existing dev and trusted main must match exactly; adoption does not move any ref."
+          : "Source and administrator identity verified; the check stage does not create a branch.",
         `Source SHA: ${sha} (${requestedSha.trim() ? "manual" : "automatic"})`,
         "",
         `\`${identity}\``,
@@ -128,18 +135,22 @@ async function main(): Promise<void> {
     });
     const refToken = process.env.AW_DEV_REF_TOKEN ?? "";
     delete process.env.AW_DEV_REF_TOKEN;
-    await initializeProtectedDev(
-      process.env.GITHUB_API_URL ?? "https://api.github.com",
-      protectionToken,
-      refToken,
-      repository,
-      sha
-    );
+    if (!adopt) {
+      await initializeProtectedDev(
+        process.env.GITHUB_API_URL ?? "https://api.github.com",
+        protectionToken,
+        refToken,
+        repository,
+        sha
+      );
+    }
     await verifyBootstrapSource(reader, repository, sha, controlRepository, true);
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       "## Development initialization completed",
       "",
-      `Created and verified ${repository}@dev at ${sha}; closed branch protection restored.`,
+      adopt
+        ? `Verified existing ${repository}@dev at ${sha}; no ref or protection changed.`
+        : `Created and verified ${repository}@dev at ${sha}; closed branch protection restored.`,
       "Dev merge enrollment remains subject to the existing Dev Write Guard and central policy.",
     ]);
     return;

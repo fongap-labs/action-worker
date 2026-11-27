@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { resolveBranchSourceSha } from "../scripts/authorize-branch-operation.ts";
 import {
   bootstrapApprovalComment,
   DevBootstrapPendingError,
   isClosedDevProtection,
   verifyAuthorizedDevBootstrap,
+  verifyBootstrapSource,
 } from "../scripts/dev-bootstrap-authorization.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
@@ -112,5 +114,62 @@ test("the signed receipt of a running manual initialization defers the dev audit
   await assert.rejects(
     verifyAuthorizedDevBootstrap(reader, repository, sha, signed, control, now),
     DevBootstrapPendingError
+  );
+});
+
+test("existing dev adoption locks the same main SHA and never accepts a PR identity", async () => {
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.equal(path, `${prefix}/branches/main`);
+      return { commit: { sha } };
+    },
+  };
+  assert.equal(await resolveBranchSourceSha(reader, "adopt-dev", repository, 0, ""), sha);
+  assert.equal(await resolveBranchSourceSha(reader, "adopt-dev", repository, 0, sha), sha);
+  await assert.rejects(resolveBranchSourceSha(reader, "adopt-dev", repository, 7, ""));
+});
+
+test("existing dev adoption cannot move a divergent baseline or use a bypassed rule", async () => {
+  const responses = new Map<string, unknown>([
+    [prefix, { full_name: repository, private: false, default_branch: "main" }],
+    [`${prefix}/rulesets?includes_parents=false&per_page=100`, [{ ...closed, id: 12 }]],
+    [`${prefix}/rulesets/12?includes_parents=false`, closed],
+    [`${prefix}/branches/main`, { commit: { sha } }],
+    [`${prefix}/branches/dev`, { commit: { sha: "b".repeat(40) } }],
+  ]);
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.ok(responses.has(path), path);
+      return responses.get(path);
+    },
+  };
+  await assert.rejects(
+    verifyBootstrapSource(reader, repository, sha, control, true),
+    /branch identity changed/
+  );
+  responses.set(`${prefix}/branches/dev`, { commit: { sha } });
+  responses.set(`${prefix}/rulesets/12?includes_parents=false`, {
+    ...closed,
+    bypass_actors: [{ actor_id: 1 }],
+  });
+  await assert.rejects(
+    verifyBootstrapSource(reader, repository, sha, control, true),
+    /closed live protection/
+  );
+});
+
+test("adoption reuses the manual admin workflow but cannot mint a branch-write token", () => {
+  const workflow = readFileSync(".github/workflows/authorize-branch-transfer.yml", "utf8");
+  const script = readFileSync("scripts/authorize-branch-operation.ts", "utf8");
+  assert.match(workflow, /options: \[initialize-dev, adopt-dev, transfer\]/);
+  assert.match(workflow, /name: admin-ops/);
+  assert.match(
+    workflow,
+    /if: inputs\.confirm && inputs\.operation == 'initialize-dev'\n\s+id: ref_app/
+  );
+  assert.match(script, /if \(!adopt\) \{\n\s+await initializeProtectedDev/);
+  assert.match(
+    script,
+    /verifyBootstrapSource\(reader, repository, sha, controlRepository, adopt\)/
   );
 });
