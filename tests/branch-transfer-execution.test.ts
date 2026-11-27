@@ -178,14 +178,36 @@ test("temporary gate cleanup revokes only the current run's signed target status
     const calls: unknown[][] = [];
     const publish = async (...args: unknown[]) => {
       calls.push(args);
+      statuses = [
+        {
+          ...status,
+          state: "failure",
+          description: signedStatusDescription({ ...native, state: "failure" }),
+        },
+      ];
     };
-    const cleanup = () =>
-      revokeTransferHeadGate(reader, repository, scope.headSha, "main", snapshot, targetUrl, publish);
-    await cleanup();
+    const cleanup = (required = false) =>
+      revokeTransferHeadGate(
+        reader,
+        repository,
+        scope.headSha,
+        "main",
+        snapshot,
+        targetUrl,
+        publish,
+        required,
+        async () => undefined
+      );
+    await cleanup(true);
     assert.deepEqual(calls, [[scope.headSha, "validate-merge", "failure", snapshot]]);
+    await cleanup(true);
+    assert.equal(calls.length, 1);
     statuses = [{ ...status, target_url: targetUrl.replace("123", "456") }];
     await cleanup();
     assert.equal(calls.length, 1);
+    await assert.rejects(cleanup(true), /different publisher/);
+    statuses = [];
+    await assert.rejects(cleanup(true), /Could not confirm/);
     statuses = [{ ...status, description: "unsigned" }];
     await assert.rejects(cleanup(), /mismatched/);
   } finally {

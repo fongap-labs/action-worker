@@ -65,10 +65,7 @@ export async function requireEquivalentTransferSnapshot(
     throw new CliError("Transfer identity changed; a new authorization is required.", 75);
   }
   const prefix = `repos/${authorized.repository}/git/commits/`;
-  const original = transferSnapshotTree(
-    authorized,
-    await reader.get(prefix + authorized.mergeSha)
-  );
+  const original = transferSnapshotTree(authorized, await reader.get(prefix + authorized.mergeSha));
   if (
     authorized.mergeSha !== current.mergeSha &&
     original !== transferSnapshotTree(current, await reader.get(prefix + current.mergeSha))
@@ -106,7 +103,10 @@ export async function requireExclusiveTransferHead(
     }
     if (pulls.length < 100) {
       if (matching.length !== 1 || matching[0] !== scope.prNumber) {
-        throw new CliError("Another target PR shares the transfer head, or the PR is no longer open.", 75);
+        throw new CliError(
+          "Another target PR shares the transfer head, or the PR is no longer open.",
+          75
+        );
       }
       return;
     }
@@ -129,22 +129,41 @@ export async function revokeTransferHeadGate(
   targetBranch: string,
   snapshot: string,
   runUrl: string,
-  publish: TransferPublisher
+  publish: TransferPublisher,
+  required = false,
+  wait: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolve) => setTimeout(resolve, ms))
 ): Promise<void> {
   const context = transferGateContext(targetBranch);
-  const latest = latestCiStatus(
-    await reader.get(`repos/${repository}/commits/${headSha}/status`),
-    context
-  );
-  if (!latest || getJsonString(latest, "target_url") !== runUrl) return;
-  if (
-    !hasValidStatusAttestation(latest, { repository, sha: headSha, context }) ||
-    statusRunAttempt(latest) !== 1 ||
-    originalStatusDescription(latest) !== snapshot
-  ) {
-    throw new CliError("Refusing to revoke a mismatched transfer head gate.", 75);
+  const path = `repos/${repository}/commits/${headSha}/status`;
+  let revoked = false;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const latest = latestCiStatus(await reader.get(path), context);
+    if (latest && getJsonString(latest, "target_url") === runUrl) {
+      if (
+        !hasValidStatusAttestation(latest, { repository, sha: headSha, context }) ||
+        statusRunAttempt(latest) !== 1 ||
+        originalStatusDescription(latest) !== snapshot
+      ) {
+        throw new CliError("Refusing to revoke a mismatched transfer head gate.", 75);
+      }
+      if (latest.state === "failure") return;
+      if (latest.state !== "success") {
+        throw new CliError("Unexpected transfer head gate state.", 75);
+      }
+      if (!revoked) {
+        await publish(headSha, context, "failure", snapshot);
+        revoked = true;
+      }
+    } else {
+      if (!required && !revoked) return;
+      if (latest?.state === "success") {
+        throw new CliError("A different publisher owns the active target gate.", 75);
+      }
+    }
+    if (attempt < 4) await wait(1000);
   }
-  if (latest.state === "success") await publish(headSha, context, "failure", snapshot);
+  throw new CliError("Could not confirm withdrawal of the temporary transfer head gate.", 75);
 }
 
 export function assertTransferCompare(scope: PrCiScope, compare: unknown): void {
@@ -365,8 +384,18 @@ async function main(): Promise<void> {
   }
   const mergeToken = process.env.AW_MERGE_WRITE_TOKEN ?? "";
   if (!mergeToken) throw new CliError("Missing scoped transfer merge token.", 77);
+  let headGrantAttempted = false;
   const closeHeadGate = () =>
-    revokeTransferHeadGate(reader, repository, headSha, scope.targetBranch, snapshot, runUrl, publish);
+    revokeTransferHeadGate(
+      reader,
+      repository,
+      headSha,
+      scope.targetBranch,
+      snapshot,
+      runUrl,
+      publish,
+      headGrantAttempted
+    );
   const requireCurrent = async (): Promise<PrCiScope> => {
     const current = await readCurrentTransferScope(reader, repository, prNumber, headSha);
     if (!current) {
@@ -387,6 +416,12 @@ async function main(): Promise<void> {
     for (const sha of signedSnapshots) await publish(sha, gateContext, "success", snapshot);
     // The target native gate is distinct from the source branch's own gate.
     // This temporary status covers GitHub's documented head fallback only.
+    await requireExclusiveTransferHead(reader, scope);
+    const latestHeadStatuses = await reader.get(`repos/${repository}/commits/${headSha}/status`);
+    if (latestCiStatus(latestHeadStatuses, gateContext)?.state === "success") {
+      throw new CliError("Another target gate became active before transfer execution.", 75);
+    }
+    headGrantAttempted = true;
     await publish(headSha, gateContext, "success", snapshot);
     const latest = await requireCurrent();
     if (!signedSnapshots.has(latest.mergeSha)) {
