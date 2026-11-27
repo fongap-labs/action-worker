@@ -1,7 +1,7 @@
 import { assertManualBranchAuthorization } from "./branch-transfer-approval.ts";
 import { prCiScopeDescription, readCurrentTransferScope } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
-import { initializeProtectedDev } from "./create-protected-dev.ts";
+import { initializeCompensatedDev, initializeProtectedDev } from "./create-protected-dev.ts";
 import {
   bootstrapApprovalComment,
   devBootstrapContext,
@@ -110,7 +110,13 @@ async function main(): Promise<void> {
   if (isDevBootstrap(operation)) {
     const adopt = operation === "adopt-dev";
     const identity = bootstrapApprovalComment(repository, sha, runId, attempt);
-    await verifyBootstrapSource(reader, repository, sha, controlRepository, adopt);
+    const protection = await verifyBootstrapSource(
+      reader,
+      repository,
+      sha,
+      controlRepository,
+      adopt
+    );
     if (stage === "plan") {
       await appendLines(process.env.GITHUB_OUTPUT, [`source_sha=${sha}`, "transfer_snapshot="]);
       await appendLines(process.env.GITHUB_STEP_SUMMARY, [
@@ -120,6 +126,7 @@ async function main(): Promise<void> {
           ? "Existing dev and trusted main must match exactly; adoption does not move any ref."
           : "Source and administrator identity verified; the check stage does not create a branch.",
         `Source SHA: ${sha} (${requestedSha.trim() ? "manual" : "automatic"})`,
+        `Protection mode: ${protection} (compensating does not prevent manual writes).`,
         "",
         `\`${identity}\``,
         confirmed ? "Explicit authorization requested." : "Check only; no receipt will be issued.",
@@ -143,21 +150,24 @@ async function main(): Promise<void> {
     const refToken = process.env.AW_DEV_REF_TOKEN ?? "";
     delete process.env.AW_DEV_REF_TOKEN;
     if (!adopt) {
-      await initializeProtectedDev(
-        process.env.GITHUB_API_URL ?? "https://api.github.com",
-        protectionToken,
-        refToken,
-        repository,
-        sha
-      );
+      const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
+      if (protection === "compensating") {
+        await initializeCompensatedDev(apiUrl, refToken, reader, repository, sha);
+      } else {
+        await initializeProtectedDev(apiUrl, protectionToken, refToken, repository, sha);
+      }
     }
-    await verifyBootstrapSource(reader, repository, sha, controlRepository, true);
+    if (
+      (await verifyBootstrapSource(reader, repository, sha, controlRepository, true)) !== protection
+    ) {
+      throw new CliError("Development protection capability changed during authorization.", 75);
+    }
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       "## Development initialization completed",
       "",
       adopt
         ? `Verified existing ${repository}@dev at ${sha}; no ref or protection changed.`
-        : `Created and verified ${repository}@dev at ${sha}; closed branch protection restored.`,
+        : `Created and verified ${repository}@dev at ${sha}; protection mode: ${protection}.`,
       "Dev merge enrollment remains subject to the existing Dev Write Guard and central policy.",
     ]);
     return;

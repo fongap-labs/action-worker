@@ -344,3 +344,14 @@ test("GitHub contents decoder preserves UTF-8 and caller-specific diagnostics", 
     /Custom contents error/
   );
 });
+
+test("plan capability rejection is distinct from permission and rate limits", () => {
+  const message = "Upgrade to GitHub Pro or make this repository public to enable this feature.";
+  assert.equal(classifyGithubFailure(403, new Headers(), message), "plan-restriction");
+  assert.equal(classifyGithubFailure(404, new Headers(), message), "http");
+  assert.equal(
+    classifyGithubFailure(403, new Headers({ "x-ratelimit-remaining": "0" }), message),
+    "primary-rate-limit"
+  );
+  assert.equal(classifyGithubFailure(403, new Headers(), "Forbidden"), "permission");
+});

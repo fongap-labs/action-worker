@@ -93,6 +93,7 @@ export type GithubFailureKind =
   | "primary-rate-limit"
   | "secondary-rate-limit"
   | "permission"
+  | "plan-restriction"
   | "http";
 
 export function classifyGithubFailure(
@@ -107,6 +108,14 @@ export function classifyGithubFailure(
     return "primary-rate-limit";
   }
   if (status === 429 || headers.has("retry-after")) return "secondary-rate-limit";
+  if (
+    status === 403 &&
+    /^Upgrade to GitHub (?:Pro|Team|Enterprise) or make this repository public to enable this feature\.?$/i.test(
+      message
+    )
+  ) {
+    return "plan-restriction";
+  }
   return "permission";
 }
 
@@ -144,7 +153,9 @@ export class GithubHttpError extends Error {
           ? "secondary API rate limit"
           : kind === "permission"
             ? "access forbidden; check token repository permissions and SSO"
-            : "";
+            : kind === "plan-restriction"
+              ? "repository plan does not support this feature"
+              : "";
     const reset =
       kind === "primary-rate-limit" && details.resetAtMs
         ? `; reset at ${new Date(details.resetAtMs).toISOString()}`

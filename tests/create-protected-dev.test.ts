@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   bootstrapIntegrationId,
+  createCompensatedDevBranch,
   createProtectedDevBranch,
 } from "../scripts/create-protected-dev.ts";
+import { GithubHttpError } from "../scripts/github-api.ts";
 import { CliError } from "../scripts/runtime-command.ts";
 
 const repository = "fongap-labs/example";
@@ -131,4 +133,54 @@ test("controller dev uses the same protected creation procedure and restored loc
   assert.equal(f.getDev(), sha);
   assert.deepEqual(f.events, ["guard", "update", "create", "update", "cleanup"]);
   assert.deepEqual([...f.rules], [[12, original]]);
+});
+
+test("compensated private dev creation writes only the exact approved ref", async () => {
+  const prefix = `repos/${repository}`;
+  let dev = "";
+  let isPrivate = true;
+  let isLimited = true;
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      if (path === prefix) {
+        return { full_name: repository, private: isPrivate, default_branch: "main" };
+      }
+      if (path.includes("/rulesets?")) {
+        throw new GithubHttpError(403, undefined, {
+          kind: isLimited ? "plan-restriction" : "permission",
+        });
+      }
+      if (path === `${prefix}/branches/main`) return { commit: { sha } };
+      if (path === `${prefix}/branches/dev`) {
+        if (!dev) throw new GithubHttpError(404);
+        return { commit: { sha: dev } };
+      }
+      return assert.fail(path);
+    },
+  };
+  let writes = 0;
+  const create = async (method: string, path: string, body?: unknown) => {
+    assert.equal(method, "POST");
+    assert.equal(path, `${prefix}/git/refs`);
+    assert.deepEqual(body, { ref: "refs/heads/dev", sha });
+    writes++;
+    dev = sha;
+    return {};
+  };
+  await createCompensatedDevBranch(reader, create, repository, sha);
+  assert.equal(writes, 1);
+  await assert.rejects(
+    createCompensatedDevBranch(reader, create, repository, sha),
+    /identity changed/
+  );
+  dev = "";
+  isPrivate = false;
+  await assert.rejects(
+    createCompensatedDevBranch(reader, create, repository, sha),
+    /capability changed/
+  );
+  isPrivate = true;
+  isLimited = false;
+  await assert.rejects(createCompensatedDevBranch(reader, create, repository, sha), /HTTP 403/);
+  assert.equal(writes, 1);
 });

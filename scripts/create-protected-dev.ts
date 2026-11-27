@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
-import { isClosedDevProtection } from "./dev-bootstrap-authorization.ts";
+import {
+  isClosedDevProtection,
+  readClosedDevProtection,
+} from "./dev-bootstrap-authorization.ts";
 import {
   GithubReader,
   getGithubJsonIfExists,
@@ -203,6 +206,55 @@ function githubWriter(apiUrl: string, token: string): Writer {
     }
     return response.status === 204 ? undefined : await response.json();
   };
+}
+
+/** No native protection exists on this plan. Only an explicitly approved ref creation is allowed. */
+export async function createCompensatedDevBranch(
+  reader: Reader,
+  createRef: Writer,
+  repository: string,
+  sha: string
+): Promise<void> {
+  if (!/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) || !/^[0-9a-f]{40}$/.test(sha)) {
+    throw new CliError("Invalid compensated dev creation request.", 65);
+  }
+  const prefix = `repos/${repository}`;
+  const assertSnapshot = async (isCreated: boolean) => {
+    const repo = await reader.get(prefix);
+    if (
+      !isJsonRecord(repo) ||
+      repo.full_name !== repository ||
+      repo.private !== true ||
+      repo.default_branch !== "main" ||
+      (await readClosedDevProtection(reader, repository, true)) !== "compensating"
+    ) {
+      throw new CliError("Private development protection capability changed.", 75);
+    }
+    const main = await reader.get(`${prefix}/branches/main`);
+    const dev = await getGithubJsonIfExists(`${prefix}/branches/dev`, (path) => reader.get(path));
+    if (
+      !isJsonRecord(main) ||
+      getJsonString(main.commit, "sha") !== sha ||
+      (isCreated
+        ? !isJsonRecord(dev) || getJsonString(dev.commit, "sha") !== sha
+        : dev !== undefined)
+    ) {
+      throw new CliError("Locked private development branch identity changed.", 75);
+    }
+  };
+  await assertSnapshot(false);
+  await createRef("POST", `${prefix}/git/refs`, { ref: "refs/heads/dev", sha });
+  await assertSnapshot(true);
+}
+
+export async function initializeCompensatedDev(
+  apiUrl: string,
+  refToken: string,
+  reader: Reader,
+  repository: string,
+  sha: string
+): Promise<void> {
+  await createCompensatedDevBranch(reader, githubWriter(apiUrl, refToken), repository, sha);
 }
 
 export async function initializeProtectedDev(
