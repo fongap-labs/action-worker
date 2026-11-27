@@ -99,14 +99,39 @@ export function matchesCompletedDevMerge(
   );
 }
 
+/** Only bootstrap/adoption may need live administrative ruleset reads or guard cleanup. */
+export async function requiresDevBootstrapAudit(
+  reader: JsonReader,
+  repository: string,
+  sha: string,
+  statuses: unknown,
+  controlRepository: string,
+  isPublic: boolean,
+  isAutomatic: boolean
+): Promise<boolean> {
+  if (latestAttestedStatus(statuses, { repository, sha, context: devBootstrapContext })) {
+    return true;
+  }
+  if (
+    !isPublic ||
+    !isAutomatic ||
+    repository === controlRepository ||
+    latestAttestedStatus(statuses, { repository, sha, context: devMergeReceiptContext })
+  ) {
+    return false;
+  }
+  const main = await reader.get(`repos/${repository}/branches/main`);
+  return isJsonRecord(main) && getJsonString(main.commit, "sha") === sha;
+}
+
 async function main(): Promise<void> {
   const protectionToken = takeProtectionReadToken();
   const trigger = process.env.DEV_WRITE_AUDIT_TRIGGER_RUN_ID ?? "";
-  const mode = process.env.DEV_WRITE_AUDIT_MODE ?? "full";
+  const mode = process.env.DEV_WRITE_AUDIT_MODE ?? "sweep";
   if (
-    (mode !== "full" && mode !== "merge") ||
-    (mode === "merge" && (!trigger || protectionToken)) ||
-    (mode === "full" && trigger)
+    !["full", "merge", "sweep"].includes(mode) ||
+    (mode === "merge" ? !trigger : Boolean(trigger)) ||
+    (mode === "full" ? !protectionToken : Boolean(protectionToken))
   ) {
     throw new CliError("Development audit mode or credential boundary is invalid.", 77);
   }
@@ -129,10 +154,11 @@ async function main(): Promise<void> {
     ? await completedDevMergePublisher(reader, controlRepository, Number(trigger))
     : "";
   const rulesetPolicy: unknown = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
-  const automatic = isJsonRecord(rulesetPolicy) && rulesetPolicy.dev_merge_mode === "automatic";
+  const isAutomatic = isJsonRecord(rulesetPolicy) && rulesetPolicy.dev_merge_mode === "automatic";
   const context = managedBranchWriteContext("dev");
   const betaTargets = parseBetaDeployTargets(readBetaDeployPolicy());
   const wakeRepositories = new Set<string>();
+  let isBootstrapRequired = false;
   for (const repository of repositories) {
     const repo = await reader.get(`repos/${repository}`);
     if (!isJsonRecord(repo) || repo.full_name !== repository) {
@@ -159,9 +185,25 @@ async function main(): Promise<void> {
         if (canWakeBeta) wakeRepositories.add(repository);
         continue;
       }
-      if (publisher) {
-        // The completed merge path reconstructs the same immutable proof without admin access.
-        // Bootstrap and recovery remain exclusively in the protected full audit.
+      const bootstrapCandidate =
+        mode !== "merge" &&
+        (await requiresDevBootstrapAudit(
+          reader,
+          repository,
+          sha,
+          statuses,
+          controlRepository,
+          repo.private === false,
+          isAutomatic
+        ));
+      if (mode === "sweep" && bootstrapCandidate) {
+        isBootstrapRequired = true;
+        console.log("Development bootstrap requires protected reconciliation.");
+        continue;
+      }
+      if (mode === "full" && !bootstrapCandidate) continue;
+      if (mode !== "full") {
+        // Both ordinary sweeps and completion events reconstruct immutable merge proof.
         description = (await verifyRecordedDevWrite(reader, repository, sha, controlRepository))
           .description;
       } else {
@@ -189,7 +231,7 @@ async function main(): Promise<void> {
             controlRepository
           ));
         const adopted =
-          bootstrap === undefined && automatic && repo.private === false
+          bootstrap === undefined && isAutomatic && repo.private === false
             ? await verifyAutomaticDevAdoption(reader, repository, sha, statuses, controlRepository)
             : undefined;
         description =
@@ -244,6 +286,7 @@ async function main(): Promise<void> {
     if (canWakeBeta && state === "success") wakeRepositories.add(repository);
   }
   await appendLines(process.env.GITHUB_OUTPUT, [
+    `bootstrap_required=${isBootstrapRequired}`,
     `beta_push_wake=${wakeRepositories.size > 0}`,
     `beta_push_repository=${wakeRepositories.size === 1 ? [...wakeRepositories][0] : ""}`,
   ]);
