@@ -295,7 +295,7 @@ test("PR CI reuse, wait and final merge require the current signed snapshot", ()
   assert.match(merge, /originalStatusDescription\(status\) !== prCiScopeDescription\(scope\)/);
 });
 
-test("dev CI runs only in the public sandbox and cannot resume main governance", () => {
+test("dev CI uses the public sandbox and shares branch-bound governance continuation", () => {
   assert.ok(workflow.includes('run: node scripts/validate-pr-payload.ts "$PAYLOAD" --central-ci'));
   assert.ok(workflow.includes("Restrict development CI to the public sandbox"));
   assert.ok(workflow.includes('test "$IS_PRIVATE" = "false"'));
@@ -308,7 +308,9 @@ test("dev CI runs only in the public sandbox and cannot resume main governance",
     "Resume PR governance after CI prepare failure",
   ]) {
     const step = workflow.slice(workflow.indexOf(`- name: ${name}`));
-    assert.ok(step.split("\n").slice(0, 3).join("\n").includes("target_branch == 'main'"));
+    const condition = step.split("\n").slice(0, 3).join("\n");
+    assert.ok(condition.includes("target_branch == 'main'"));
+    assert.ok(condition.includes("target_branch == 'dev'"));
   }
 });
 

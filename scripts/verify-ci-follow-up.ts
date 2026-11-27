@@ -1,4 +1,6 @@
 import { hasVerifiedCiEvidence, latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
+import { readCurrentPrCiScope, type PrCiScope } from "./ci-scope-receipt.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { requireStatusToken } from "./control-token.ts";
 import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
@@ -11,12 +13,15 @@ export type FollowUpRequest = {
   head_sha: string;
   pr_number: number;
   ci_run_id: number;
+  target_branch?: "main" | "dev";
 };
 
 export function parseFollowUpRequest(value: unknown): FollowUpRequest {
   if (
     !isJsonRecord(value) ||
-    Object.keys(value).sort().join(",") !== "ci_run_id,head_sha,pr_number,repository" ||
+    !["ci_run_id,head_sha,pr_number,repository", "ci_run_id,head_sha,pr_number,repository,target_branch"].includes(Object.keys(value).sort().join(",")) ||
+    (value.target_branch !== undefined && value.target_branch !== "main" && value.target_branch !== "dev") ||
+    (value.target_branch === "dev" && value.pr_number === 0) ||
     typeof value.repository !== "string" ||
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.repository) ||
     typeof value.head_sha !== "string" ||
@@ -38,24 +43,31 @@ export function matchesFollowUpEvidence(
   controlRepository: string,
   runId: number,
   repository: string,
-  sha: string
+  sha: string,
+  targetBranch: "main" | "dev" = "main"
 ): boolean {
-  const status = latestCiStatus(combined, "CI Evidence");
+  const context = gateContextsForBranch(loadGateContract(), targetBranch).ci_evidence;
+  const status = latestCiStatus(combined, context);
   return (
     getJsonString(status, "state") === "success" &&
     trustedControlRunId(getJsonString(status, "target_url"), controlRepository) === runId &&
-    hasValidStatusAttestation(status, { repository, sha, context: "CI Evidence" })
+    hasValidStatusAttestation(status, { repository, sha, context })
   );
 }
 
 export function isCurrentFollowUpTarget(request: FollowUpRequest, target: unknown): boolean {
   if (!isJsonRecord(target)) return false;
   if (request.pr_number === 0) {
-    return getJsonString(target, "sha") === request.head_sha;
+    return request.target_branch !== "dev" && getJsonString(target, "sha") === request.head_sha;
   }
   return (
     getJsonString(target, "state") === "open" &&
-    isGovernedPullDirection(target) &&
+    isGovernedPullDirection(target, request.target_branch ?? "main") &&
+    (request.target_branch !== "dev" ||
+      (isJsonRecord(target.base) && isJsonRecord(target.base.repo) &&
+        target.base.repo.private === false &&
+        getJsonString(target.base.repo, "full_name") === request.repository &&
+        getJsonString(target.head && isJsonRecord(target.head) ? target.head.repo : undefined, "full_name") === request.repository)) &&
     isJsonRecord(target.head) &&
     getJsonString(target.head, "sha") === request.head_sha
   );
@@ -94,6 +106,20 @@ async function main(): Promise<void> {
     controlToken,
     statusToken
   );
+  const targetBranch = request.target_branch ?? "main";
+  let expectedPrScope: PrCiScope | undefined;
+  if (request.pr_number > 0) {
+    const pull = await reader.get(`repos/${request.repository}/pulls/${request.pr_number}`);
+    if (!isCurrentFollowUpTarget(request, pull)) {
+      await skipStaleFollowUp(request);
+      return;
+    }
+    expectedPrScope = await readCurrentPrCiScope(reader, request.repository, request.pr_number, request.head_sha, targetBranch);
+    if (!expectedPrScope) {
+      await skipStaleFollowUp(request);
+      return;
+    }
+  }
   const status = await reader.get(`repos/${request.repository}/commits/${request.head_sha}/status`);
   if (
     !matchesFollowUpEvidence(
@@ -101,7 +127,8 @@ async function main(): Promise<void> {
       controlRepository,
       request.ci_run_id,
       request.repository,
-      request.head_sha
+      request.head_sha,
+      targetBranch
     )
   ) {
     throw new CliError("CI follow-up does not own the successful CI Evidence status.", 65);
@@ -111,6 +138,7 @@ async function main(): Promise<void> {
       controlRepository,
       targetRepository: request.repository,
       targetSha: request.head_sha,
+      expectedPrScope,
       workflowPaths: [".github/workflows/central-ci-dispatch.yml"],
       runAttempts: 18,
       retryDelayMs: 5_000,
@@ -148,7 +176,7 @@ async function main(): Promise<void> {
       return;
     }
   }
-  await appendLines(process.env.GITHUB_OUTPUT, ["current=true"]);
+  await appendLines(process.env.GITHUB_OUTPUT, ["current=true", `target_branch=${targetBranch}`]);
   console.log(
     `Verified CI follow-up: ${request.repository}@${request.head_sha} run=${request.ci_run_id}`
   );
