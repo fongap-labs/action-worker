@@ -3,8 +3,12 @@ import { test } from "node:test";
 import {
   assertTransferCompare,
   assertTransferReady,
+  requireEquivalentTransferSnapshot,
+  requireExclusiveTransferHead,
+  revokeTransferHeadGate,
 } from "../scripts/branch-transfer-execution.ts";
 import { verifyTransferCommit } from "../scripts/branch-transfer-write.ts";
+import { signedStatusDescription } from "../scripts/status-attestation.ts";
 import { type PrCiScope, prCiScopeDescription } from "../scripts/ci-scope-receipt.ts";
 
 const repository = "fongap-labs/product";
@@ -101,4 +105,93 @@ test("transfer receipt binds actual squash tree and both synthetic parents", () 
       tree: { sha: scope.baseSha },
     })
   );
+});
+
+test("regenerated synthetic merge SHA is accepted only for the exact ordered parents and tree", async () => {
+  const refreshed = { ...scope, mergeSha: "d".repeat(40) };
+  const original = {
+    sha: scope.mergeSha,
+    parents: [{ sha: scope.baseSha }, { sha: scope.headSha }],
+    tree: { sha: "e".repeat(40) },
+  };
+  let replacement = { ...original, sha: refreshed.mergeSha };
+  const reader = {
+    async get(path: string) {
+      if (path.endsWith(scope.mergeSha)) return original;
+      if (path.endsWith(refreshed.mergeSha)) return replacement;
+      throw new Error(path);
+    },
+  };
+  await requireEquivalentTransferSnapshot(reader, scope, refreshed);
+  await assert.rejects(
+    requireEquivalentTransferSnapshot(reader, scope, { ...refreshed, prNumber: 104 })
+  );
+  await assert.rejects(
+    requireEquivalentTransferSnapshot(reader, scope, { ...refreshed, baseSha: "f".repeat(40) })
+  );
+  replacement = { ...replacement, tree: { sha: "f".repeat(40) } };
+  await assert.rejects(requireEquivalentTransferSnapshot(reader, scope, refreshed), /tree changed/);
+  replacement = { ...original, sha: refreshed.mergeSha, parents: [...original.parents].reverse() };
+  await assert.rejects(requireEquivalentTransferSnapshot(reader, scope, refreshed), /invalid parents/);
+});
+
+test("temporary target gate refuses a competing PR sharing the protected source SHA", async () => {
+  let pulls = [pull];
+  const reader = { get: async () => pulls };
+  await requireExclusiveTransferHead(reader, scope);
+  pulls = [pull, { ...pull, number: 104, head: { ...pull.head, ref: "fix/other" } }];
+  await assert.rejects(requireExclusiveTransferHead(reader, scope), /Another target PR/);
+  pulls = [];
+  await assert.rejects(requireExclusiveTransferHead(reader, scope), /no longer open/);
+});
+
+test("temporary gate cleanup revokes only the current run's signed target status", async () => {
+  const previousKeyring = process.env.AW_STATUS_KEYRING;
+  const previousAttempt = process.env.GITHUB_RUN_ATTEMPT;
+  process.env.AW_STATUS_KEYRING = JSON.stringify({
+    schema_version: 1,
+    active: "k1",
+    keys: { k1: "A".repeat(43) },
+    legacy_tokens: [],
+  });
+  process.env.GITHUB_RUN_ATTEMPT = "1";
+  try {
+    const snapshot = prCiScopeDescription(scope);
+    const targetUrl = "https://github.com/fongap-labs/action-worker/actions/runs/123";
+    const native = {
+      repository,
+      sha: scope.headSha,
+      state: "success" as const,
+      context: "validate-merge",
+      description: snapshot,
+      targetUrl,
+    };
+    const status = {
+      state: "success",
+      context: native.context,
+      description: signedStatusDescription(native),
+      target_url: targetUrl,
+      created_at: "2026-11-27T00:00:00Z",
+    };
+    let statuses = [status];
+    const reader = { get: async () => ({ statuses }) };
+    const calls: unknown[][] = [];
+    const publish = async (...args: unknown[]) => {
+      calls.push(args);
+    };
+    const cleanup = () =>
+      revokeTransferHeadGate(reader, repository, scope.headSha, "main", snapshot, targetUrl, publish);
+    await cleanup();
+    assert.deepEqual(calls, [[scope.headSha, "validate-merge", "failure", snapshot]]);
+    statuses = [{ ...status, target_url: targetUrl.replace("123", "456") }];
+    await cleanup();
+    assert.equal(calls.length, 1);
+    statuses = [{ ...status, description: "unsigned" }];
+    await assert.rejects(cleanup(), /mismatched/);
+  } finally {
+    if (previousKeyring === undefined) delete process.env.AW_STATUS_KEYRING;
+    else process.env.AW_STATUS_KEYRING = previousKeyring;
+    if (previousAttempt === undefined) delete process.env.GITHUB_RUN_ATTEMPT;
+    else process.env.GITHUB_RUN_ATTEMPT = previousAttempt;
+  }
 });

@@ -81,6 +81,9 @@ test("branch authorization reuses admin-ops and never signs an unchecked request
   assert.ok(source.includes("needs.transfer-governance.result == 'success'"));
   assert.ok(source.includes("needs.transfer-linux.result == 'success'"));
   assert.ok(source.includes("scripts/branch-transfer-execution.ts execute"));
+  assert.ok(source.includes("scripts/branch-transfer-execution.ts cleanup"));
+  assert.ok(source.includes("TRANSFER_MERGE_SHA:"));
+  assert.ok(source.includes("if: always() && steps.transfer_status.outputs.token != ''"));
 });
 
 test("source SHA is automatically resolved from main or PR HEAD when omitted", async () => {
