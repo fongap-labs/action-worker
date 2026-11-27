@@ -70,7 +70,9 @@ export async function findIncidents(
     throw new CliError("::error::Invalid incident repository.", 65);
   }
   const incidents: Issue[] = [];
-  for (let page = 1; page <= 10; page += 1) {
+  // The issues endpoint includes closed PRs. Large managed repositories can exceed 1,000 rows.
+  // Continue a bounded complete scan, never treating a truncated inventory as safe.
+  for (let page = 1; page <= 100; page += 1) {
     let response: unknown;
     try {
       response = await reader.get(

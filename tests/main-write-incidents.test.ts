@@ -261,3 +261,22 @@ test("resolving a main incident cannot resolve a dev incident", async () => {
   await assert.doesNotReject(assertNoOpenMainWriteIncidents(reader, repository));
   await assert.rejects(assertNoOpenManagedWriteIncidents(reader, repository, "dev"), /#2/);
 });
+
+test("large repositories do not lose incidents beyond the first thousand issue rows", async () => {
+  const repository = "org/large-repo";
+  const old = { ...incident, title: incidentTitle(sha, "dev"), state: "closed" };
+  let pages = 0;
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      pages++;
+      assert.equal(path, `repos/${repository}/issues?state=all&per_page=100&page=${pages}`);
+      if (pages === 22) return [old];
+      return Array.from({ length: 100 }, (_, index) => ({
+        number: pages * 100 + index,
+        pull_request: {},
+      }));
+    },
+  };
+  assert.equal(await shouldCreateIncident(reader, repository, sha, "dev"), false);
+  assert.equal(pages, 22);
+});
