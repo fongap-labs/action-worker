@@ -266,9 +266,9 @@ test("Intake reconciles every kind of work on the heartbeat, never by hand", asy
     "intake-security-scans.ts",
   ]);
   assert.doesNotMatch(workflow, /workflow_dispatch/);
-  // A control main push must not trigger unrelated repository-wide scans.
-  // Main CI and Main write audit still run on push, while repository_dispatch remains immediate.
-  for (const job of ["pull-requests", "task-sources", "task-schedules", "deploy-schedules"]) {
+  // Policy changes can unblock existing PRs. Unrelated task and deploy scans stay excluded.
+  // Main CI and write audit still run on push; repository_dispatch remains immediate.
+  for (const job of ["task-sources", "task-schedules", "deploy-schedules"]) {
     assert.match(
       workflow,
       new RegExp(`^  ${job}:\\n    (?:#[^\\n]*\\n    )?if: github\\.event_name != 'push'`, "m"),

@@ -10,7 +10,14 @@ import {
 } from "./github-api.ts";
 import { findActiveIncidents } from "./main-write-incidents.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
-import { appendLines, CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
+import {
+  appendLines,
+  CliError,
+  handleError,
+  isMain,
+  readJson,
+  runText,
+} from "./runtime-command.ts";
 
 type RulesetPayload = {
   name: string;
@@ -272,14 +279,14 @@ async function applyRulesets(
     existingByName.set(item.name, item.id);
   }
 
-  let devChanged = false;
+  let hasDevProtectionChanged = false;
   for (const desired of rulesets) {
     const opensDev = desired.name === "Protect Dev Branch" && !isClosedDevProtection(desired);
     const id = existingByName.get(desired.name);
     if (id === undefined) {
       await ghJson("POST", `repos/${repository}/rulesets`, token, desired);
       console.log(`repository ruleset created: ${repository} / ${desired.name}`);
-      if (opensDev) devChanged = true;
+      if (opensDev) hasDevProtectionChanged = true;
       continue;
     }
 
@@ -293,9 +300,9 @@ async function applyRulesets(
 
     await ghJson("PUT", `repos/${repository}/rulesets/${id}`, token, desired);
     console.log(`repository ruleset updated: ${repository} / ${desired.name}`);
-    if (opensDev) devChanged = true;
+    if (opensDev) hasDevProtectionChanged = true;
   }
-  return devChanged;
+  return hasDevProtectionChanged;
 }
 
 async function main(): Promise<void> {
@@ -369,8 +376,8 @@ async function main(): Promise<void> {
     }
   }
 
-  const devChanged = await applyRulesets(repository, token, response.private === true, rulesets);
-  await appendLines(process.env.GITHUB_OUTPUT, [`dev_protection_changed=${devChanged}`]);
+  const hasDevProtectionChanged = await applyRulesets(repository, token, response.private === true, rulesets);
+  await appendLines(process.env.GITHUB_OUTPUT, [`dev_protection_changed=${hasDevProtectionChanged}`]);
   console.log(`repository settings applied: ${repository}`);
 }
 
