@@ -295,7 +295,7 @@ test("PR CI reuse, wait and final merge require the current signed snapshot", ()
   assert.match(merge, /originalStatusDescription\(status\) !== prCiScopeDescription\(scope\)/);
 });
 
-test("dev CI routes private sources only to native evidence and preserves branch continuation", () => {
+test("private dev CI requires native evidence and preserves branch continuation", () => {
   assert.ok(workflow.includes('run: node scripts/validate-pr-payload.ts "$PAYLOAD" --central-ci'));
   assert.ok(workflow.includes("Require source-owned private development CI"));
   assert.ok(workflow.includes('test "$NATIVE_PRIVATE" = "true"'));

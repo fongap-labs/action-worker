@@ -12,7 +12,7 @@ const repoPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 export function parseNativePrivateCiArgs(args: readonly string[]): NativePrivateCiRequest {
   if (args.length !== 7 && args.length !== 8) {
     throw new CliError(
-      "Usage: private-ci-gate.ts <owner/repository> <pr> <base-sha> <head-sha> <merge-sha> <linux-shards-json> <has-windows>",
+      "Usage: private-ci-gate.ts <owner/repository> <pr> <base-sha> <head-sha> <merge-sha> <linux-shards-json> <has-windows> [main|dev]",
       64
     );
   }

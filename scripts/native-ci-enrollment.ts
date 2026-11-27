@@ -40,13 +40,8 @@ export function resolveNativeCiPilot(
 }
 
 async function main(): Promise<void> {
-  const [
-    repository = "",
-    privateFlag = "",
-    eventAction = "",
-    prNumber = "",
-    branch = "main",
-  ] = process.argv.slice(2);
+  const [repository = "", privateFlag = "", eventAction = "", prNumber = "", branch = "main"] =
+    process.argv.slice(2);
   const raw: unknown = JSON.parse(readFileSync("policies/private-ci-pilots.json", "utf8"));
   const enabled = resolveNativeCiPilot(raw, repository, privateFlag, eventAction, prNumber, branch);
   await appendLines(process.env.GITHUB_OUTPUT, [`enabled=${enabled}`]);
