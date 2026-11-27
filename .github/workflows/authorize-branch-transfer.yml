@@ -18,7 +18,7 @@ on:
         type: string
         required: false
       pr_number:
-        description: 跨分支 PR 编号（初始化或纳管保持 0）
+        description: 跨分支 PR 编号（0 自动识别唯一开放 PR；初始化或纳管保持 0）
         type: number
         default: 0
       confirm:
@@ -105,7 +105,7 @@ jobs:
           OPERATION: ${{ inputs.operation }}
           REPOSITORY: ${{ contains(inputs.repository, '/') && inputs.repository || format('{0}/{1}', github.repository_owner, inputs.repository) }}
           SOURCE_SHA: ${{ steps.plan.outputs.source_sha }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ steps.plan.outputs.pr_number }}
           OPERATOR_CONFIRMED: ${{ inputs.confirm }}
           TRANSFER_SNAPSHOT: ${{ steps.plan.outputs.transfer_snapshot }}
           AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
@@ -142,7 +142,7 @@ jobs:
           OPERATION: ${{ inputs.operation }}
           REPOSITORY: ${{ contains(inputs.repository, '/') && inputs.repository || format('{0}/{1}', github.repository_owner, inputs.repository) }}
           SOURCE_SHA: ${{ steps.plan.outputs.source_sha }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ steps.plan.outputs.pr_number }}
           OPERATOR_CONFIRMED: ${{ inputs.confirm }}
           TRANSFER_SNAPSHOT: ${{ steps.plan.outputs.transfer_snapshot }}
           AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}

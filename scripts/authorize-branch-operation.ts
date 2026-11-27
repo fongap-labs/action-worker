@@ -7,7 +7,7 @@ import {
   devBootstrapContext,
   verifyBootstrapSource,
 } from "./dev-bootstrap-authorization.ts";
-import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { getJsonNumber, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
@@ -18,6 +18,75 @@ const shaPattern = /^[0-9a-f]{40}$/;
 
 function isDevBootstrap(operation: string): boolean {
   return operation === "initialize-dev" || operation === "adopt-dev";
+}
+
+function isTransferCandidate(pull: unknown, repository: string): boolean {
+  if (!isJsonRecord(pull) || pull.state !== "open" || pull.draft === true) return false;
+  const head = isJsonRecord(pull.head) ? pull.head : {};
+  const base = isJsonRecord(pull.base) ? pull.base : {};
+  const source = getJsonString(head, "ref");
+  const target = getJsonString(base, "ref");
+  return (
+    ((source === "dev" && target === "main") || (source === "main" && target === "dev")) &&
+    getJsonString(head.repo, "full_name") === repository &&
+    getJsonString(base.repo, "full_name") === repository
+  );
+}
+
+export async function resolveTransferPrNumber(
+  reader: { get(path: string): Promise<unknown> },
+  repository: string,
+  requested: number
+): Promise<number> {
+  if (
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
+    !Number.isSafeInteger(requested) ||
+    requested < 0
+  ) {
+    throw new CliError("Invalid cross-branch PR number.", 65);
+  }
+  if (requested > 0) {
+    const pull = await reader.get(`repos/${repository}/pulls/${requested}`);
+    if (!isTransferCandidate(pull, repository) || getJsonNumber(pull, "number") !== requested) {
+      throw new CliError(
+        "The specified PR is not an open, non-draft same-repository main/dev transfer.",
+        75
+      );
+    }
+    return requested;
+  }
+  const owner = repository.split("/")[0];
+  const candidates = new Set<number>();
+  for (const [source, target] of [
+    ["dev", "main"],
+    ["main", "dev"],
+  ]) {
+    const query = new URLSearchParams({
+      state: "open",
+      head: `${owner}:${source}`,
+      base: target!,
+      per_page: "100",
+    });
+    const pulls = await reader.get(`repos/${repository}/pulls?${query}`);
+    if (!Array.isArray(pulls) || pulls.length >= 100) {
+      throw new CliError("Cross-branch PR discovery is incomplete; specify the exact PR.", 75);
+    }
+    for (const pull of pulls) {
+      if (!isTransferCandidate(pull, repository)) continue;
+      const number = getJsonNumber(pull, "number");
+      if (!Number.isSafeInteger(number) || number < 1) {
+        throw new CliError("Cross-branch PR discovery returned an invalid number.", 75);
+      }
+      candidates.add(number);
+    }
+  }
+  if (candidates.size === 0) {
+    throw new CliError("No open main/dev transfer PR exists; create one before authorization.", 75);
+  }
+  if (candidates.size !== 1) {
+    throw new CliError("Multiple cross-branch PRs exist; specify the exact PR number.", 75);
+  }
+  return [...candidates][0]!;
 }
 
 export async function resolveBranchSourceSha(
@@ -62,7 +131,7 @@ async function main(): Promise<void> {
   const operation = process.env.OPERATION ?? "";
   const repository = process.env.REPOSITORY ?? "";
   const requestedSha = process.env.SOURCE_SHA ?? "";
-  const prNumber = Number(process.env.PR_NUMBER ?? "");
+  const requestedPrNumber = Number(process.env.PR_NUMBER ?? "");
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const runId = Number(process.env.GITHUB_RUN_ID ?? "");
   const attempt = Number(process.env.GITHUB_RUN_ATTEMPT ?? "");
@@ -74,8 +143,10 @@ async function main(): Promise<void> {
     process.env.GITHUB_EVENT_NAME !== "workflow_dispatch" ||
     !["plan", "verify", "approve"].includes(stage ?? "") ||
     (!isDevBootstrap(operation) && operation !== "transfer") ||
-    !Number.isSafeInteger(prNumber) ||
-    (isDevBootstrap(operation) ? prNumber !== 0 || snapshot !== "" : prNumber < 1)
+    !Number.isSafeInteger(requestedPrNumber) ||
+    (isDevBootstrap(operation)
+      ? requestedPrNumber !== 0 || snapshot !== ""
+      : requestedPrNumber < (stage === "plan" ? 0 : 1))
   ) {
     throw new CliError("Branch authorization requires an explicit trusted main dispatch.", 75);
   }
@@ -103,6 +174,10 @@ async function main(): Promise<void> {
     attempt,
     isDevBootstrap(operation)
   );
+  const prNumber =
+    operation === "transfer"
+      ? await resolveTransferPrNumber(reader, repository, requestedPrNumber)
+      : requestedPrNumber;
   const sha =
     stage === "plan"
       ? await resolveBranchSourceSha(reader, operation, repository, prNumber, requestedSha)
@@ -118,7 +193,11 @@ async function main(): Promise<void> {
       adopt
     );
     if (stage === "plan") {
-      await appendLines(process.env.GITHUB_OUTPUT, [`source_sha=${sha}`, "transfer_snapshot="]);
+      await appendLines(process.env.GITHUB_OUTPUT, [
+        `source_sha=${sha}`,
+        "pr_number=0",
+        "transfer_snapshot=",
+      ]);
       await appendLines(process.env.GITHUB_STEP_SUMMARY, [
         "## Development initialization authorization",
         "",
@@ -181,6 +260,7 @@ async function main(): Promise<void> {
     }
     await appendLines(process.env.GITHUB_OUTPUT, [
       `source_sha=${sha}`,
+      `pr_number=${prNumber}`,
       `transfer_snapshot=${expected}`,
     ]);
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
