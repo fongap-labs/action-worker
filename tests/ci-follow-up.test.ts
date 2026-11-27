@@ -180,7 +180,16 @@ test("dev follow-up requires its own signed evidence and ordinary public same-re
     repository,
     sha
   );
-  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, "dev"), true);
-  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, "main"), false);
-  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId + 1, repository, sha, "dev"), false);
+  assert.equal(
+    matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, "dev"),
+    true
+  );
+  assert.equal(
+    matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, "main"),
+    false
+  );
+  assert.equal(
+    matchesFollowUpEvidence(status, controlRepository, runId + 1, repository, sha, "dev"),
+    false
+  );
 });
