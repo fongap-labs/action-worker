@@ -14,12 +14,12 @@ export async function assertManualBranchAuthorization(
   repository: string,
   runId: number,
   attempt: number,
-  allowSelfBootstrap = false
+  canSelfBootstrap = false
 ): Promise<void> {
   if (
     !repositoryPattern.test(controlRepository) ||
     !repositoryPattern.test(repository) ||
-    (repository === controlRepository && !allowSelfBootstrap) ||
+    (repository === controlRepository && !canSelfBootstrap) ||
     !Number.isSafeInteger(runId) ||
     runId < 1 ||
     attempt !== 1
