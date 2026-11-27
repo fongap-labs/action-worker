@@ -62,6 +62,7 @@ test("unsigned, expired and changed bootstrap evidence cannot establish dev trus
     [`${prefix}/rulesets/12?includes_parents=false`, closed],
     [`${prefix}/branches/main`, { commit: { sha: "b".repeat(40) } }],
     [`${prefix}/branches/dev`, { commit: { sha } }],
+    [`${prefix}/compare/${sha}...${"b".repeat(40)}`, { status: "diverged" }],
   ]);
   const reader = {
     async get(path: string): Promise<unknown> {
@@ -307,4 +308,75 @@ test("only an explicit private plan restriction permits compensated initializati
     readClosedDevProtection({ get: async () => [] }, repository, true),
     /Closed development ruleset is missing/
   );
+});
+
+test("completed manual authorization survives a later legitimate main advance", async () => {
+  const mainSha = "b".repeat(40);
+  const run = (id: number, path: string) => ({
+    id,
+    repository: { full_name: control },
+    head_branch: "main",
+    path,
+    status: "completed",
+    conclusion: "success",
+    run_started_at: "2026-11-25T10:59:00Z",
+    updated_at: "2026-11-25T11:01:00Z",
+  });
+  const receipt = {
+    context: "Dev Bootstrap Authorization",
+    state: "success",
+    description: `init-v1=${sha}`,
+    target_url: `https://github.com/${control}/actions/runs/42`,
+    created_at: "2026-11-25T11:00:00Z",
+  };
+  const mainGuard = {
+    ...receipt,
+    context: "Main Write Guard",
+    description: "verified main",
+    target_url: `https://github.com/${control}/actions/runs/41`,
+  };
+  const statuses = attestFixtureStatuses({ statuses: [receipt, mainGuard] }, repository, sha);
+  const comparePath = `${prefix}/compare/${sha}...${mainSha}`;
+  const comparison = {
+    status: "ahead",
+    behind_by: 0,
+    base_commit: { sha },
+    merge_base_commit: { sha },
+  };
+  const responses = new Map<string, unknown>([
+    [prefix, { full_name: repository, private: false, default_branch: "main" }],
+    [`${prefix}/rulesets?includes_parents=false&per_page=100`, [{ ...closed, id: 12 }]],
+    [`${prefix}/rulesets/12?includes_parents=false`, closed],
+    [`${prefix}/branches/main`, { commit: { sha: mainSha } }],
+    [`${prefix}/branches/dev`, { commit: { sha } }],
+    [`${prefix}/issues?state=open&per_page=100&page=1`, []],
+    [`${prefix}/commits/${sha}/status`, statuses],
+    [comparePath, comparison],
+    [`repos/${control}/actions/runs/41`, run(41, ".github/workflows/intake.yml")],
+    [
+      `repos/${control}/actions/runs/42`,
+      run(42, ".github/workflows/authorize-branch-transfer.yml"),
+    ],
+  ]);
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.ok(responses.has(path), path);
+      return responses.get(path);
+    },
+  };
+  const audit = () => verifyAuthorizedDevBootstrap(reader, repository, sha, statuses, control, now);
+  assert.equal(await audit(), `init-v1=${sha}`);
+  await assert.rejects(
+    verifyBootstrapSource(reader, repository, sha, control, true),
+    /branch identity changed/
+  );
+  assert.equal(
+    await verifyAutomaticDevAdoption(reader, repository, sha, { statuses: [] }, control),
+    undefined
+  );
+  responses.set(comparePath, { ...comparison, merge_base_commit: { sha: mainSha } });
+  await assert.rejects(audit(), /branch identity changed/);
+  responses.set(comparePath, comparison);
+  responses.set(`${prefix}/branches/dev`, { commit: { sha: mainSha } });
+  await assert.rejects(audit(), /branch identity changed/);
 });
