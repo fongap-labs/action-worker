@@ -76,7 +76,7 @@ function fixtureReader(truncated = false, moved = false) {
               size: Buffer.byteLength(content),
               sha: blob,
             },
-            { path: "pnpm-lock.yaml", type: "blob" },
+            { path: "pnpm-lock.yaml", type: "blob", mode: "100644" },
           ],
         };
       }
@@ -94,6 +94,8 @@ test("branch inventory uses immutable Git objects and marks truncation and movem
   assert.equal(result.state, "scanned");
   assert.equal(result.manifests, 1);
   assert.equal(result.locks, 1);
+  assert.equal(result.baseSha, sha);
+  assert.equal(result.located[0]?.blob_sha, blob);
   assert.equal((await inspectRef(reader, "example/one", "dev")).state, "absent");
   assert.equal((await inspectRef(fixtureReader(true), "example/one", "main")).state, "incomplete");
   assert.equal(
@@ -132,6 +134,11 @@ test("new repositories are discovered without grants, and private details stay r
   assert.equal(result.policy_counts.matching, 1);
   assert.equal(result.policy_counts.different, 2);
   assert.equal(result.public_policy_findings.length, 1);
+  assert.equal(result.remediation_plan_count, 2);
+  assert.equal(result.private_remediation_plan_count, 1);
+  assert.equal(result.public_remediation_plans.length, 1);
+  assert.equal(result.public_remediation_plans[0]?.base_sha, sha);
+  assert.equal(result.public_remediation_plans[0]?.changes[0]?.strategy, "pnpm-lock");
   assert.equal(result.common_public_dependencies[0]?.differentDeclarations, true);
   assert.equal(result.common_public_dependencies[0]?.key, "main/npm:react");
   assert.doesNotMatch(JSON.stringify(result), /hidden/);

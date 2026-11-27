@@ -16,6 +16,7 @@ on:
       - scripts/security-coverage-audit.ts
       - scripts/audit-dependency-inventory.ts
       - scripts/dependency-version-policy.ts
+      - scripts/plan-dependency-remediation.ts
       - policies/dependency-versions.json
       - policies/security.json
       - .github/workflows/audit-config-scope.yml
