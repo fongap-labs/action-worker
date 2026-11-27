@@ -347,6 +347,9 @@ jobs:
     steps:
       - name: Aggregate merge gate
         env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           CHANGE_GOVERNANCE_RESULT: ${{ needs.change-governance.result }}
           NAMING_RESULT: ${{ needs.naming.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
@@ -357,6 +360,14 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+
+          # Match the shared ordinary-PR boundary: managed branch heads need manual authorization.
+          if [[ "$EVENT" == "pull_request" ]]; then
+            if [[ "$PR_BASE_REF" != "main" || -z "$PR_HEAD_REF" || "$PR_HEAD_REF" == "main" || "$PR_HEAD_REF" == "dev" ]]; then
+              echo "::error::Managed branch transfer requires separate human authorization." >&2
+              exit 75
+            fi
+          fi
 
           if [ "$CHANGE_GOVERNANCE_RESULT" != "success" ] || [ "$NAMING_RESULT" != "success" ] || [ "$SECURITY_RESULT" != "success" ] || [ "$STATIC_RESULT" != "success" ] || [ "$CONTRACT_RESULT" != "success" ] || [ "$PRIVATE_SANDBOX_RESULT" != "success" ] || [ "$DOWNSTREAM_RESULT" != "success" ]; then
             echo "::error::CI failed: change-governance=$CHANGE_GOVERNANCE_RESULT naming=$NAMING_RESULT security=$SECURITY_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT private-sandbox=$PRIVATE_SANDBOX_RESULT downstream=$DOWNSTREAM_RESULT" >&2
@@ -436,7 +447,9 @@ jobs:
             jq -e --arg head "$HEAD_SHA" --arg title "$PR_TITLE" '
               .state == "closed" and .merged == true and .draft == false and
               .head.sha == $head and .title == $title and
-              .base.ref == "main" and .head.repo.full_name == .base.repo.full_name and
+              .base.ref == "main" and .head.ref != "main" and .head.ref != "dev" and
+              (.head.ref | type == "string" and length > 0) and
+              .head.repo.full_name == .base.repo.full_name and
               (.merge_commit_sha | type == "string" and test("^[0-9a-f]{40}$"))
             ' <<< "$latest" >/dev/null || return 1
             merged_sha="$(jq -r '.merge_commit_sha' <<< "$latest")"
@@ -456,7 +469,9 @@ jobs:
           jq -e --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg title "$PR_TITLE" '
             .state == "open" and .merged == false and .draft == false and
             .head.sha == $head and .base.sha == $base and .title == $title and
-            .base.ref == "main" and .head.repo.full_name == .base.repo.full_name
+            .base.ref == "main" and .head.ref != "main" and .head.ref != "dev" and
+              (.head.ref | type == "string" and length > 0) and
+              .head.repo.full_name == .base.repo.full_name
           ' <<< "$details" >/dev/null || {
             echo "::error::PR base, head, title, or draft state changed since successful CI." >&2
             exit 75

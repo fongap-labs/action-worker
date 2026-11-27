@@ -41,3 +41,13 @@ test("shared PR validator rejects non-English and invalid controller titles", as
     );
   }
 });
+
+test("controller required merge check and write gate reject managed-branch transfers", async () => {
+  const workflow = await readFile(".github/workflows/validate-ci.yml", "utf8");
+  const gate = workflow.split("  validate-merge:")[1]?.split("  automatic-squash-merge:")[0] ?? "";
+  const writer = workflow.split("  automatic-squash-merge:")[1] ?? "";
+  assert.match(gate, /PR_HEAD_REF: \$\{\{ github\.event\.pull_request\.head\.ref \}\}/);
+  assert.match(gate, /PR_HEAD_REF" == "main" \|\| "\$PR_HEAD_REF" == "dev"/);
+  assert.match(gate, /Managed branch transfer requires separate human authorization/);
+  assert.equal(writer.split('.head.ref != "main" and .head.ref != "dev"').length - 1, 2);
+});
