@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { getGithubJsonIfExists, getJsonString, isJsonRecord } from "./github-api.ts";
-import { isGovernedPullDirection, isManagedBranchRef } from "./resolve-pr-facts.ts";
+import {
+  isGovernedPullDirection,
+  isManagedBranchRef,
+  isStagedTransferDirection,
+} from "./resolve-pr-facts.ts";
 import { CliError } from "./runtime-command.ts";
 
 export type PrCiScope = {
@@ -95,6 +99,24 @@ export async function readCurrentTransferScope(
   );
 }
 
+export async function readCurrentStagedTransferScope(
+  reader: { get(path: string): Promise<unknown> },
+  repository: string,
+  prNumber: number,
+  headSha: string,
+  ref: string
+): Promise<PrCiScope | undefined> {
+  return readPrSnapshot(
+    reader,
+    repository,
+    prNumber,
+    headSha,
+    (pull) =>
+      isStagedTransferDirection(pull, repository) && getJsonString(pull.head, "ref") === ref,
+    true
+  );
+}
+
 async function readPrSnapshot(
   reader: { get(path: string): Promise<unknown> },
   repository: string,
@@ -124,8 +146,10 @@ async function readPrSnapshot(
   }
   const targetBranch = getJsonString(pull.base, "ref");
   if (isTransfer) {
-    const source = targetBranch === "main" ? "dev" : "main";
-    const sourceBranch = await reader.get(`repos/${repository}/branches/${source}`);
+    const source = getJsonString(pull.head, "ref");
+    const sourceBranch = await reader.get(
+      `repos/${repository}/branches/${encodeURIComponent(source)}`
+    );
     if (!isJsonRecord(sourceBranch) || getJsonString(sourceBranch.commit, "sha") !== headSha) {
       return undefined;
     }

@@ -22,7 +22,7 @@ import { findActiveIncidents } from "./main-write-incidents.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { evaluatePrTrust } from "./pr-trust.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
-import { isManagedBranchRef } from "./resolve-pr-facts.ts";
+import { isReservedMergeSourceRef } from "./resolve-pr-facts.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import {
   hasValidStatusAttestation,
@@ -467,7 +467,7 @@ export async function scanOpenPullRequests(
       if (
         baseRef === "dev" &&
         headRef !== "" &&
-        !isManagedBranchRef(headRef) &&
+        !isReservedMergeSourceRef(headRef) &&
         isJsonRecord(baseRepo) &&
         baseRepo.private === false &&
         baseRepo.full_name === repository &&
@@ -551,7 +551,7 @@ export async function scanOpenPullRequests(
         }
         continue;
       }
-      if (isManagedBranchRef(headRef) || (baseRef !== "" && baseRef !== "main")) {
+      if (isReservedMergeSourceRef(headRef) || (baseRef !== "" && baseRef !== "main")) {
         result.blocked_unauthorized += 1;
         console.warn(
           `::warning::PR ${repository}#${pull.number} is outside ordinary main governance; dispatch withheld.`
@@ -595,7 +595,7 @@ export async function scanOpenPullRequests(
             detail.mergeable_state === "behind" &&
             head.sha === pull.headSha &&
             base.ref === "main" &&
-            !isManagedBranchRef(getJsonString(head, "ref")) &&
+            !isReservedMergeSourceRef(getJsonString(head, "ref")) &&
             headRepo.full_name === repository &&
             baseRepo.full_name === repository
           ) {
