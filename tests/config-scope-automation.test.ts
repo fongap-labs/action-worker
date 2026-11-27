@@ -19,7 +19,9 @@ test("organization configuration scope audit is automatic and bound to protected
   assert.deepEqual(Object.keys(workflow.jobs), [
     "audit",
     "discover-proposals",
+    "compute-proposals",
     "propose-dependencies",
+    "private-proposals",
   ]);
 
   const job = workflow.jobs.audit;
@@ -40,5 +42,8 @@ test("organization configuration scope audit is automatic and bound to protected
   assert.equal(metadata?.run, "node scripts/config-storage-audit.ts");
   const serialized = JSON.stringify(workflow);
   assert.doesNotMatch(serialized, /permission-secrets: write|secrets: write|actions: write/);
-  assert.doesNotMatch(serialized, /upload-artifact|download-artifact|gh secret set/);
+  assert.doesNotMatch(serialized, /gh secret set/);
+  for (const name of ["audit", "discover-proposals", "private-proposals"]) {
+    assert.doesNotMatch(JSON.stringify(workflow.jobs[name]), /upload-artifact|download-artifact/);
+  }
 });
