@@ -45,7 +45,6 @@ export async function recoverInterruptedDevBootstrap(
   deleteGuard: (id: number) => Promise<void>,
   now = Date.now()
 ): Promise<string | undefined> {
-  if (repository === controlRepository) return undefined;
   const receipt = latestAttestedStatus(statuses, {
     repository,
     sha,

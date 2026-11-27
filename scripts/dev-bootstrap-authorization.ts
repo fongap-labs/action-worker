@@ -83,11 +83,7 @@ export async function verifyBootstrapSource(
   controlRepository: string,
   isExistingDevRequired: boolean
 ): Promise<void> {
-  if (
-    !repositoryPattern.test(repository) ||
-    !shaPattern.test(sha) ||
-    repository === controlRepository
-  ) {
+  if (!repositoryPattern.test(repository) || !shaPattern.test(sha)) {
     throw new CliError("Development initialization target is invalid.", 65);
   }
   const repo = await reader.get(`repos/${repository}`);

@@ -65,7 +65,6 @@ export async function createProtectedDevBranch(
 ): Promise<void> {
   if (
     !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) ||
-    repository === "fongap-labs/action-worker" ||
     !/^[0-9a-f]{40}$/.test(sha) ||
     !Number.isSafeInteger(integrationId) ||
     integrationId < 1
@@ -230,12 +229,7 @@ export async function deleteTemporaryDevGuard(
   repository: string,
   id: number
 ): Promise<void> {
-  if (
-    !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) ||
-    repository === "fongap-labs/action-worker" ||
-    !Number.isSafeInteger(id) ||
-    id < 1
-  ) {
+  if (!/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) || !Number.isSafeInteger(id) || id < 1) {
     throw new CliError("Invalid development guard cleanup scope.", 65);
   }
   await githubWriter(apiUrl, token)("DELETE", `repos/${repository}/rulesets/${id}`);

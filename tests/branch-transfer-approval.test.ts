@@ -76,3 +76,17 @@ test("both current repository administrator grants must match the exact user", a
     }
   }
 });
+
+test("controller initialization uses the same human authorization; transfer stays excluded", async () => {
+  const world = fixture();
+  await assert.rejects(
+    assertManualBranchAuthorization(world.reader, control, control, runId, 1),
+    /fresh manual run/
+  );
+  await assertManualBranchAuthorization(world.reader, control, control, runId, 1, true);
+  world.entries.set(world.controlPath, { ...world.permission, permission: "write" });
+  await assert.rejects(
+    assertManualBranchAuthorization(world.reader, control, control, runId, 1, true),
+    /current administrator access/
+  );
+});

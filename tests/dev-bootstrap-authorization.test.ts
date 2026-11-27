@@ -226,3 +226,52 @@ test("automatic adoption verifies the same protected trusted main, never writes 
   responses.set(`${prefix}/issues/614/comments?per_page=100`, []);
   await assert.rejects(adopt(), /Unresolved dev write incident/);
 });
+
+test("controller bootstrap requires closed protection and trusted main, not auto-adoption", async () => {
+  const path = `repos/${control}`;
+  const status = {
+    context: "Main Write Guard",
+    state: "success",
+    description: "verified main",
+    target_url: `https://github.com/${control}/actions/runs/42`,
+    created_at: "2026-11-25T11:00:00Z",
+  };
+  const responses = new Map<string, unknown>([
+    [path, { full_name: control, private: false, default_branch: "main" }],
+    [`${path}/rulesets?includes_parents=false&per_page=100`, [{ ...closed, id: 12 }]],
+    [`${path}/rulesets/12?includes_parents=false`, closed],
+    [`${path}/branches/main`, { commit: { sha } }],
+    [`${path}/branches/dev`, { commit: { sha } }],
+    [`${path}/issues?state=open&per_page=100&page=1`, []],
+    [`${path}/commits/${sha}/status`, attestFixtureStatuses({ statuses: [status] }, control, sha)],
+    [
+      `${path}/actions/runs/42`,
+      {
+        id: 42,
+        repository: { full_name: control },
+        head_branch: "main",
+        path: ".github/workflows/intake.yml",
+        status: "completed",
+        conclusion: "success",
+        run_started_at: "2026-11-25T10:59:00Z",
+        updated_at: "2026-11-25T11:01:00Z",
+      },
+    ],
+  ]);
+  const reader = {
+    async get(endpoint: string): Promise<unknown> {
+      assert.ok(responses.has(endpoint), endpoint);
+      return responses.get(endpoint);
+    },
+  };
+  await verifyBootstrapSource(reader, control, sha, control, true);
+  assert.equal(
+    await verifyAutomaticDevAdoption(reader, control, sha, { statuses: [] }, control),
+    undefined
+  );
+  responses.set(`${path}/rulesets/12?includes_parents=false`, {});
+  await assert.rejects(
+    verifyBootstrapSource(reader, control, sha, control, true),
+    /closed live protection/
+  );
+});

@@ -13,12 +13,13 @@ export async function assertManualBranchAuthorization(
   controlRepository: string,
   repository: string,
   runId: number,
-  attempt: number
+  attempt: number,
+  canSelfBootstrap = false
 ): Promise<void> {
   if (
     !repositoryPattern.test(controlRepository) ||
     !repositoryPattern.test(repository) ||
-    repository === controlRepository ||
+    (repository === controlRepository && !canSelfBootstrap) ||
     !Number.isSafeInteger(runId) ||
     runId < 1 ||
     attempt !== 1
@@ -51,7 +52,7 @@ export async function assertManualBranchAuthorization(
   ) {
     throw new CliError("Branch authorization requires an explicit user administrator.", 77);
   }
-  for (const target of [controlRepository, repository]) {
+  for (const target of new Set([controlRepository, repository])) {
     const permission = await reader.get(`repos/${target}/collaborators/${login}/permission`);
     if (
       !isJsonRecord(permission) ||
