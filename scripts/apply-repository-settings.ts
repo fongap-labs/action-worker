@@ -279,14 +279,14 @@ async function applyRulesets(
     existingByName.set(item.name, item.id);
   }
 
-  let hasDevProtectionChanged = false;
+  let hasDevChanged = false;
   for (const desired of rulesets) {
     const opensDev = desired.name === "Protect Dev Branch" && !isClosedDevProtection(desired);
     const id = existingByName.get(desired.name);
     if (id === undefined) {
       await ghJson("POST", `repos/${repository}/rulesets`, token, desired);
       console.log(`repository ruleset created: ${repository} / ${desired.name}`);
-      if (opensDev) hasDevProtectionChanged = true;
+      if (opensDev) hasDevChanged = true;
       continue;
     }
 
@@ -300,9 +300,9 @@ async function applyRulesets(
 
     await ghJson("PUT", `repos/${repository}/rulesets/${id}`, token, desired);
     console.log(`repository ruleset updated: ${repository} / ${desired.name}`);
-    if (opensDev) hasDevProtectionChanged = true;
+    if (opensDev) hasDevChanged = true;
   }
-  return hasDevProtectionChanged;
+  return hasDevChanged;
 }
 
 async function main(): Promise<void> {
@@ -376,8 +376,8 @@ async function main(): Promise<void> {
     }
   }
 
-  const hasDevProtectionChanged = await applyRulesets(repository, token, response.private === true, rulesets);
-  await appendLines(process.env.GITHUB_OUTPUT, [`dev_protection_changed=${hasDevProtectionChanged}`]);
+  const hasDevChanged = await applyRulesets(repository, token, response.private === true, rulesets);
+  await appendLines(process.env.GITHUB_OUTPUT, [`dev_protection_changed=${hasDevChanged}`]);
   console.log(`repository settings applied: ${repository}`);
 }
 
