@@ -138,20 +138,28 @@ export async function verifyBetaReleaseSource(
   if (!betaReleaseEnabled(policy, repository, repositoryPolicy, controlRepository)) {
     throw new CliError("Beta publication is disabled for this repository.", 75);
   }
-  return verifyCurrentBetaSource(reader, repository, sha, controlRepository, async () => {
-    const rules = getJsonArray(
-      await reader.get(`repos/${repository}/rulesets?includes_parents=false&per_page=100`)
-    ).filter((rule) => getJsonString(rule, "name") === "Protect Formal Tags");
-    const rule = rules[0];
-    if (
-      rules.length !== 1 ||
-      !isJsonRecord(rule) ||
-      !Number.isSafeInteger(rule.id) ||
-      !protectsFormalTags(
-        await reader.get(`repos/${repository}/rulesets/${rule.id}?includes_parents=false`)
-      )
-    ) {
-      throw new CliError("Beta publication requires live formal tag protection.", 75);
-    }
-  });
+  return verifyCurrentBetaSource(reader, repository, sha, controlRepository, () =>
+    assertFormalTagProtection(reader, repository)
+  );
+}
+
+/** Read the same live rule for preparation diagnostics and actual publication. */
+export async function assertFormalTagProtection(
+  reader: JsonReader,
+  repository: string
+): Promise<void> {
+  const rules = getJsonArray(
+    await reader.get(`repos/${repository}/rulesets?includes_parents=false&per_page=100`)
+  ).filter((rule) => getJsonString(rule, "name") === "Protect Formal Tags");
+  const rule = rules[0];
+  if (
+    rules.length !== 1 ||
+    !isJsonRecord(rule) ||
+    !Number.isSafeInteger(rule.id) ||
+    !protectsFormalTags(
+      await reader.get(`repos/${repository}/rulesets/${rule.id}?includes_parents=false`)
+    )
+  ) {
+    throw new CliError("Beta publication requires live formal tag protection.", 75);
+  }
 }
