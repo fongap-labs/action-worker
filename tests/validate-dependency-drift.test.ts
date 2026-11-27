@@ -38,8 +38,7 @@ const check = (
   before: Record<string, string>,
   after: Record<string, string>,
   branch: "main" | "dev" = "main"
-) =>
-  compareDependencyTrees(policy, repo, branch, tree(before), tree(after), read, today);
+) => compareDependencyTrees(policy, repo, branch, tree(before), tree(after), read, today);
 
 test("ratchet permits unchanged drift and improvements but rejects new or moved drift", async () => {
   const path = "package.json";
@@ -61,9 +60,6 @@ test("new engineering ranges and duplicate drifting declarations are blocked", a
     (await check({}, { [path]: '{"devDependencies":{"typescript":"^7.0.2"}}' })).introduced,
     1
   );
-  assert.equal(
-    (await check({}, { [path]: '{"dependencies":{"react":"19.0.0"}}' })).introduced,
-    0
-  );
+  assert.equal((await check({}, { [path]: '{"dependencies":{"react":"19.0.0"}}' })).introduced, 0);
   await assert.rejects(check({}, { [path]: "{invalid" }));
 });

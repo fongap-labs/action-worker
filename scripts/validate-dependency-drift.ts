@@ -217,7 +217,9 @@ async function main(): Promise<void> {
 if (isMain(import.meta.url)) {
   main().catch(() => {
     // Never disclose private paths, declarations, GitHub errors, or source content.
-    console.error("::error::Central dependency gate failed; check version drift or scan completeness.");
+    console.error(
+      "::error::Central dependency gate failed; check version drift or scan completeness."
+    );
     process.exitCode = 1;
   });
 }
