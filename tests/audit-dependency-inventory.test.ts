@@ -15,7 +15,7 @@ test("inventory reads npm declarations without leaking remote specifications", (
     JSON.stringify({
       engines: { node: ">=24" },
       packageManager: "pnpm@11.28.5",
-      dependencies: { react: "^19.0.0", private: "https://secret@example.test/file" },
+      dependencies: { react: "^19.0.0", private: "https://example.test/secret/file" },
     })
   );
   assert.deepEqual(result.declarations, [
@@ -28,12 +28,12 @@ test("inventory reads npm declarations without leaking remote specifications", (
 });
 
 test("inventory reads workspace, Python and Rust version declarations", () => {
-  assert.deepEqual(inspectManifest("pnpm-workspace.yaml", 'catalog:\n  react: "19.0.0"').declarations, [
-    { key: "npm:react", version: "19.0.0" },
-  ]);
   assert.deepEqual(
-    inspectManifest("pyproject.toml", '[project]\ndependencies = ["Requests>=2.0"]')
-      .declarations,
+    inspectManifest("pnpm-workspace.yaml", 'catalog:\n  react: "19.0.0"').declarations,
+    [{ key: "npm:react", version: "19.0.0" }]
+  );
+  assert.deepEqual(
+    inspectManifest("pyproject.toml", '[project]\ndependencies = ["Requests>=2.0"]').declarations,
     [{ key: "python:requests", version: ">=2.0" }]
   );
   assert.deepEqual(inspectManifest("Cargo.toml", '[dependencies]\nserde = "1.0"').declarations, [

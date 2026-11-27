@@ -3,9 +3,9 @@ import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import {
   decodeGithubContent,
+  GithubReader,
   getGithubJsonIfExists,
   getJsonString,
-  GithubReader,
   isJsonRecord,
 } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
@@ -75,9 +75,7 @@ export function inspectManifest(
       unsupported++;
       return;
     }
-    const match = /^([A-Za-z0-9_.-]+)(?:\[[\w.,-]+\])?\s*([<>=!~][^;#]+)?/.exec(
-      spec.trim()
-    );
+    const match = /^([A-Za-z0-9_.-]+)(?:\[[\w.,-]+\])?\s*([<>=!~][^;#]+)?/.exec(spec.trim());
     if (!match?.[1] || !match[2]) {
       unsupported++;
       return;
@@ -158,7 +156,8 @@ export function inspectManifest(
       if (spec && !spec.startsWith("#")) python(spec);
     }
   } else {
-    const tool = file === ".python-version" ? "python" : file === "rust-toolchain" ? "rust" : "node";
+    const tool =
+      file === ".python-version" ? "python" : file === "rust-toolchain" ? "rust" : "node";
     add("tool", tool, content.trim().replace(/^v(?=\d)/, ""));
   }
   return { declarations, unsupported };
@@ -195,10 +194,10 @@ export async function inspectRef(
     if (!isJsonRecord(tree) || tree.truncated !== false || !Array.isArray(tree.tree)) {
       return result;
     }
-    let incomplete = false;
+    let isIncomplete = false;
     for (const entry of tree.tree) {
       if (!isJsonRecord(entry) || typeof entry.path !== "string") {
-        incomplete = true;
+        isIncomplete = true;
         continue;
       }
       const name = entry.path.split("/").at(-1) ?? "";
@@ -214,7 +213,7 @@ export async function inspectRef(
         entry.size > maxManifestBytes ||
         !shaPattern.test(getJsonString(entry, "sha"))
       ) {
-        incomplete = true;
+        isIncomplete = true;
         continue;
       }
       try {
@@ -225,12 +224,12 @@ export async function inspectRef(
         result.declarations.push(...parsed.declarations);
         result.unsupported += parsed.unsupported;
       } catch {
-        incomplete = true;
+        isIncomplete = true;
       }
     }
     const latest = await reader.get(prefix + "/branches/" + branch);
-    if (!isJsonRecord(latest) || getJsonString(latest.commit, "sha") !== commit) incomplete = true;
-    if (!incomplete) result.state = "scanned";
+    if (!isJsonRecord(latest) || getJsonString(latest.commit, "sha") !== commit) isIncomplete = true;
+    if (!isIncomplete) result.state = "scanned";
   } catch {
     // Public audit logs must never expose private API paths or upstream error bodies.
   }
@@ -299,12 +298,12 @@ export async function inventoryDependencies(
     .filter(([, repositories]) => repositories.size > 1)
     .map(([key, repositories]) => ({
       key,
-      differentDeclarations: new Set([...repositories.values()].flatMap((set) => [...set])).size > 1,
+      differentDeclarations:
+        new Set([...repositories.values()].flatMap((set) => [...set])).size > 1,
       repositories: Object.fromEntries(
-        [...repositories].sort(([a], [b]) => a.localeCompare(b)).map(([name, versions]) => [
-          name,
-          [...versions].sort(),
-        ])
+        [...repositories]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([name, versions]) => [name, [...versions].sort()])
       ),
     }))
     .sort((a, b) => a.key.localeCompare(b.key));
