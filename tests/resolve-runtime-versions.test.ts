@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -72,4 +72,47 @@ test("both sandbox jobs resolve versions after the trusted checkout and before s
     );
     assert.equal(steps[node]?.with?.["node-version"], "${{ steps.runtime.outputs.node }}");
   }
+});
+
+test("all central setup-node steps consume the central version and never source version files", () => {
+  let setupCount = 0;
+  for (const file of readdirSync(".github/workflows").filter((name) => name.endsWith(".yml"))) {
+    const workflow = parse(readFileSync(join(".github/workflows", file), "utf8")) as {
+      jobs: Record<
+        string,
+        {
+          steps?: Array<{
+            id?: string;
+            uses?: string;
+            run?: string;
+            with?: Record<string, string>;
+          }>;
+        }
+      >;
+    };
+    for (const [job, value] of Object.entries(workflow.jobs)) {
+      const steps = value.steps ?? [];
+      for (const [index, step] of steps.entries()) {
+        if (!step.uses?.startsWith("actions/setup-node@")) continue;
+        setupCount++;
+        assert.equal(step.with?.["node-version-file"], undefined, file + ":" + job);
+        if (file === "release-app.yml" && job === "build") {
+          assert.equal(step.with?.["node-version"], "${{ needs.prepare.outputs.node_version }}");
+        } else {
+          assert.equal(step.with?.["node-version"], "${{ steps.runtime.outputs.node }}");
+          const resolver = steps.slice(0, index).find((item) => item.id === "runtime");
+          assert.match(resolver?.run ?? "", /resolve-runtime-versions\.mjs --github-output/);
+        }
+      }
+    }
+  }
+  assert.ok(setupCount > 50);
+});
+
+test("control package and lock metadata match the sole central Node version", () => {
+  const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+  const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+  const runtime = parseRuntimeCatalog(policy);
+  assert.equal(manifest.engines.node, runtime.node);
+  assert.equal(lock.packages[""].engines.node, runtime.node);
 });

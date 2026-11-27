@@ -63,10 +63,32 @@ jobs:
           git fetch --no-tags origin "$DEV_MERGE_SHA"
           [[ "$(git show -s --format=%P "$DEV_MERGE_SHA")" == "$DEV_BASE_SHA $DEV_HEAD_SHA" ]]
 
+      - name: Checkout trusted dev runtime policy
+        if: inputs.dev_merge_sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: runtime-control
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        shell: bash
+        env:
+          DEV_MERGE_SHA: ${{ inputs.dev_merge_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [ -n "$DEV_MERGE_SHA" ]; then
+            node runtime-control/scripts/resolve-runtime-versions.mjs --github-output runtime-control
+            rm -rf runtime-control
+          else
+            node scripts/resolve-runtime-versions.mjs --github-output .
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve change range
         id: range
@@ -105,10 +127,32 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Checkout trusted dev runtime policy
+        if: inputs.dev_merge_sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: runtime-control
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        shell: bash
+        env:
+          DEV_MERGE_SHA: ${{ inputs.dev_merge_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [ -n "$DEV_MERGE_SHA" ]; then
+            node runtime-control/scripts/resolve-runtime-versions.mjs --github-output runtime-control
+            rm -rf runtime-control
+          else
+            node scripts/resolve-runtime-versions.mjs --github-output .
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve change range
         id: range
@@ -139,10 +183,32 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Checkout trusted dev runtime policy
+        if: inputs.dev_merge_sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: runtime-control
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        shell: bash
+        env:
+          DEV_MERGE_SHA: ${{ inputs.dev_merge_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [ -n "$DEV_MERGE_SHA" ]; then
+            node runtime-control/scripts/resolve-runtime-versions.mjs --github-output runtime-control
+            rm -rf runtime-control
+          else
+            node scripts/resolve-runtime-versions.mjs --github-output .
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve security range
         id: range
@@ -172,10 +238,32 @@ jobs:
           ref: ${{ inputs.dev_merge_sha || github.sha }}
           persist-credentials: false
 
+      - name: Checkout trusted dev runtime policy
+        if: inputs.dev_merge_sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: runtime-control
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        shell: bash
+        env:
+          DEV_MERGE_SHA: ${{ inputs.dev_merge_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [ -n "$DEV_MERGE_SHA" ]; then
+            node runtime-control/scripts/resolve-runtime-versions.mjs --github-output runtime-control
+            rm -rf runtime-control
+          else
+            node scripts/resolve-runtime-versions.mjs --github-output .
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
           cache: npm
 
       - name: Install TypeScript toolchain
@@ -243,10 +331,32 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Checkout trusted dev runtime policy
+        if: inputs.dev_merge_sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: runtime-control
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        shell: bash
+        env:
+          DEV_MERGE_SHA: ${{ inputs.dev_merge_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [ -n "$DEV_MERGE_SHA" ]; then
+            node runtime-control/scripts/resolve-runtime-versions.mjs --github-output runtime-control
+            rm -rf runtime-control
+          else
+            node scripts/resolve-runtime-versions.mjs --github-output .
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
           cache: npm
 
       - name: Install dependencies
@@ -270,10 +380,32 @@ jobs:
         with:
           ref: ${{ inputs.dev_merge_sha || github.sha }}
           persist-credentials: false
+      - name: Checkout trusted dev runtime policy
+        if: inputs.dev_merge_sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: runtime-control
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        shell: bash
+        env:
+          DEV_MERGE_SHA: ${{ inputs.dev_merge_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [ -n "$DEV_MERGE_SHA" ]; then
+            node runtime-control/scripts/resolve-runtime-versions.mjs --github-output runtime-control
+            rm -rf runtime-control
+          else
+            node scripts/resolve-runtime-versions.mjs --github-output .
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
       - name: Build the disposable non-secret Docker test image
         id: image
         shell: bash
@@ -301,10 +433,32 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Checkout trusted dev runtime policy
+        if: inputs.dev_merge_sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: runtime-control
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        shell: bash
+        env:
+          DEV_MERGE_SHA: ${{ inputs.dev_merge_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [ -n "$DEV_MERGE_SHA" ]; then
+            node runtime-control/scripts/resolve-runtime-versions.mjs --github-output runtime-control
+            rm -rf runtime-control
+          else
+            node scripts/resolve-runtime-versions.mjs --github-output .
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
           cache: npm
 
       - name: Install deterministic contract tools
@@ -433,11 +587,16 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        if: failure()
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node for diagnostics
         if: failure()
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Classify failed steps
         if: failure()

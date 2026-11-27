@@ -83,10 +83,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Validate PR request
         id: payload
@@ -451,10 +455,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Mint source-only read token
         id: source_read_app
@@ -518,10 +526,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Mint source-only private main read token
         id: source_read_app
@@ -626,10 +638,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve private security checkout scope
         id: security_scope
@@ -757,10 +773,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve status publication scope
         id: status_scope
@@ -1030,10 +1050,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve failed CI status scope
         id: status_scope
