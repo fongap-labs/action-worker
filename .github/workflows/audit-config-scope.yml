@@ -14,6 +14,7 @@ on:
       - scripts/config-security-classification.ts
       - scripts/audit-privacy-coverage.ts
       - scripts/security-coverage-audit.ts
+      - scripts/audit-dependency-inventory.ts
       - policies/security.json
       - .github/workflows/audit-config-scope.yml
   schedule:
@@ -69,6 +70,14 @@ jobs:
         env:
           AW_INVENTORY_TOKEN: ${{ steps.privacy_inventory.outputs.token }}
         run: node scripts/security-coverage-audit.ts
+
+      - name: Install trusted inventory parsers
+        run: npm ci --ignore-scripts
+
+      - name: Audit organization dependency declarations
+        env:
+          AW_INVENTORY_TOKEN: ${{ steps.privacy_inventory.outputs.token }}
+        run: node scripts/audit-dependency-inventory.ts
 
       - name: Record no-mutation audit result
         if: success()
