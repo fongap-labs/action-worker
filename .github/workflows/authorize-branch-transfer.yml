@@ -48,6 +48,21 @@ jobs:
       deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      repository: ${{ steps.transfer.outputs.repository }}
+      owner: ${{ steps.transfer.outputs.owner }}
+      repository_name: ${{ steps.transfer.outputs.repository_name }}
+      pr_number: ${{ steps.transfer.outputs.pr_number }}
+      base_sha: ${{ steps.transfer.outputs.base_sha }}
+      head_sha: ${{ steps.transfer.outputs.head_sha }}
+      merge_sha: ${{ steps.transfer.outputs.merge_sha }}
+      target_branch: ${{ steps.transfer.outputs.target_branch }}
+      title: ${{ steps.transfer.outputs.title }}
+      title_fingerprint: ${{ steps.transfer.outputs.title_fingerprint }}
+      control_ref: ${{ steps.transfer.outputs.control_ref }}
+      has_windows: ${{ steps.transfer.outputs.has_windows }}
+      linux_shards: ${{ steps.transfer.outputs.linux_shards }}
+      transfer_snapshot: ${{ steps.plan.outputs.transfer_snapshot }}
     steps:
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -151,3 +166,256 @@ jobs:
           AW_STATUS_API_TOKEN: ${{ steps.receipt_app.outputs.token || steps.app_read.outputs.token }}
           AW_DEV_REF_TOKEN: ${{ steps.ref_app.outputs.token }}
         run: node scripts/authorize-branch-operation.ts approve
+
+      - name: Prepare protected transfer execution
+        if: inputs.operation == 'transfer'
+        id: transfer
+        env:
+          OPERATION: ${{ inputs.operation }}
+          REPOSITORY: ${{ contains(inputs.repository, '/') && inputs.repository || format('{0}/{1}', github.repository_owner, inputs.repository) }}
+          SOURCE_SHA: ${{ steps.plan.outputs.source_sha }}
+          PR_NUMBER: ${{ steps.plan.outputs.pr_number }}
+          TRANSFER_SNAPSHOT: ${{ steps.plan.outputs.transfer_snapshot }}
+          OPERATOR_CONFIRMED: ${{ inputs.confirm }}
+          AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+        run: node scripts/branch-transfer-execution.ts prepare
+
+  transfer-governance:
+    name: Transfer governance
+    needs: authorize
+    if: inputs.confirm && inputs.operation == 'transfer' && needs.authorize.outputs.merge_sha != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.runtime.outputs.node }}
+
+      - name: Checkout exact public transfer snapshot
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.authorize.outputs.repository }}
+          ref: ${{ needs.authorize.outputs.merge_sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify transfer snapshot checkout
+        env:
+          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          MERGE_SHA: ${{ needs.authorize.outputs.merge_sha }}
+          HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$MERGE_SHA"
+          test "$(git -C target rev-parse HEAD^1)" = "$BASE_SHA"
+          test "$(git -C target rev-parse HEAD^2)" = "$HEAD_SHA"
+
+      - name: Validate change record
+        id: change
+        env:
+          PR_TITLE: ${{ needs.authorize.outputs.title }}
+          AW_VALIDATED_REPOSITORY: ${{ needs.authorize.outputs.repository }}
+          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          MERGE_SHA: ${{ needs.authorize.outputs.merge_sha }}
+        run: node scripts/validate-change-record.ts "$PR_TITLE" "$BASE_SHA" "$MERGE_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies"
+
+      - name: Validate engineering language
+        env:
+          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          MERGE_SHA: ${{ needs.authorize.outputs.merge_sha }}
+        run: node scripts/validate-engineering-language.ts "$BASE_SHA" "$MERGE_SHA" "$GITHUB_WORKSPACE/target"
+
+      - name: Detect project and change
+        env:
+          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          MERGE_SHA: ${{ needs.authorize.outputs.merge_sha }}
+          CHANGE_RECORD_JSON: ${{ steps.change.outputs.json }}
+        run: node scripts/detect-pr-context.ts "$BASE_SHA" "$MERGE_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies"
+
+      - name: Resolve base plan
+        id: base_plan
+        run: node scripts/resolve-pr-plan.ts @pr-context-file inherit off inherit auto auto "$GITHUB_WORKSPACE/policies"
+
+      - name: Require central CI
+        env:
+          CI_REQUIRED: ${{ steps.base_plan.outputs.ci_required }}
+        run: test "$CI_REQUIRED" = "true"
+
+      - name: Validate naming rules
+        if: steps.base_plan.outputs.naming_required == 'true'
+        env:
+          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          MERGE_SHA: ${{ needs.authorize.outputs.merge_sha }}
+        working-directory: target
+        run: node "$GITHUB_WORKSPACE/scripts/validate-naming-rules.ts" "$BASE_SHA" "$MERGE_SHA"
+
+      - name: Validate security gate
+        env:
+          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          MERGE_SHA: ${{ needs.authorize.outputs.merge_sha }}
+        run: node scripts/validate-security.ts "$BASE_SHA" "$MERGE_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies/security.json"
+
+      - name: Check dependency lockfile integrity
+        env:
+          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          MERGE_SHA: ${{ needs.authorize.outputs.merge_sha }}
+        run: node scripts/dependency-lock-integrity.ts "$GITHUB_WORKSPACE/target" "$BASE_SHA" "$MERGE_SHA"
+
+      - name: Install trusted dependency gate parsers
+        run: npm ci --ignore-scripts
+
+      - name: Enforce central dependency version drift gate
+        env:
+          REPOSITORY: ${{ needs.authorize.outputs.repository }}
+          TARGET_BRANCH: ${{ needs.authorize.outputs.target_branch }}
+          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          MERGE_SHA: ${{ needs.authorize.outputs.merge_sha }}
+        run: node scripts/validate-dependency-drift.ts local "$REPOSITORY" "$TARGET_BRANCH" "$BASE_SHA" "$MERGE_SHA" "$GITHUB_WORKSPACE/target"
+
+  transfer-linux:
+    name: Transfer CI / Linux (${{ matrix.shard }})
+    needs: authorize
+    if: inputs.confirm && inputs.operation == 'transfer' && needs.authorize.outputs.merge_sha != ''
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: ${{ fromJSON(needs.authorize.outputs.linux_shards || '["all"]') }}
+    uses: ./.github/workflows/central-ci-sandbox.yml
+    with:
+      platform: linux
+      shard: ${{ matrix.shard }}
+      repository: ${{ needs.authorize.outputs.repository }}
+      owner: ${{ needs.authorize.outputs.owner }}
+      repository_name: ${{ needs.authorize.outputs.repository_name }}
+      app_client_id: ${{ vars.AW_APP_CLIENT_ID }}
+      pr_number: ${{ needs.authorize.outputs.pr_number }}
+      base_sha: ${{ needs.authorize.outputs.base_sha }}
+      diff_base_sha: ${{ needs.authorize.outputs.base_sha }}
+      head_sha: ${{ needs.authorize.outputs.head_sha }}
+      merge_sha: ${{ needs.authorize.outputs.merge_sha }}
+      control_ref: ${{ needs.authorize.outputs.control_ref }}
+      is_private: "false"
+
+  transfer-windows:
+    name: Transfer CI / Windows
+    needs: authorize
+    if: inputs.confirm && inputs.operation == 'transfer' && needs.authorize.outputs.merge_sha != '' && needs.authorize.outputs.has_windows == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/central-ci-sandbox.yml
+    with:
+      platform: windows
+      repository: ${{ needs.authorize.outputs.repository }}
+      owner: ${{ needs.authorize.outputs.owner }}
+      repository_name: ${{ needs.authorize.outputs.repository_name }}
+      app_client_id: ${{ vars.AW_APP_CLIENT_ID }}
+      pr_number: ${{ needs.authorize.outputs.pr_number }}
+      base_sha: ${{ needs.authorize.outputs.base_sha }}
+      diff_base_sha: ${{ needs.authorize.outputs.base_sha }}
+      head_sha: ${{ needs.authorize.outputs.head_sha }}
+      merge_sha: ${{ needs.authorize.outputs.merge_sha }}
+      control_ref: ${{ needs.authorize.outputs.control_ref }}
+      is_private: "false"
+
+  transfer-execute:
+    name: Execute verified transfer
+    needs: [authorize, transfer-governance, transfer-linux, transfer-windows]
+    if: ${{ !cancelled() && inputs.confirm && inputs.operation == 'transfer' && needs.authorize.result == 'success' && needs.transfer-governance.result == 'success' && needs.transfer-linux.result == 'success' && ((needs.authorize.outputs.has_windows == 'true' && needs.transfer-windows.result == 'success') || (needs.authorize.outputs.has_windows == 'false' && needs.transfer-windows.result == 'skipped')) }}
+    environment:
+      name: admin-ops
+      deployment: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.runtime.outputs.node }}
+
+      - name: Mint scoped transfer read token
+        id: transfer_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ needs.authorize.outputs.owner }}
+          repositories: ${{ format('{0},{1}', github.event.repository.name, needs.authorize.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+          permission-issues: read
+
+      - name: Mint scoped transfer status token
+        id: transfer_status
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ needs.authorize.outputs.owner }}
+          repositories: ${{ needs.authorize.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Mint scoped transfer merge token
+        id: transfer_writer
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ needs.authorize.outputs.owner }}
+          repositories: ${{ needs.authorize.outputs.repository_name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Execute verified immutable transfer
+        env:
+          OPERATION: ${{ inputs.operation }}
+          OPERATOR_CONFIRMED: ${{ inputs.confirm }}
+          REPOSITORY: ${{ needs.authorize.outputs.repository }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+          TRANSFER_SNAPSHOT: ${{ needs.authorize.outputs.transfer_snapshot }}
+          TRANSFER_TITLE_FINGERPRINT: ${{ needs.authorize.outputs.title_fingerprint }}
+          TRANSFER_GOVERNANCE_RESULT: ${{ needs.transfer-governance.result }}
+          TRANSFER_LINUX_RESULT: ${{ needs.transfer-linux.result }}
+          TRANSFER_WINDOWS_RESULT: ${{ needs.transfer-windows.result }}
+          TRANSFER_HAS_WINDOWS: ${{ needs.authorize.outputs.has_windows }}
+          AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.transfer_read.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.transfer_status.outputs.token }}
+          AW_MERGE_WRITE_TOKEN: ${{ steps.transfer_writer.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+        run: node scripts/branch-transfer-execution.ts execute

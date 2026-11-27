@@ -283,7 +283,7 @@ async function main(): Promise<void> {
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
     "Exact administrator transfer authorization verified.",
     "",
-    "No merge, branch update or merge-gate status was issued.",
+    "Authorization only; separate snapshot checks must succeed before any merge gate or write.",
   ]);
 }
 
