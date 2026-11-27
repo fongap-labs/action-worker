@@ -119,7 +119,13 @@ test("new repositories are discovered without grants, and private details stay r
         schema_version: 1,
         mode: "advisory",
         default_class: "project",
-        catalog: { "npm:react": { class: "engineering", version: "19.0.0" } },
+        runtime: { sandbox_node: "22", compatible_node: [] },
+        catalog: {
+          "tool:node": { class: "toolchain", version: "24.22.3" },
+          "tool:python": { class: "toolchain", version: "3.12" },
+          "tool:pnpm": { class: "toolchain", version: "11.28.5" },
+          "npm:react": { class: "engineering", version: "19.0.0" },
+        },
         exceptions: [],
       },
       "example"

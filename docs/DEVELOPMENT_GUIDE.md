@@ -76,6 +76,27 @@ Action Worker 负责：
 
 这是零新增依赖的本地检查入口，不强制安装 Git Hook、Docker 或 act，也不运行需要 GitHub App、远程权限、签名密钥、受保护 Runner 或真实生产环境的检查。`validate-merge`、Security Gate、CI Evidence 和 Main Write Guard 始终以 GitHub 执行结果为准。
 
+### 共用工具链版本计划
+
+中央 Linux 和 Windows 沙箱从受信任的 Action Worker 提交读取
+`policies/dependency-versions.json`，不读取候选 PR 自带的中央策略。
+项目的受信任控制版本可通过根目录 `.node-version` 选择中央允许的精确版本；
+未声明时继续使用旧沙箱基线，避免在兼容性验证完成前强制升级。
+声明 `packageManager` 使用 pnpm 的项目由中央安装目录指定的版本。
+缓存键使用实际选择的工具链版本，不从候选代码接收安装命令。
+
+Windows 11 或其他本机环境在 Action Worker 检出目录中运行：
+
+```powershell
+node scripts/resolve-runtime-versions.mjs
+node scripts/resolve-runtime-versions.mjs ../plugins
+```
+
+第一条输出中央候选基础工具版本，第二条输出所选仓库对应沙箱的版本计划。
+从当前受信任分支检出项目后再生成计划；所有智能体共享同一份输出，不各自维护版本。
+该入口只需已安装的 Node.js，不安装工具、不修改 PATH、不升级依赖。
+本机安装器、其他中央工作流以及发布工具链后续分阶段接入。
+
 ### 业务仓库通用本地预检（无复制脚本）
 
 在本地拥有 `action-worker` 和任一业务仓库的检出目录时，从 Action Worker 运行：

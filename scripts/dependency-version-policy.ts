@@ -1,4 +1,5 @@
 import { isJsonRecord } from "./github-api.ts";
+import { parseRuntimeCatalog } from "./resolve-runtime-versions.mjs";
 import { CliError } from "./runtime-command.ts";
 
 type DependencyClass = "toolchain" | "engineering" | "framework" | "project";
@@ -46,7 +47,7 @@ function invalid(): never {
 export function parseDependencyPolicy(value: unknown, organization: string): DependencyPolicy {
   if (
     !isJsonRecord(value) ||
-    !exactKeys(value, ["schema_version", "mode", "default_class", "catalog", "exceptions"]) ||
+    !exactKeys(value, ["schema_version", "mode", "default_class", "runtime", "catalog", "exceptions"]) ||
     value.schema_version !== 1 ||
     value.mode !== "advisory" ||
     value.default_class !== "project" ||
@@ -57,6 +58,7 @@ export function parseDependencyPolicy(value: unknown, organization: string): Dep
   ) {
     invalid();
   }
+  parseRuntimeCatalog(value);
   const catalog = new Map<string, CatalogEntry>();
   for (const [key, entry] of Object.entries(value.catalog)) {
     if (

@@ -12,9 +12,11 @@ const source = {
   schema_version: 1,
   mode: "advisory",
   default_class: "project",
+  runtime: { sandbox_node: "22", compatible_node: ["26.13.1"] },
   catalog: {
     "tool:node": { class: "toolchain", version: "24.22.3" },
     "tool:python": { class: "toolchain", version: "3.12" },
+    "tool:pnpm": { class: "toolchain", version: "11.28.5" },
     "npm:react": { class: "framework", version: null },
   },
   exceptions: [
