@@ -80,9 +80,9 @@ Action Worker 负责：
 
 中央 Linux 和 Windows 沙箱从受信任的 Action Worker 提交读取
 `policies/dependency-versions.json`，不读取候选 PR 自带的中央策略。
-项目的受信任控制版本可通过根目录 `.node-version` 选择中央允许的精确版本；
-未声明时继续使用旧沙箱基线，避免在兼容性验证完成前强制升级。
-声明 `packageManager` 使用 pnpm 的项目由中央安装目录指定的版本。
+Node.js 统一使用中央目录的精确版本，不再按仓库区分，不再保留旧沙箱版本回退。
+项目根目录 `.node-version` 等声明仍纳入盘点，但不能覆盖中央安装版本。
+声明 `packageManager` 使用 pnpm 的项目由中央目录指定安装版本。
 缓存键使用实际选择的工具链版本，不从候选代码接收安装命令。
 
 Windows 11 或其他本机环境在 Action Worker 检出目录中运行：
@@ -92,7 +92,7 @@ node scripts/resolve-runtime-versions.mjs
 node scripts/resolve-runtime-versions.mjs ../plugins
 ```
 
-第一条输出中央候选基础工具版本，第二条输出所选仓库对应沙箱的版本计划。
+两条均使用同一中央工具链版本，第二条额外判断项目是否需要 pnpm。
 从当前受信任分支检出项目后再生成计划；所有智能体共享同一份输出，不各自维护版本。
 该入口只需已安装的 Node.js，不安装工具、不修改 PATH、不升级依赖。
 本机安装器、其他中央工作流以及发布工具链后续分阶段接入。

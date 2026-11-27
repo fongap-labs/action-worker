@@ -12,11 +12,9 @@ const source = {
   schema_version: 1,
   mode: "advisory",
   default_class: "project",
-  runtime: { sandbox_node: "22", compatible_node: ["26.13.1"] },
   catalog: {
     "tool:node": { class: "toolchain", version: "24.22.3" },
     "tool:python": { class: "toolchain", version: "3.12" },
-    "tool:pnpm": { class: "toolchain", version: "11.28.5" },
     "npm:react": { class: "framework", version: null },
   },
   exceptions: [
@@ -38,6 +36,7 @@ test("central version catalog validates and remains advisory", () => {
   );
   assert.equal(policy.mode, "advisory");
   assert.equal(policy.default_class, "project");
+  assert.equal(policy.catalog.get("tool:node")?.version, "26.13.1");
   assert.equal(policy.catalog.get("tool:pnpm")?.version, "11.28.5");
   assert.equal(policy.catalog.get("npm:react")?.version, null);
   assert.equal(policy.exceptions.length, 0);

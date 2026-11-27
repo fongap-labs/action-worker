@@ -23,63 +23,28 @@ function versionFor(catalog, key) {
 
 /** @param {unknown} value */
 export function parseRuntimeCatalog(value) {
-  if (
-    !isRecord(value) ||
-    value.schema_version !== 1 ||
-    !isRecord(value.runtime) ||
-    !isRecord(value.catalog)
-  ) {
+  if (!isRecord(value) || value.schema_version !== 1 || !isRecord(value.catalog)) {
     throw new Error("Central runtime catalog is invalid.");
   }
-  const runtime = value.runtime;
-  const baseline = versionFor(value.catalog, "tool:node");
+  const node = versionFor(value.catalog, "tool:node");
   const python = versionFor(value.catalog, "tool:python");
   const pnpm = versionFor(value.catalog, "tool:pnpm");
-  if (
-    Object.keys(runtime).length !== 2 ||
-    typeof runtime.sandbox_node !== "string" ||
-    !/^\d+(?:\.\d+\.\d+)?$/.test(runtime.sandbox_node) ||
-    !Array.isArray(runtime.compatible_node) ||
-    !runtime.compatible_node.every(isExactVersion) ||
-    new Set(runtime.compatible_node).size !== runtime.compatible_node.length ||
-    runtime.compatible_node.includes(baseline) ||
-    !isExactVersion(baseline) ||
-    !/^\d+\.\d+(?:\.\d+)?$/.test(python) ||
-    !isExactVersion(pnpm)
-  ) {
+  if (!isExactVersion(node) || !/^\d+\.\d+(?:\.\d+)?$/.test(python) || !isExactVersion(pnpm)) {
     throw new Error("Central runtime catalog contains an invalid version.");
   }
-  return {
-    baseline,
-    sandboxNode: runtime.sandbox_node,
-    compatibleNode: /** @type {string[]} */ (runtime.compatible_node),
-    python,
-    pnpm,
-  };
+  return { node, python, pnpm };
 }
 
 /**
- * The trusted project declaration selects only a centrally allowed exact Node version.
- * No project-supplied installation command, URL, or environment value is executed.
+ * Only the central catalog determines installed versions. Project metadata
+ * determines whether pnpm is needed, not its version.
  * @param {unknown} policy
- * @param {string | undefined} nodeDeclaration
  * @param {string | undefined} packageManager
- * @param {boolean} useBaseline
  */
-export function resolveRuntimeVersions(policy, nodeDeclaration, packageManager, useBaseline) {
+export function resolveRuntimeVersions(policy, packageManager) {
   const runtime = parseRuntimeCatalog(policy);
-  const requested = nodeDeclaration?.trim();
-  if (
-    nodeDeclaration !== undefined &&
-    (!isExactVersion(requested) ||
-      ![runtime.baseline, ...runtime.compatibleNode].includes(requested))
-  ) {
-    throw new Error("Project Node version is not an approved exact runtime version.");
-  }
   return {
-    node: requested ?? (useBaseline ? runtime.baseline : runtime.sandboxNode),
-    python: runtime.python,
-    pnpm: runtime.pnpm,
+    ...runtime,
     requires_pnpm: packageManager?.startsWith("pnpm@") === true,
   };
 }
@@ -102,8 +67,7 @@ export function readRuntimePlan(root) {
   const policy = JSON.parse(
     readFileSync(new URL("../policies/dependency-versions.json", import.meta.url), "utf8")
   );
-  if (root === undefined) return resolveRuntimeVersions(policy, undefined, undefined, true);
-  const nodeDeclaration = readOptionalFile(join(root, ".node-version"));
+  if (root === undefined) return resolveRuntimeVersions(policy, undefined);
   const manifest = readOptionalFile(join(root, "package.json"));
   let packageManager;
   if (manifest !== undefined) {
@@ -111,7 +75,7 @@ export function readRuntimePlan(root) {
     if (!isRecord(value)) throw new Error("Invalid project package declaration.");
     if (typeof value.packageManager === "string") packageManager = value.packageManager;
   }
-  return resolveRuntimeVersions(policy, nodeDeclaration, packageManager, false);
+  return resolveRuntimeVersions(policy, packageManager);
 }
 
 function main() {
@@ -125,8 +89,8 @@ function main() {
   if (githubOutput) {
     const output = process.env.GITHUB_OUTPUT;
     if (!output) throw new Error("GitHub output file is required.");
-    const lines = Object.entries(plan).map(([key, value]) => key + "=" + value);
-    appendFileSync(output, lines.join("\n") + "\n", "utf8");
+    const lines = Object.entries(plan).map(([key, value]) => `${key}=${value}`);
+    appendFileSync(output, `${lines.join("\n")}\n`, "utf8");
   } else {
     console.log(JSON.stringify(plan, null, 2));
   }

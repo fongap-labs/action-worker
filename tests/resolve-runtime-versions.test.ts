@@ -12,41 +12,40 @@ import {
 
 const policy = JSON.parse(readFileSync("policies/dependency-versions.json", "utf8"));
 
-test("central runtime catalog preserves the migration baseline without repository routing", () => {
+test("central runtime catalog supplies one exact Node version to every project", () => {
   const runtime = parseRuntimeCatalog(policy);
-  assert.deepEqual(resolveRuntimeVersions(policy, undefined, undefined, false), {
-    node: runtime.sandboxNode,
-    python: runtime.python,
-    pnpm: runtime.pnpm,
+  assert.equal(runtime.node, "26.13.1");
+  assert.deepEqual(resolveRuntimeVersions(policy, undefined), {
+    ...runtime,
     requires_pnpm: false,
   });
-  assert.equal(resolveRuntimeVersions(policy, undefined, undefined, true).node, runtime.baseline);
-  assert.equal(
-    resolveRuntimeVersions(policy, "26.13.1\n", "pnpm@11.28.5", false).node,
-    "26.13.1"
-  );
-  assert.equal(
-    resolveRuntimeVersions(policy, "26.13.1", "pnpm@11.28.5", false).requires_pnpm,
-    true
-  );
-  for (const version of ["", "latest", "26", "99.1.0", "26.13.1\nnode=22"]) {
-    assert.throws(() => resolveRuntimeVersions(policy, version, undefined, false));
+  assert.deepEqual(resolveRuntimeVersions(policy, "pnpm@9.0.0"), {
+    ...runtime,
+    requires_pnpm: true,
+  });
+  for (const version of ["", "latest", "26", "26.13.1\nnode=22"]) {
+    const invalid = {
+      ...policy,
+      catalog: {
+        ...policy.catalog,
+        "tool:node": { class: "toolchain", version },
+      },
+    };
+    assert.throws(() => parseRuntimeCatalog(invalid));
   }
 });
 
-test("local runtime plan reads the same catalog and never executes manifest commands", () => {
+test("local runtime plan ignores project version overrides and never executes commands", () => {
   const root = mkdtempSync(join(tmpdir(), "runtime-plan-"));
   try {
-    writeFileSync(join(root, ".node-version"), "26.13.1\n");
+    writeFileSync(join(root, ".node-version"), "22.0.0\n");
     writeFileSync(
       join(root, "package.json"),
-      JSON.stringify({ packageManager: "pnpm@11.28.5", scripts: { install: "exit 1" } })
+      JSON.stringify({ packageManager: "pnpm@9.0.0", scripts: { install: "exit 1" } })
     );
-    assert.deepEqual(
-      readRuntimePlan(root),
-      resolveRuntimeVersions(policy, "26.13.1", "pnpm@11.28.5", false)
-    );
-    assert.equal(readRuntimePlan(undefined).node, parseRuntimeCatalog(policy).baseline);
+    assert.deepEqual(readRuntimePlan(root), resolveRuntimeVersions(policy, "pnpm@9.0.0"));
+    assert.equal(readRuntimePlan(undefined).node, parseRuntimeCatalog(policy).node);
+    assert.equal(readRuntimePlan(root).node, readRuntimePlan(undefined).node);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
