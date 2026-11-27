@@ -456,6 +456,20 @@ jobs:
           TITLE_FINGERPRINT: ${{ steps.title.outputs.fingerprint }}
         run: node scripts/verify-dev-governance.ts
 
+      - name: Install trusted dependency gate parsers
+        if: steps.trust.outputs.trusted == 'true' && steps.ci_dispatch.outputs.deferred != 'true'
+        run: npm ci --ignore-scripts
+
+      - name: Enforce central dependency version drift gate
+        if: steps.trust.outputs.trusted == 'true' && steps.ci_dispatch.outputs.deferred != 'true'
+        env:
+          AW_DEPENDENCY_GATE_READ_TOKEN: ${{ steps.app_read.outputs.token }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+        run: node scripts/validate-dependency-drift.ts pull "$REPOSITORY" "$TARGET_BRANCH" "$PR_NUMBER" "$HEAD_SHA"
+
       - name: Mark deterministic gate passed
         id: gate
         if: steps.trust.outputs.trusted == 'true' && steps.ci_dispatch.outputs.deferred != 'true'

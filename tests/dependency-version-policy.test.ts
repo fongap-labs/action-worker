@@ -29,12 +29,12 @@ const source = {
   ],
 };
 
-test("central version catalog validates and remains advisory", () => {
+test("central version catalog validates and enforces the ratchet mode", () => {
   const policy = parseDependencyPolicy(
     JSON.parse(readFileSync("policies/dependency-versions.json", "utf8")),
     "fongap-labs"
   );
-  assert.equal(policy.mode, "advisory");
+  assert.equal(policy.mode, "ratchet");
   assert.equal(policy.default_class, "project");
   assert.equal(policy.catalog.get("tool:node")?.version, "26.13.1");
   assert.equal(policy.catalog.get("tool:pnpm")?.version, "11.28.5");

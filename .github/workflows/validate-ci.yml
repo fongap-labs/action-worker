@@ -236,6 +236,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.dev_merge_sha || github.sha }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Checkout trusted dev runtime policy
@@ -268,6 +269,14 @@ jobs:
 
       - name: Install TypeScript toolchain
         run: npm ci
+
+      - name: Enforce central dependency version drift gate
+        if: github.event_name == 'pull_request' || inputs.dev_merge_sha != ''
+        env:
+          BASE_SHA: ${{ inputs.dev_base_sha || github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ inputs.dev_merge_sha || github.sha }}
+          TARGET_BRANCH: ${{ inputs.dev_merge_sha != '' && 'dev' || 'main' }}
+        run: node scripts/validate-dependency-drift.ts local "$GITHUB_REPOSITORY" "$TARGET_BRANCH" "$BASE_SHA" "$MERGE_SHA" "$GITHUB_WORKSPACE"
 
       - name: Type-check TypeScript
         run: npm run typecheck

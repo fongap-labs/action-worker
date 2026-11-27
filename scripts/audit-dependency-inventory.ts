@@ -39,7 +39,7 @@ type Observation = {
 
 const shaPattern = /^[a-f0-9]{40}$/;
 const repoPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const manifestPattern =
+export const manifestPattern =
   /^(?:package\.json|pnpm-workspace\.yaml|pyproject\.toml|requirements(?:-[\w-]+)?\.(?:txt|in)|Cargo\.toml|rust-toolchain(?:\.toml)?|\.node-version|\.nvmrc|\.python-version)$/;
 const lockPattern =
   /^(?:package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|uv\.lock|poetry\.lock|Cargo\.lock)$/;
@@ -410,6 +410,11 @@ export async function inventoryDependencies(
     public_refs: publicRefs,
     common_public_dependencies: common,
     policy_mode: policy.mode,
+    declared_baseline_verified:
+      incomplete === 0 &&
+      policyCounts.different === 0 &&
+      policyCounts["range-review"] === 0 &&
+      policy.exceptions.every((item) => item.expires_on >= today),
     policy_counts: policyCounts,
     expired_exception_count: policy.exceptions.filter((item) => item.expires_on < today).length,
     public_policy_findings: publicPolicyFindings,
@@ -465,6 +470,7 @@ async function main(): Promise<void> {
         result.common_public_dependencies.filter((item) => item.differentDeclarations).length,
       "",
       "Central version policy: " + result.policy_mode,
+      "Declared baseline verified: " + String(result.declared_baseline_verified),
       "Exact declaration differences: " + result.policy_counts.different,
       "Ranges needing review: " + result.policy_counts["range-review"],
       "Active exceptions matched: " + result.policy_counts.excepted,
@@ -473,7 +479,7 @@ async function main(): Promise<void> {
       "Private branch plans (details withheld): " + result.private_remediation_plan_count,
       "Declaration changes requiring manual review: " + result.remediation_manual_review_count,
       "See the structured log for public branch observations and version differences.",
-      "Declaration differences are informational; lock resolution and compatibility are not verified.",
+      "Inventory verifies supported declarations only; resolved lock graphs and compatibility are not verified.",
     ]);
   } catch {
     throw new CliError("Dependency inventory could not be verified; details withheld.", 75);
