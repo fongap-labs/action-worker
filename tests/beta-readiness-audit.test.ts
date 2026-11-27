@@ -115,5 +115,8 @@ test("readiness is part of the existing protected settings workflow, not a publi
   assert.equal(probe.with["permission-contents"], "write");
   assert.equal(probe.with["client-id"], "${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID }}");
   assert.equal(probe.with["private-key"], "${{ secrets.AW_BETA_RELEASE_APP_PRIVATE_KEY }}");
-  assert.match(JSON.stringify(workflow.jobs["apply-control-plane"]), /audit-beta-readiness.ts deploy/);
+  assert.match(
+    JSON.stringify(workflow.jobs["apply-control-plane"]),
+    /audit-beta-readiness.ts deploy/
+  );
 });

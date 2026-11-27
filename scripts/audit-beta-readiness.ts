@@ -6,7 +6,7 @@ import {
   readBetaReleasePolicy,
 } from "./beta-release-authorization.ts";
 import type { JsonReader } from "./ci-evidence.ts";
-import { getJsonArray, getJsonString, GithubReader, isJsonRecord } from "./github-api.ts";
+import { GithubReader, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { hasRepositoryCapability, readRepositoryPolicyText } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import { assertExistingCredentialEnvironment } from "./verify-deploy-credential-environment.ts";
@@ -19,7 +19,7 @@ export async function planBetaReleaseReadiness(
   control: string,
   grants: unknown,
   policy: unknown,
-  appConfigured: boolean
+  isAppConfigured: boolean
 ): Promise<{ probe: boolean; result?: Readiness }> {
   const mode = betaReleaseMode(policy);
   if (mode === "closed" || !betaReleaseCandidate(repository, grants, control)) {
@@ -42,7 +42,7 @@ export async function planBetaReleaseReadiness(
       result: { subject: repository, ready: false, reason: "Formal tag protection unverified" },
     };
   }
-  if (!appConfigured) {
+  if (!isAppConfigured) {
     return {
       probe: false,
       result: { subject: repository, ready: false, reason: "Independent Beta App not configured" },
@@ -173,23 +173,23 @@ async function main(): Promise<void> {
     if (!betaReleaseCandidate(repository, grants, control)) {
       throw new CliError("Beta release probe exceeds the repository policy.", 77);
     }
-    let ready = false;
+    let isReady = false;
     try {
       if (token) {
         const repo = await reader.get(`repos/${repository}`);
-        ready = getJsonString(repo, "full_name") === repository;
+        isReady = getJsonString(repo, "full_name") === repository;
       }
     } catch {
       // Do not log credentials, response bodies or token mint diagnostics here.
     }
     await report({
       subject: repository,
-      ready,
-      reason: ready
+      ready: isReady,
+      reason: isReady
         ? "Independent scoped contents-write token minted; no release or tag written"
         : "Independent Beta App token could not be verified",
     });
-    if (!ready && betaReleaseMode(policy) === "automatic") {
+    if (!isReady && betaReleaseMode(policy) === "automatic") {
       throw new CliError("Enabled Beta release is not ready.", 77);
     }
     return;
