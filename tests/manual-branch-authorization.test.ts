@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { parse } from "yaml";
-import { resolveBranchSourceSha } from "../scripts/authorize-branch-operation.ts";
+import {
+  resolveBranchSourceSha,
+  resolveTransferPrNumber,
+} from "../scripts/authorize-branch-operation.ts";
 
 test("branch authorization reuses admin-ops and never signs an unchecked request", () => {
   const source = readFileSync(".github/workflows/authorize-branch-transfer.yml", "utf8");
@@ -52,9 +55,12 @@ test("branch authorization reuses admin-ops and never signs an unchecked request
     );
   }
   assert.equal(plan.env?.SOURCE_SHA, "${{ inputs.source_sha }}");
+  assert.equal(plan.env?.PR_NUMBER, "${{ inputs.pr_number }}");
+  assert.equal(workflow.on.workflow_dispatch.inputs.pr_number?.default, 0);
   assert.equal(plan.env?.TRANSFER_SNAPSHOT, "${{ inputs.transfer_snapshot }}");
   for (const step of [verify, approve]) {
     assert.equal(step.env?.SOURCE_SHA, "${{ steps.plan.outputs.source_sha }}");
+    assert.equal(step.env?.PR_NUMBER, "${{ steps.plan.outputs.pr_number }}");
     assert.equal(step.env?.TRANSFER_SNAPSHOT, "${{ steps.plan.outputs.transfer_snapshot }}");
   }
   const ref = steps.find((step) => step.name === "Mint repository-scoped initialization ref token");
@@ -115,5 +121,82 @@ test("missing automatic SHA is rejected rather than inventing a fallback", async
   await assert.rejects(
     resolveBranchSourceSha(reader, "initialize-dev", "org/product", 0, ""),
     /unavailable/
+  );
+});
+
+function transferFixture() {
+  const repository = "org/product";
+  const repo = { full_name: repository };
+  const forward = {
+    number: 103,
+    state: "open",
+    draft: false,
+    head: { ref: "dev", repo },
+    base: { ref: "main", repo },
+  };
+  const reverse = {
+    ...forward,
+    number: 104,
+    head: { ref: "main", repo },
+    base: { ref: "dev", repo },
+  };
+  const closed = { ...forward, number: 102, state: "closed" };
+  const ordinary = { ...forward, number: 101, head: { ref: "fix/dependency", repo } };
+  const fork = {
+    ...forward,
+    number: 105,
+    head: { ref: "dev", repo: { full_name: "other/product" } },
+  };
+  const draft = { ...forward, number: 106, draft: true };
+  const entries = new Map<string, unknown>([
+    [`repos/${repository}/pulls?state=open&head=org%3Adev&base=main&per_page=100`, [forward]],
+    [`repos/${repository}/pulls?state=open&head=org%3Amain&base=dev&per_page=100`, []],
+    [`repos/${repository}/pulls/103`, forward],
+    [`repos/${repository}/pulls/102`, closed],
+    [`repos/${repository}/pulls/101`, ordinary],
+    [`repos/${repository}/pulls/105`, fork],
+    [`repos/${repository}/pulls/106`, draft],
+  ]);
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.ok(entries.has(path), path);
+      return entries.get(path);
+    },
+  };
+  return { repository, reader, entries, forward, reverse, closed, ordinary, fork, draft };
+}
+
+test("zero discovers the sole open same-repository transfer; explicit number remains exact", async () => {
+  const world = transferFixture();
+  assert.equal(await resolveTransferPrNumber(world.reader, world.repository, 0), 103);
+  assert.equal(await resolveTransferPrNumber(world.reader, world.repository, 103), 103);
+  for (const number of [102, 101, 105, 106]) {
+    await assert.rejects(
+      resolveTransferPrNumber(world.reader, world.repository, number),
+      /not an open, non-draft same-repository/
+    );
+  }
+});
+
+test("automatic discovery rejects absent, ambiguous and incomplete transfers", async () => {
+  const world = transferFixture();
+  const forwardPath = `repos/${world.repository}/pulls?state=open&head=org%3Adev&base=main&per_page=100`;
+  const reversePath = `repos/${world.repository}/pulls?state=open&head=org%3Amain&base=dev&per_page=100`;
+  world.entries.set(forwardPath, [world.closed, world.ordinary, world.fork, world.draft]);
+  await assert.rejects(
+    resolveTransferPrNumber(world.reader, world.repository, 0),
+    /No open main\/dev transfer PR/
+  );
+  world.entries.set(reversePath, [world.reverse]);
+  assert.equal(await resolveTransferPrNumber(world.reader, world.repository, 0), 104);
+  world.entries.set(forwardPath, [world.forward]);
+  await assert.rejects(
+    resolveTransferPrNumber(world.reader, world.repository, 0),
+    /Multiple cross-branch PRs/
+  );
+  world.entries.set(forwardPath, Array(100).fill(world.forward));
+  await assert.rejects(
+    resolveTransferPrNumber(world.reader, world.repository, 0),
+    /discovery is incomplete/
   );
 });
