@@ -461,8 +461,10 @@ test("Delta desktop host tests remain package-local and build runner is central"
 test("Delta first import executes central product CI after safety gates with pinned tooling", () => {
   const workflow = readFileSync(".github/workflows/central-ci-sandbox.yml", "utf8");
   const builder = readFileSync("tests/packs/delta/desktop-build-ci.sh", "utf8");
-  assert.match(workflow, /node-version:.*fongap-labs\/delta.*26\.13\.1/);
-  assert.match(workflow, /pnpm@11\.28\.5/);
+  assert.match(workflow, /node-version: \$\{\{ steps\.runtime\.outputs\.node \}\}/);
+  assert.match(workflow, /PNPM_VERSION: \$\{\{ steps\.runtime\.outputs\.pnpm \}\}/);
+  assert.match(workflow, /"pnpm@\$PNPM_VERSION"/);
+  assert.match(workflow, /"pnpm@\$env:PNPM_VERSION"/);
   const scan = workflow.indexOf("- name: Scan the change for secrets");
   const gate = workflow.indexOf("- name: Enforce central engineering ownership");
   const build = workflow.indexOf("- name: Run trusted Linux CI");

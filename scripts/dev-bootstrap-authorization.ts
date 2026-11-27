@@ -107,7 +107,8 @@ export async function verifyBootstrapSource(
   repository: string,
   sha: string,
   controlRepository: string,
-  isExistingDevRequired: boolean
+  isExistingDevRequired: boolean,
+  isCompletedAuthorization = false
 ): Promise<DevProtectionMode> {
   if (!repositoryPattern.test(repository) || !shaPattern.test(sha)) {
     throw new CliError("Development initialization target is invalid.", 65);
@@ -126,14 +127,32 @@ export async function verifyBootstrapSource(
   const dev = await getGithubJsonIfExists(`repos/${repository}/branches/dev`, (path) =>
     reader.get(path)
   );
+  const mainSha = isJsonRecord(main) ? getJsonString(main.commit, "sha") : "";
   if (
-    !isJsonRecord(main) ||
-    getJsonString(main.commit, "sha") !== sha ||
+    !shaPattern.test(mainSha) ||
     (isExistingDevRequired
       ? !isJsonRecord(dev) || getJsonString(dev.commit, "sha") !== sha
       : dev !== undefined)
   ) {
     throw new CliError("Development initialization branch identity changed.", 75);
+  }
+  if (mainSha !== sha) {
+    // Only the completed signed manual authorization proves that the previous main
+    // was the actual initialization source. Ordinary approval and automatic adoption
+    // still require exact current main identity.
+    if (!isCompletedAuthorization || !isExistingDevRequired) {
+      throw new CliError("Development initialization branch identity changed.", 75);
+    }
+    const comparison = await reader.get(`repos/${repository}/compare/${sha}...${mainSha}`);
+    if (
+      !isJsonRecord(comparison) ||
+      comparison.status !== "ahead" ||
+      comparison.behind_by !== 0 ||
+      getJsonString(comparison.base_commit, "sha") !== sha ||
+      getJsonString(comparison.merge_base_commit, "sha") !== sha
+    ) {
+      throw new CliError("Development initialization branch identity changed.", 75);
+    }
   }
   await assertNoOpenManagedWriteIncidents(reader, repository, "main");
   await assertNoOpenManagedWriteIncidents(reader, repository, "dev");
@@ -155,6 +174,18 @@ export async function verifyBootstrapSource(
     }))
   ) {
     throw new CliError("Development initialization requires a trusted current main SHA.", 75);
+  }
+  if (isCompletedAuthorization && mainSha !== sha) {
+    const currentMain = await reader.get(`repos/${repository}/branches/main`);
+    const currentDev = await reader.get(`repos/${repository}/branches/dev`);
+    if (
+      !isJsonRecord(currentMain) ||
+      getJsonString(currentMain.commit, "sha") !== mainSha ||
+      !isJsonRecord(currentDev) ||
+      getJsonString(currentDev.commit, "sha") !== sha
+    ) {
+      throw new DevBootstrapPendingError("Development audit snapshot moved; retry.", 75);
+    }
   }
   return protection;
 }
@@ -209,7 +240,7 @@ export async function verifyAuthorizedDevBootstrap(
   ) {
     throw new CliError("Development initialization publisher is not verified.", 75);
   }
-  await verifyBootstrapSource(reader, repository, sha, controlRepository, true);
+  await verifyBootstrapSource(reader, repository, sha, controlRepository, true, true);
   return `init-v1=${sha}`;
 }
 
