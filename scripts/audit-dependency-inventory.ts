@@ -43,7 +43,8 @@ export const manifestPattern =
   /^(?:package\.json|pnpm-workspace\.yaml|pyproject\.toml|requirements(?:-[\w-]+)?\.(?:txt|in)|Cargo\.toml|rust-toolchain(?:\.toml)?|\.node-version|\.nvmrc|\.python-version)$/;
 const lockPattern =
   /^(?:package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|uv\.lock|poetry\.lock|Cargo\.lock)$/;
-const maxManifestsPerRef = 250;
+const maxManifestsPerRef = 1024;
+const manifestReadConcurrency = 8;
 const maxManifestBytes = 262144;
 
 function declare(
@@ -212,6 +213,7 @@ export async function inspectRef(
       return result;
     }
     let isIncomplete = false;
+    const manifests: Array<{ path: string; sha: string; size: number }> = [];
     for (const entry of tree.tree) {
       if (!isJsonRecord(entry) || typeof entry.path !== "string") {
         isIncomplete = true;
@@ -227,7 +229,6 @@ export async function inspectRef(
       if (!manifestPattern.test(name)) continue;
       result.manifests++;
       if (
-        result.manifests > maxManifestsPerRef ||
         entry.type !== "blob" ||
         !["100644", "100755"].includes(getJsonString(entry, "mode")) ||
         typeof entry.size !== "number" ||
@@ -238,22 +239,36 @@ export async function inspectRef(
         isIncomplete = true;
         continue;
       }
-      try {
-        const blob = await reader.get(prefix + "/git/blobs/" + getJsonString(entry, "sha"));
-        const content = decodeGithubContent(blob);
-        if (Buffer.byteLength(content) !== entry.size) throw new Error("Invalid blob size.");
-        const parsed = inspectManifest(entry.path, content);
+      manifests.push({ path: entry.path, sha: getJsonString(entry, "sha"), size: entry.size });
+    }
+    // Count before fetching: never return a partial scan as complete when the bound is exceeded.
+    if (result.manifests > maxManifestsPerRef) return result;
+    for (let offset = 0; offset < manifests.length; offset += manifestReadConcurrency) {
+      const batch = manifests.slice(offset, offset + manifestReadConcurrency);
+      const parsedBatch = await Promise.all(
+        batch.map(async (entry) => {
+          try {
+            const blob = await reader.get(prefix + "/git/blobs/" + entry.sha);
+            const content = decodeGithubContent(blob);
+            if (Buffer.byteLength(content) !== entry.size) throw new Error("Invalid blob size.");
+            return { entry, parsed: inspectManifest(entry.path, content) };
+          } catch {
+            return null;
+          }
+        })
+      );
+      // Process in immutable tree order, irrespective of API completion order.
+      for (const item of parsedBatch) {
+        if (!item) {
+          isIncomplete = true;
+          continue;
+        }
+        const { entry, parsed } = item;
         result.declarations.push(...parsed.declarations);
         for (const declaration of parsed.declarations) {
-          result.located.push({
-            ...declaration,
-            path: entry.path,
-            blob_sha: getJsonString(entry, "sha"),
-          });
+          result.located.push({ ...declaration, path: entry.path, blob_sha: entry.sha });
         }
         result.unsupported += parsed.unsupported;
-      } catch {
-        isIncomplete = true;
       }
     }
     const latest = await reader.get(prefix + "/branches/" + branch);

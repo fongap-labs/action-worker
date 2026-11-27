@@ -46,7 +46,7 @@ const sha = "a".repeat(40);
 const tree = "b".repeat(40);
 const blob = "c".repeat(40);
 
-function fixtureReader(truncated = false, moved = false) {
+function fixtureReader(truncated = false, moved = false, count = 1) {
   const calls: string[] = [];
   const branchReads = new Map<string, number>();
   return {
@@ -69,13 +69,13 @@ function fixtureReader(truncated = false, moved = false) {
         return {
           truncated,
           tree: [
-            {
-              path: "packages/example/package.json",
+            ...Array.from({ length: count }, (_, index) => ({
+              path: "packages/example-" + index + "/package.json",
               type: "blob",
               mode: "100644",
               size: Buffer.byteLength(content),
               sha: blob,
-            },
+            })),
             { path: "pnpm-lock.yaml", type: "blob", mode: "100644" },
           ],
         };
@@ -102,6 +102,21 @@ test("branch inventory uses immutable Git objects and marks truncation and movem
     (await inspectRef(fixtureReader(false, true), "example/one", "main")).state,
     "incomplete"
   );
+});
+
+test("large workspaces scan every manifest and exceeding the bound fails closed", async () => {
+  const reader = fixtureReader(false, false, 364);
+  const result = await inspectRef(reader, "example/one", "main");
+  assert.equal(result.state, "scanned");
+  assert.equal(result.manifests, 364);
+  assert.equal(result.located.length, 364);
+  assert.equal(result.located[363]?.path, "packages/example-363/package.json");
+  const excessive = fixtureReader(false, false, 1025);
+  const blocked = await inspectRef(excessive, "example/one", "main");
+  assert.equal(blocked.state, "incomplete");
+  assert.equal(blocked.manifests, 1025);
+  assert.equal(blocked.baseSha, null);
+  assert.ok(!excessive.calls.some((path) => path.includes("/git/blobs/")));
 });
 
 test("new repositories are discovered without grants, and private details stay redacted", async () => {
