@@ -745,7 +745,8 @@ test("a green dev PR wakes only after a newer trusted baseline and live enrollme
     mergeSha: shaC,
   };
   const policy = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
-  const enrolled = { ...policy, dev_merge_repositories: [repository] };
+  const enrolled = policy;
+  const closed = { ...policy, dev_merge_mode: "closed" };
   const prior = { run_id: 55, updated_at: "2026-11-26T10:00:00Z" };
   const baseStatus = {
     context: "Dev Write Guard",
@@ -791,7 +792,7 @@ test("a green dev PR wakes only after a newer trusted baseline and live enrollme
     },
   };
   assert.equal(await shouldResumeDevMerge(reader, enrolled, scope, control, prior), true);
-  assert.equal(await shouldResumeDevMerge(reader, policy, scope, control, prior), false);
+  assert.equal(await shouldResumeDevMerge(reader, closed, scope, control, prior), false);
   assert.equal(
     await shouldResumeDevMerge(reader, enrolled, scope, control, {
       ...prior,

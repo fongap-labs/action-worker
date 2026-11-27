@@ -202,7 +202,7 @@ async function main(): Promise<void> {
     const scope = await authorizeDevMerge(reader, policy, identity);
     if (!scope) {
       console.log(
-        "::warning::Dev merge is not enrolled in central rulesets policy; review initialization, Dev Write Guard and repository enrollment before retrying."
+        "::warning::Dev merge is disabled by central policy; review repository capability and protection."
       );
     }
     await appendLines(process.env.GITHUB_OUTPUT, [`enabled=${Boolean(scope)}`]);

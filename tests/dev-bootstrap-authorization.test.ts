@@ -7,6 +7,7 @@ import {
   DevBootstrapPendingError,
   isClosedDevProtection,
   verifyAuthorizedDevBootstrap,
+  verifyAutomaticDevAdoption,
   verifyBootstrapSource,
 } from "../scripts/dev-bootstrap-authorization.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
@@ -172,4 +173,56 @@ test("adoption reuses the manual admin workflow but cannot mint a branch-write t
     script,
     /verifyBootstrapSource\(reader, repository, sha, controlRepository, adopt\)/
   );
+});
+
+test("automatic adoption verifies the same protected trusted main, never writes a ref", async () => {
+  const mainGuard = {
+    context: "Main Write Guard",
+    state: "success",
+    description: "verified main",
+    target_url: `https://github.com/${control}/actions/runs/42`,
+    created_at: "2026-11-25T11:00:00Z",
+  };
+  const responses = new Map<string, unknown>([
+    [prefix, { full_name: repository, private: false, default_branch: "main" }],
+    [`${prefix}/rulesets?includes_parents=false&per_page=100`, [{ ...closed, id: 12 }]],
+    [`${prefix}/rulesets/12?includes_parents=false`, closed],
+    [`${prefix}/branches/main`, { commit: { sha } }],
+    [`${prefix}/branches/dev`, { commit: { sha } }],
+    [`${prefix}/issues?state=open&per_page=100&page=1`, []],
+    [
+      `${prefix}/commits/${sha}/status`,
+      attestFixtureStatuses({ statuses: [mainGuard] }, repository, sha),
+    ],
+    [
+      `repos/${control}/actions/runs/42`,
+      {
+        id: 42,
+        repository: { full_name: control },
+        head_branch: "main",
+        path: ".github/workflows/intake.yml",
+        status: "completed",
+        conclusion: "success",
+        run_started_at: "2026-11-25T10:59:00Z",
+        updated_at: "2026-11-25T11:01:00Z",
+      },
+    ],
+  ]);
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.ok(responses.has(path), path);
+      return responses.get(path);
+    },
+  };
+  const adopt = () =>
+    verifyAutomaticDevAdoption(reader, repository, sha, { statuses: [] }, control);
+  assert.equal(await adopt(), `init-v1=${sha}`);
+  responses.set(`${prefix}/branches/main`, { commit: { sha: "b".repeat(40) } });
+  assert.equal(await adopt(), undefined);
+  responses.set(`${prefix}/branches/main`, { commit: { sha } });
+  responses.set(`${prefix}/issues?state=open&per_page=100&page=1`, [
+    { number: 614, title: "Dev write incident: example", author_association: "OWNER" },
+  ]);
+  responses.set(`${prefix}/issues/614/comments?per_page=100`, []);
+  await assert.rejects(adopt(), /Unresolved dev write incident/);
 });
