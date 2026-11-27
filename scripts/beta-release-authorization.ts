@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
+import { verifyCurrentBetaSource } from "./beta-source-proof.ts";
 import type { JsonReader } from "./ci-evidence.ts";
-import { assertTrustedDevWrite, verifyRecordedDevWrite } from "./dev-write-guard.ts";
 import { getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
@@ -89,34 +89,20 @@ export async function verifyBetaReleaseSource(
   if (!betaReleaseEnabled(policy, repository) || repository === controlRepository) {
     throw new CliError("Beta publication is disabled for this repository.", 75);
   }
-  const source = await reader.get(`repos/${repository}`);
-  if (
-    !isJsonRecord(source) ||
-    source.private !== false ||
-    source.full_name !== repository ||
-    source.default_branch !== "main"
-  ) {
-    throw new CliError("Beta publication requires a public managed source.", 75);
-  }
-  const rules = getJsonArray(
-    await reader.get(`repos/${repository}/rulesets?includes_parents=false&per_page=100`)
-  ).filter((rule) => getJsonString(rule, "name") === "Protect Formal Tags");
-  const rule = rules[0];
-  if (
-    rules.length !== 1 ||
-    !isJsonRecord(rule) ||
-    !Number.isSafeInteger(rule.id) ||
-    !protectsFormalTags(
-      await reader.get(`repos/${repository}/rulesets/${rule.id}?includes_parents=false`)
-    )
-  ) {
-    throw new CliError("Beta publication requires live formal tag protection.", 75);
-  }
-  await assertTrustedDevWrite(reader, repository, sha, controlRepository);
-  const proof = await verifyRecordedDevWrite(reader, repository, sha, controlRepository);
-  const head = await reader.get(`repos/${repository}/commits/dev`);
-  if (getJsonString(head, "sha") !== sha) {
-    throw new CliError("Beta source is no longer the current dev HEAD.", 75);
-  }
-  return proof.scope.prNumber;
+  return verifyCurrentBetaSource(reader, repository, sha, controlRepository, async () => {
+    const rules = getJsonArray(
+      await reader.get(`repos/${repository}/rulesets?includes_parents=false&per_page=100`)
+    ).filter((rule) => getJsonString(rule, "name") === "Protect Formal Tags");
+    const rule = rules[0];
+    if (
+      rules.length !== 1 ||
+      !isJsonRecord(rule) ||
+      !Number.isSafeInteger(rule.id) ||
+      !protectsFormalTags(
+        await reader.get(`repos/${repository}/rulesets/${rule.id}?includes_parents=false`)
+      )
+    ) {
+      throw new CliError("Beta publication requires live formal tag protection.", 75);
+    }
+  });
 }
