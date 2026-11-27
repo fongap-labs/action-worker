@@ -176,8 +176,8 @@ test("a pull request is tested at a pinned merge SHA, not at a mutable merge ref
   assert.match(workflow, /merge_sha: \$\{\{ steps\.merge_ref\.outputs\.merge_sha/);
   assert.equal(
     workflow.split("merge_sha: ${{ needs.prepare.outputs.merge_sha }}").length,
-    3,
-    "Linux and Windows receive the same prepared merge commit"
+    4,
+    "Linux, Windows and controller dev receive the same prepared merge commit"
   );
   assert.match(sandbox, /node aw\/scripts\/verify-ci-checkout\.ts/);
   assert.doesNotMatch(
