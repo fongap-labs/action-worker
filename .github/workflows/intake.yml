@@ -255,12 +255,7 @@ jobs:
         run: node scripts/audit-branch-drift.ts
 
   dev-writes:
-    if: >-
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      github.event.workflow_run.event == 'repository_dispatch')
+    if: github.event_name != 'workflow_run'
     name: Dev write audit
     environment:
       name: admin-ops
@@ -288,7 +283,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/repository-policy.ts list pr
 
-      - name: Mint main write status token
+      - name: Mint dev write status token
         id: status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -331,7 +326,84 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
           DEV_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          DEV_WRITE_AUDIT_TRIGGER_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
+          DEV_WRITE_AUDIT_MODE: full
+        run: node scripts/audit-dev-writes.ts
+
+  dev-merge-audit:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.event == 'repository_dispatch')
+    name: Dev merge write audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Resolve PR repository scope
+        id: pr_scope
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/repository-policy.ts list pr
+
+      - name: Mint dev write status token
+        id: status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.pr_scope.outputs.repositories_csv }}
+          permission-statuses: write
+
+      - name: Mint incident issue token
+        id: issue_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.pr_scope.outputs.repositories_csv }}
+          permission-issues: write
+
+      - name: Mint scoped intake read token
+        id: control_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.pr_scope.outputs.read_repositories_csv }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+          permission-issues: read
+
+      - name: Audit managed dev branches
+        if: ${{ always() && steps.control_read_app.outputs.token != '' && steps.status_app.outputs.token != '' && steps.issue_app.outputs.token != '' }}
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
+          DEV_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEV_WRITE_AUDIT_TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+          DEV_WRITE_AUDIT_MODE: merge
         run: node scripts/audit-dev-writes.ts
 
   task-sources:
