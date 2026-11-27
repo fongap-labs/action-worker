@@ -59,6 +59,21 @@ test("only the current SHA signed receipt from that exact run wakes the audit", 
     sha
   );
   assert.equal(matchesCompletedDevMerge(failed, repository, sha, url), false);
+  const conflicting = attestFixtureStatuses(
+    {
+      statuses: [
+        receipt,
+        {
+          context: "Dev Bootstrap Authorization",
+          state: "success",
+          description: `init-v1=${sha}`,
+        },
+      ],
+    },
+    repository,
+    sha
+  );
+  assert.equal(matchesCompletedDevMerge(conflicting, repository, sha, url), false);
 });
 
 test("completion only runs the existing dev audit, not the rest of intake", () => {
@@ -81,9 +96,21 @@ test("completion only runs the existing dev audit, not the rest of intake", () =
   ]) {
     assert.match(intake.jobs[name].if, /github\.event_name != 'workflow_run'/);
   }
-  const audit = intake.jobs["dev-writes"];
+  const audit = intake.jobs["dev-merge-audit"];
   assert.match(audit.if, /github\.event\.workflow_run\.conclusion == 'success'/);
   assert.match(audit.if, /github\.event\.workflow_run\.head_repository\.full_name/);
   assert.match(audit.if, /github\.event\.workflow_run\.event == 'repository_dispatch'/);
+  assert.equal(audit.environment, undefined);
+  const full = intake.jobs["dev-writes"];
+  assert.equal(full.if, "github.event_name != 'workflow_run'");
+  assert.equal(full.environment.name, "admin-ops");
+  for (const item of audit.steps) {
+    assert.doesNotMatch(JSON.stringify(item), /AW_ADMIN_TOKEN|AW_PROTECTION_READ_TOKEN/);
+  }
+  const step = audit.steps.find(
+    (item: { name?: string }) => item.name === "Audit managed dev branches"
+  );
+  assert.equal(step.run, "node scripts/audit-dev-writes.ts");
+  assert.equal(step.env.DEV_WRITE_AUDIT_MODE, "merge");
   assert.ok(intake.on.schedule.length);
 });

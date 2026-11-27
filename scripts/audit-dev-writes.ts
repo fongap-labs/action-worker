@@ -4,6 +4,7 @@ import { requireToken } from "./control-token.ts";
 import { deleteTemporaryDevGuard } from "./create-protected-dev.ts";
 import {
   DevBootstrapPendingError,
+  devBootstrapContext,
   verifyAuthorizedDevBootstrap,
   verifyAutomaticDevAdoption,
 } from "./dev-bootstrap-authorization.ts";
@@ -83,6 +84,7 @@ export function matchesCompletedDevMerge(
   });
   return (
     receipt?.state === "success" &&
+    !latestAttestedStatus(statuses, { repository, sha, context: devBootstrapContext }) &&
     getJsonString(receipt, "target_url") === publisher &&
     /^merge-v1=[0-9a-f]{40}$/.test(originalStatusDescription(receipt))
   );
@@ -90,6 +92,15 @@ export function matchesCompletedDevMerge(
 
 async function main(): Promise<void> {
   const protectionToken = takeProtectionReadToken();
+  const trigger = process.env.DEV_WRITE_AUDIT_TRIGGER_RUN_ID ?? "";
+  const mode = process.env.DEV_WRITE_AUDIT_MODE ?? "full";
+  if (
+    (mode !== "full" && mode !== "merge") ||
+    (mode === "merge" && (!trigger || protectionToken)) ||
+    (mode === "full" && trigger)
+  ) {
+    throw new CliError("Development audit mode or credential boundary is invalid.", 77);
+  }
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const runUrl = process.env.DEV_WRITE_AUDIT_RUN_URL ?? "";
   if (!runUrl.startsWith(`https://github.com/${controlRepository}/actions/runs/`)) {
@@ -98,16 +109,12 @@ async function main(): Promise<void> {
   const statusToken = requireToken("status");
   const issueToken = requireToken("issue");
   const repositories = repositoriesForCapability(JSON.parse(readRepositoryPolicyText()), "pr");
-  const reader = withProtectionReads(
-    statusAwareReader(
-      process.env.GITHUB_API_URL ?? "https://api.github.com",
-      requireToken("control"),
-      statusToken
-    ),
-    protectionToken,
-    repositories
+  const ordinaryReader = statusAwareReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    requireToken("control"),
+    statusToken
   );
-  const trigger = process.env.DEV_WRITE_AUDIT_TRIGGER_RUN_ID ?? "";
+  const reader = withProtectionReads(ordinaryReader, protectionToken, repositories);
   const publisher = trigger
     ? await completedDevMergePublisher(reader, controlRepository, Number(trigger))
     : "";
@@ -134,31 +141,44 @@ async function main(): Promise<void> {
       if (await hasVerifiedDevWriteGuard(reader, repository, sha, statuses, controlRepository)) {
         continue;
       }
-      const recovered = await recoverInterruptedDevBootstrap(
-        reader,
-        repository,
-        sha,
-        statuses,
-        controlRepository,
-        (id) =>
-          deleteTemporaryDevGuard(
-            process.env.GITHUB_API_URL ?? "https://api.github.com",
-            protectionToken,
+      if (publisher) {
+        // The completed merge path reconstructs the same immutable proof without admin access.
+        // Bootstrap and recovery remain exclusively in the protected full audit.
+        description = (await verifyRecordedDevWrite(reader, repository, sha, controlRepository))
+          .description;
+      } else {
+        const recovered = await recoverInterruptedDevBootstrap(
+          reader,
+          repository,
+          sha,
+          statuses,
+          controlRepository,
+          (id) =>
+            deleteTemporaryDevGuard(
+              process.env.GITHUB_API_URL ?? "https://api.github.com",
+              protectionToken,
+              repository,
+              id
+            )
+        );
+        const bootstrap =
+          recovered ??
+          (await verifyAuthorizedDevBootstrap(
+            reader,
             repository,
-            id
-          )
-      );
-      const bootstrap =
-        recovered ??
-        (await verifyAuthorizedDevBootstrap(reader, repository, sha, statuses, controlRepository));
-      const adopted =
-        bootstrap === undefined && automatic && repo.private === false
-          ? await verifyAutomaticDevAdoption(reader, repository, sha, statuses, controlRepository)
-          : undefined;
-      description =
-        bootstrap ??
-        adopted ??
-        (await verifyRecordedDevWrite(reader, repository, sha, controlRepository)).description;
+            sha,
+            statuses,
+            controlRepository
+          ));
+        const adopted =
+          bootstrap === undefined && automatic && repo.private === false
+            ? await verifyAutomaticDevAdoption(reader, repository, sha, statuses, controlRepository)
+            : undefined;
+        description =
+          bootstrap ??
+          adopted ??
+          (await verifyRecordedDevWrite(reader, repository, sha, controlRepository)).description;
+      }
       state = "success";
     } catch (error) {
       if (error instanceof DevWritePendingError || error instanceof DevBootstrapPendingError) {
