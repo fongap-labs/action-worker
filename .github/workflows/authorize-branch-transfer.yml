@@ -314,7 +314,7 @@ jobs:
       head_sha: ${{ needs.authorize.outputs.head_sha }}
       merge_sha: ${{ needs.authorize.outputs.merge_sha }}
       control_ref: ${{ needs.authorize.outputs.control_ref }}
-      is_private: "false"
+      is_private: ${{ 'false' }}
 
   transfer-windows:
     name: Transfer CI / Windows
@@ -335,7 +335,7 @@ jobs:
       head_sha: ${{ needs.authorize.outputs.head_sha }}
       merge_sha: ${{ needs.authorize.outputs.merge_sha }}
       control_ref: ${{ needs.authorize.outputs.control_ref }}
-      is_private: "false"
+      is_private: ${{ 'false' }}
 
   transfer-execute:
     name: Execute verified transfer
