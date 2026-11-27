@@ -12,6 +12,9 @@ on:
       - policies/repository-access.json
       - policies/rulesets.json
       - policies/beta-release-targets.json
+      - policies/beta-deploy-targets.json
+      - scripts/beta-deploy-authorization.ts
+      - scripts/audit-beta-readiness.ts
       - scripts/beta-release-authorization.ts
       - scripts/apply-repository-settings.ts
       - scripts/resolve-dev-settings.ts
@@ -71,6 +74,11 @@ jobs:
           AI_GATEWAY_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
           TARGET_REPOSITORY: ${{ github.repository }}
         run: node scripts/apply-review-models.ts "$TARGET_REPOSITORY"
+
+      - name: Audit Beta deployment readiness
+        env:
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+        run: node scripts/audit-beta-readiness.ts deploy
 
   bootstrap-signing:
     if: github.event_name != 'workflow_run'
@@ -214,3 +222,31 @@ jobs:
           jq -n --arg repository "$TARGET_REPOSITORY" \
             '{event_type:"run-intake",client_payload:{repository:$repository}}' |
             gh api --method POST "repos/$CONTROL_REPOSITORY/dispatches" --input -
+
+      - name: Plan Beta release readiness check
+        if: github.event_name != 'workflow_run'
+        id: beta_plan
+        env:
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          TARGET_REPOSITORY: ${{ matrix.repository }}
+          BETA_APP_CONFIGURED: ${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID != '' && vars.AW_BETA_RELEASE_APP_CLIENT_ID != vars.AW_APP_CLIENT_ID && secrets.AW_BETA_RELEASE_APP_PRIVATE_KEY != '' }}
+        run: node scripts/audit-beta-readiness.ts release-plan
+
+      - name: Probe independent Beta release App permission
+        if: steps.beta_plan.outputs.probe == 'true'
+        id: beta_probe
+        continue-on-error: true
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_BETA_RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_BETA_RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.beta_plan.outputs.repository_name }}
+          permission-contents: write
+
+      - name: Report Beta release readiness
+        if: steps.beta_plan.outputs.probe == 'true'
+        env:
+          GH_TOKEN: ${{ steps.beta_probe.outputs.token }}
+          TARGET_REPOSITORY: ${{ matrix.repository }}
+        run: node scripts/audit-beta-readiness.ts release-probe
