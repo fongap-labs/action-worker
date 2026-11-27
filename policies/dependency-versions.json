@@ -22,5 +22,22 @@
     "npm:wrangler": { "class": "framework", "version": null },
     "npm:electron": { "class": "framework", "version": null }
   },
-  "exceptions": []
+  "exceptions": [
+    {
+      "repository": "fongap-labs/delta",
+      "branch": "main",
+      "dependency": "npm:typescript",
+      "declaration": "^6.0.3",
+      "reason": "Windows release build fails with TypeScript 7.0.2: getParsedCommandLineOfConfigFile is unavailable; Typert and document verification require migration of the JavaScript compiler API. Delta #104/#105.",
+      "expires_on": "2026-12-31"
+    },
+    {
+      "repository": "fongap-labs/delta",
+      "branch": "dev",
+      "dependency": "npm:typescript",
+      "declaration": "^6.0.3",
+      "reason": "Windows release build fails with TypeScript 7.0.2: getParsedCommandLineOfConfigFile is unavailable; Typert and document verification require migration of the JavaScript compiler API. Delta #104/#105.",
+      "expires_on": "2026-12-31"
+    }
+  ]
 }
