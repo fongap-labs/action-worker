@@ -209,9 +209,9 @@ jobs:
         working-directory: target/${{ needs.prepare.outputs.working_directory }}
         env:
           PNPM_VERSION: ${{ steps.runtime.outputs.pnpm }}
-          npm_config_manage_package_manager_versions: 'false'
-          npm_config_package_manager_strict: 'false'
-          npm_config_package_manager_strict_version: 'false'
+          npm_config_manage_package_manager_versions: "false"
+          npm_config_package_manager_strict: "false"
+          npm_config_package_manager_strict_version: "false"
           npm_config_pm_on_fail: error
         shell: bash
         run: |
