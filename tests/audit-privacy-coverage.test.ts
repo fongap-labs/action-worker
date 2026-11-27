@@ -81,6 +81,10 @@ test("organization audit workflow uses a scoped installation token and does not 
     assert.doesNotMatch(lane, /permission-contents: write|permission-pull-requests: write/);
     assert.doesNotMatch(lane, /propose-dependency-update\.ts publish/);
   }
+  const privateLane = source.slice(source.indexOf("  private-proposals:"));
+  assert.ok(privateLane.length > 0);
+  assert.doesNotMatch(privateLane, /upload-artifact|download-artifact|matrix\.|\$\{\{ matrix/);
+  assert.match(privateLane, /propose-dependency-update\.ts private/);
   assert.equal(source.match(/permission-contents: write/g)?.length, 1);
   assert.equal(source.match(/permission-pull-requests: write/g)?.length, 1);
 });
