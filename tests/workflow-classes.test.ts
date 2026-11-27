@@ -165,13 +165,15 @@ test("only approved entry, diagnostics and private operations expose manual disp
       assert.deepEqual(Object.keys(workflow.jobs ?? {}), [
         "audit",
         "discover-proposals",
+        "compute-proposals",
         "propose-dependencies",
+        "private-proposals",
       ]);
       const jobs = workflow.jobs as Record<
         string,
-        Job & { environment: unknown; if: string; needs?: string }
+        Job & { environment: unknown; if: string; needs?: string | string[] }
       >;
-      for (const name of ["audit", "discover-proposals", "propose-dependencies"]) {
+      for (const name of ["audit", "discover-proposals", "propose-dependencies", "private-proposals"]) {
         const job = jobs[name]!;
         assert.deepEqual(job.environment, { name: "admin-ops", deployment: false });
         assert.match(job.if, /github\.repository == 'fongap-labs\/action-worker'/);
@@ -183,7 +185,21 @@ test("only approved entry, diagnostics and private operations expose manual disp
             : /github\.event_name == 'workflow_dispatch'/
         );
       }
-      assert.equal(jobs["propose-dependencies"]?.needs, "discover-proposals");
+      assert.deepEqual(jobs["propose-dependencies"]?.needs, [
+        "discover-proposals",
+        "compute-proposals",
+      ]);
+      const compute = jobs["compute-proposals"]!;
+      assert.equal(compute.needs, "discover-proposals");
+      assert.equal(compute.environment, undefined);
+      assert.match(compute.if, /github\.event_name == 'workflow_dispatch'/);
+      assert.doesNotMatch(
+        JSON.stringify(compute),
+        /secrets\.|permission-contents.*write|permission-pull-requests.*write/
+      );
+      const privateLane = JSON.stringify(jobs["private-proposals"]);
+      assert.doesNotMatch(privateLane, /upload-artifact|download-artifact|matrix/);
+      assert.match(privateLane, /propose-dependency-update\.ts private/);
       const steps = jobs["propose-dependencies"]?.steps ?? [];
       const writers = steps.filter((step) => step.with?.["permission-contents"] === "write");
       assert.equal(writers.length, 1);
@@ -198,7 +214,7 @@ test("only approved entry, diagnostics and private operations expose manual disp
       assert.match(source, /scripts\/propose-dependency-update\.ts publish/);
       assert.equal(
         source.match(/if: inputs\.confirm && steps\.plan\.outputs\.changed == 'true'/g)?.length,
-        2
+        3
       );
       continue;
     }
