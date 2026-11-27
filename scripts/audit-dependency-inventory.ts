@@ -228,7 +228,8 @@ export async function inspectRef(
       }
     }
     const latest = await reader.get(prefix + "/branches/" + branch);
-    if (!isJsonRecord(latest) || getJsonString(latest.commit, "sha") !== commit) isIncomplete = true;
+    if (!isJsonRecord(latest) || getJsonString(latest.commit, "sha") !== commit)
+      isIncomplete = true;
     if (!isIncomplete) result.state = "scanned";
   } catch {
     // Public audit logs must never expose private API paths or upstream error bodies.
