@@ -162,6 +162,64 @@ jobs:
           path: control
           persist-credentials: false
 
+      - name: Resolve central Node repair versions
+        id: runtime
+        if: needs.prepare.outputs.adapter != 'uv-lock'
+        run: node control/scripts/resolve-runtime-versions.mjs --github-output control
+
+      - name: Setup central Node for lock repair
+        if: needs.prepare.outputs.adapter != 'uv-lock'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.runtime.outputs.node }}
+          package-manager-cache: false
+
+      - name: Verify public Node repair scope
+        if: needs.prepare.outputs.adapter != 'uv-lock'
+        env:
+          IS_PRIVATE: ${{ needs.prepare.outputs.is_private }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$IS_PRIVATE" == "false" ]]
+
+      - name: Install central pnpm repair tool
+        if: needs.prepare.outputs.adapter == 'pnpm-lock'
+        working-directory: control
+        env:
+          PNPM_VERSION: ${{ steps.runtime.outputs.pnpm }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --global --prefix "$RUNNER_TEMP/dependency-repair-tools" --ignore-scripts --no-audit --no-fund --registry https://registry.npmjs.org "pnpm@$PNPM_VERSION"
+          [[ "$("$RUNNER_TEMP/dependency-repair-tools/bin/pnpm" --version)" == "$PNPM_VERSION" ]]
+
+      - name: Run npm lock adapter
+        if: needs.prepare.outputs.adapter == 'npm-lock'
+        working-directory: target/${{ needs.prepare.outputs.working_directory }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -f package.json && ! -L package.json && -f package-lock.json && ! -L package-lock.json ]]
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --no-update-notifier
+
+      - name: Run pnpm lock adapter
+        if: needs.prepare.outputs.adapter == 'pnpm-lock'
+        working-directory: target/${{ needs.prepare.outputs.working_directory }}
+        env:
+          PNPM_VERSION: ${{ steps.runtime.outputs.pnpm }}
+          npm_config_manage_package_manager_versions: 'false'
+          npm_config_package_manager_strict: 'false'
+          npm_config_package_manager_strict_version: 'false'
+          npm_config_pm_on_fail: error
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -f package.json && ! -L package.json && -f pnpm-lock.yaml && ! -L pnpm-lock.yaml ]]
+          pnpm_cmd="$RUNNER_TEMP/dependency-repair-tools/bin/pnpm"
+          [[ "$("$pnpm_cmd" --version)" == "$PNPM_VERSION" ]]
+          "$pnpm_cmd" install --lockfile-only --ignore-scripts --ignore-pnpmfile --config.manage-package-manager-versions=false
+
       - name: Set up uv adapter
         if: needs.prepare.outputs.adapter == 'uv-lock'
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3

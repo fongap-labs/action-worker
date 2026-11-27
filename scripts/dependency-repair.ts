@@ -5,7 +5,7 @@ import {
 } from "./lib/manifest-input-validation.ts";
 import { CliError } from "./runtime-command.ts";
 
-export type DependencyRepairAdapter = "uv-lock";
+export type DependencyRepairAdapter = "uv-lock" | "npm-lock" | "pnpm-lock";
 
 export type DependencyRepairRule = {
   id: string;
@@ -40,6 +40,8 @@ export type DependencyRepairFacts = {
   base_sha: string;
   actor: string;
   changed_paths: string[];
+  base_ref?: string;
+  is_public?: boolean;
 };
 
 type GithubGet = {
@@ -54,12 +56,23 @@ const runnerPattern = /^[a-z][a-z0-9-]{0,63}$/;
 const versionPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 const branchPrefixPattern = /^[A-Za-z0-9._/-]{1,128}$/;
 
+function isRepairAdapter(value: unknown): value is DependencyRepairAdapter {
+  return value === "uv-lock" || value === "npm-lock" || value === "pnpm-lock";
+}
+
+function isRepairPath(value: unknown): value is string {
+  return (
+    safeRelativePath(value) &&
+    value.split("/").every((part) => part !== "" && part !== "." && part !== ".git")
+  );
+}
+
 function stringList(value: unknown, label: string): string[] {
   if (
     !Array.isArray(value) ||
     value.length < 1 ||
     value.length > 32 ||
-    !value.every(safeRelativePath) ||
+    !value.every(isRepairPath) ||
     new Set(value).size !== value.length
   ) {
     throw new CliError(`${label} must be a unique relative-path array.`, 65);
@@ -106,17 +119,19 @@ export function parseDependencyRepairManifest(value: unknown): DependencyRepairM
     if (
       typeof raw.id !== "string" ||
       !idPattern.test(raw.id) ||
-      raw.adapter !== "uv-lock" ||
+      !isRepairAdapter(raw.adapter) ||
       typeof raw.runner_profile !== "string" ||
       !runnerPattern.test(raw.runner_profile) ||
       typeof raw.trusted_actor !== "string" ||
       raw.trusted_actor.length < 1 ||
       raw.trusted_actor.length > 128 ||
       typeof raw.tool_version !== "string" ||
-      !versionPattern.test(raw.tool_version) ||
+      (raw.adapter === "uv-lock"
+        ? !versionPattern.test(raw.tool_version)
+        : raw.tool_version !== "central") ||
       typeof raw.head_prefix !== "string" ||
       !branchPrefixPattern.test(raw.head_prefix) ||
-      !safeRelativePath(raw.working_directory)
+      !(raw.working_directory === "." || isRepairPath(raw.working_directory))
     ) {
       throw new CliError("Dependency repair rule is invalid.", 65);
     }
@@ -129,6 +144,23 @@ export function parseDependencyRepairManifest(value: unknown): DependencyRepairM
     const outputPaths = stringList(raw.output_paths, `output_paths for ${raw.id}`);
     if (triggerPaths.some((path) => outputPaths.includes(path))) {
       throw new CliError(`Dependency repair input and output paths overlap: ${raw.id}.`, 65);
+    }
+    if (raw.adapter !== "uv-lock") {
+      const prefix = raw.working_directory === "." ? "" : raw.working_directory + "/";
+      const lock = raw.adapter === "npm-lock" ? "package-lock.json" : "pnpm-lock.yaml";
+      if (
+        outputPaths.length !== 1 ||
+        outputPaths[0] !== prefix + lock ||
+        !triggerPaths.every(
+          (path) =>
+            path.startsWith(prefix) &&
+            (path.endsWith("/package.json") ||
+              path === "package.json" ||
+              (raw.adapter === "pnpm-lock" && path === prefix + "pnpm-workspace.yaml"))
+        )
+      ) {
+        throw new CliError("Node dependency repair may only regenerate its declared lockfile.", 65);
+      }
     }
     return {
       id: raw.id,
@@ -195,6 +227,8 @@ function pullFacts(
     headSha !== request.head_sha ||
     !shaPattern.test(baseSha) ||
     !headRef ||
+    headRef === "main" ||
+    headRef === "dev" ||
     !actor ||
     headRepo !== request.repository
   ) {
@@ -207,6 +241,12 @@ function pullFacts(
     head_sha: headSha,
     head_ref: headRef,
     base_sha: baseSha,
+    base_ref: getJsonString(value.base, "ref"),
+    is_public:
+      isJsonRecord(value.base.repo) &&
+      getJsonString(value.base.repo, "full_name") === request.repository &&
+      value.base.repo.private === false &&
+      value.base.repo.visibility === "public",
     actor,
   };
 }
@@ -251,6 +291,9 @@ export function selectDependencyRepair(
 ): DependencyRepairRule | null {
   const matches = manifest.repairs.filter(
     (repair) =>
+      (repair.adapter === "uv-lock" || (facts.base_ref === "main" && facts.is_public === true)) &&
+      facts.head_ref !== "main" &&
+      facts.head_ref !== "dev" &&
       repair.trusted_actor === facts.actor &&
       facts.head_ref.startsWith(repair.head_prefix) &&
       repair.trigger_paths.some((path) => facts.changed_paths.includes(path))

@@ -162,6 +162,11 @@
 ```
 
 依赖修复规则来自 `.github/dependency-repair.json`，不按仓库名硬编码。
+现有 `uv-lock` 继续使用清单声明的精确工具版本；`npm-lock`、`pnpm-lock` 的 `tool_version` 必须为 `central`，使用中央 Node.js 附带的 npm 或中央固定的 pnpm。
+Node.js 适配器仅准入公开仓库、目标为 main 的同仓库普通合并请求，要求基准清单授权触发者、分支前缀和清单路径；不得将 main 或 dev 作为修复来源分支。
+每条 Node.js 规则仅允许回写工作目录内已有的 `package-lock.json` 或 `pnpm-lock.yaml`，禁止生命周期脚本，pnpm 禁用 pnpmfile。
+私有仓库与 dev 暂不接入该产物回写通道；不得使用公开控制仓库制品传递其锁文件。
+此阶段适配器修复已存在且获授权的合并请求，不自动创建整改分支或合并请求。批量生成及独立分支准入后续落实。
 
 ## 7. 运行器与凭据
 
