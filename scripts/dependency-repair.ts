@@ -1,3 +1,5 @@
+import { lstat } from "node:fs/promises";
+import { resolve } from "node:path";
 import { getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import {
   assertExactKeys as exactKeys,
@@ -65,6 +67,38 @@ function isRepairPath(value: unknown): value is string {
     safeRelativePath(value) &&
     value.split("/").every((part) => part !== "" && part !== "." && part !== ".git")
   );
+}
+
+// A lexical path grant is not sufficient: Git trees may contain symlinks.
+export async function resolveRepairFile(
+  root: string,
+  relative: string,
+  allowMissing = false
+): Promise<string> {
+  if (!isRepairPath(relative)) {
+    throw new CliError("Invalid dependency repair file path.", 77);
+  }
+  let current = resolve(root);
+  if (!(await lstat(current)).isDirectory()) {
+    throw new CliError("Invalid dependency repair root directory.", 77);
+  }
+  const segments = relative.split("/");
+  for (const [index, segment] of segments.entries()) {
+    current = resolve(current, segment);
+    const isLeaf = index === segments.length - 1;
+    try {
+      const entry = await lstat(current);
+      if (isLeaf ? !entry.isFile() : !entry.isDirectory()) {
+        throw new CliError("Dependency repair path is not a regular file or directory.", 77);
+      }
+    } catch (error) {
+      if (allowMissing && isLeaf && (error as NodeJS.ErrnoException).code === "ENOENT") {
+        return current;
+      }
+      throw error;
+    }
+  }
+  return current;
 }
 
 function stringList(value: unknown, label: string): string[] {

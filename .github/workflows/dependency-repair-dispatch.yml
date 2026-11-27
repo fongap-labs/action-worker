@@ -123,6 +123,15 @@ jobs:
             exit 65
           fi
 
+      - name: Verify public Node repair scope
+        if: needs.prepare.outputs.adapter != 'uv-lock'
+        env:
+          IS_PRIVATE: ${{ needs.prepare.outputs.is_private }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$IS_PRIVATE" == "false" ]]
+
       - name: Require private checkout token
         if: needs.prepare.outputs.is_private == 'true'
         env:
@@ -174,15 +183,6 @@ jobs:
           node-version: ${{ steps.runtime.outputs.node }}
           package-manager-cache: false
 
-      - name: Verify public Node repair scope
-        if: needs.prepare.outputs.adapter != 'uv-lock'
-        env:
-          IS_PRIVATE: ${{ needs.prepare.outputs.is_private }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          [[ "$IS_PRIVATE" == "false" ]]
-
       - name: Install central pnpm repair tool
         if: needs.prepare.outputs.adapter == 'pnpm-lock'
         working-directory: control
@@ -200,6 +200,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          [[ "$(pwd -P)" == "$(pwd -L)" ]]
           [[ -f package.json && ! -L package.json && -f package-lock.json && ! -L package-lock.json ]]
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund --no-update-notifier
 
@@ -215,7 +216,9 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          [[ "$(pwd -P)" == "$(pwd -L)" ]]
           [[ -f package.json && ! -L package.json && -f pnpm-lock.yaml && ! -L pnpm-lock.yaml ]]
+          node -e 'const m=JSON.parse(require("node:fs").readFileSync("package.json","utf8"));if(m.packageManager && m.packageManager.split("+")[0] !== "pnpm@"+process.env.PNPM_VERSION)process.exit(65)'
           pnpm_cmd="$RUNNER_TEMP/dependency-repair-tools/bin/pnpm"
           [[ "$("$pnpm_cmd" --version)" == "$PNPM_VERSION" ]]
           "$pnpm_cmd" install --lockfile-only --ignore-scripts --ignore-pnpmfile --config.manage-package-manager-versions=false

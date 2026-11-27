@@ -1,10 +1,11 @@
-import { copyFile, mkdir, readdir, stat } from "node:fs/promises";
-import { dirname, resolve, sep } from "node:path";
+import { copyFile, lstat, readdir, stat } from "node:fs/promises";
+import { resolve, sep } from "node:path";
 import {
   type DependencyRepairRequest,
   decodeGithubContent,
   parseDependencyRepairManifest,
   resolveDependencyRepairFacts,
+  resolveRepairFile,
   selectDependencyRepair,
 } from "./dependency-repair.ts";
 import { GithubReader } from "./github-api.ts";
@@ -55,9 +56,11 @@ async function filesUnder(root: string): Promise<string[]> {
     if (!safeRelativePath(path)) {
       throw new CliError("Dependency repair artifact contains an invalid path.", 77);
     }
-    const details = await stat(confined(root, path));
+    const details = await lstat(confined(root, path));
     if (details.isFile()) {
       files.push(path);
+    } else if (!details.isDirectory()) {
+      throw new CliError("Dependency repair artifact contains a non-regular entry.", 77);
     }
   }
   return files.sort();
@@ -154,13 +157,12 @@ async function main(): Promise<void> {
   }
 
   for (const path of staged) {
-    const source = confined(stagingRoot, path);
+    const source = await resolveRepairFile(stagingRoot, path);
     const details = await stat(source);
     if (!details.isFile() || details.size > 50 * 1024 * 1024) {
       throw new CliError(`Dependency repair artifact is invalid: ${path}.`, 66);
     }
-    const destination = confined(targetRoot, path);
-    await mkdir(dirname(destination), { recursive: true });
+    const destination = await resolveRepairFile(targetRoot, path, true);
     await copyFile(source, destination);
   }
 

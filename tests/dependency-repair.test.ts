@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
   parseDependencyRepairManifest,
   parseDependencyRepairRequest,
   resolveDependencyRepairFacts,
+  resolveRepairFile,
   selectDependencyRepair,
 } from "../scripts/dependency-repair.ts";
 import { needsDependencyRepair } from "../scripts/intake-open-prs.ts";
@@ -278,4 +282,27 @@ test("Node lock repair is restricted to public main PRs and never managed head b
   assert.equal(selectDependencyRepair(grant, { ...facts, is_public: false }), null);
   assert.equal(selectDependencyRepair(grant, { ...facts, head_ref: "main" }), null);
   assert.equal(selectDependencyRepair(grant, { ...facts, head_ref: "dev" }), null);
+});
+
+test("repair file grants reject symlinks in the output and every ancestor", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "repair-path-"));
+  try {
+    const root = join(directory, "repository");
+    const outside = join(directory, "outside");
+    await mkdir(root);
+    await mkdir(outside);
+    await writeFile(join(root, "package-lock.json"), "{}");
+    await writeFile(join(outside, "package-lock.json"), "{}");
+    await symlink(outside, join(root, "linked"), "junction");
+    assert.equal(
+      await resolveRepairFile(root, "package-lock.json"),
+      join(root, "package-lock.json")
+    );
+    assert.equal(await resolveRepairFile(root, "uv.lock", true), join(root, "uv.lock"));
+    await assert.rejects(resolveRepairFile(root, "linked/package-lock.json"));
+    await assert.rejects(resolveRepairFile(root, "linked/uv.lock", true));
+    await assert.rejects(resolveRepairFile(root, ".git/config", true));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

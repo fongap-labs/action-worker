@@ -96,6 +96,10 @@ test("Node repair adapters reuse central versions and cannot publish arbitrary f
     "${{ steps.runtime.outputs.node }}"
   );
   assert.match(find("Verify public Node repair scope").run ?? "", /IS_PRIVATE.*false/);
+  assert.ok(
+    steps.indexOf(find("Verify public Node repair scope")) <
+      steps.indexOf(find("Checkout private target source"))
+  );
   assert.match(find("Install central pnpm repair tool").run ?? "", /--ignore-scripts/);
   assert.match(find("Run npm lock adapter").run ?? "", /--package-lock-only --ignore-scripts/);
   assert.match(
