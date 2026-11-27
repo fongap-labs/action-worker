@@ -1,10 +1,10 @@
 import { hasVerifiedCiEvidence, latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
-import { readCurrentPrCiScope, type PrCiScope } from "./ci-scope-receipt.ts";
-import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
+import { type PrCiScope, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
 import { requireStatusToken } from "./control-token.ts";
 import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { gateContextsForBranch, loadGateContract } from "./governance-gate-contract.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
-import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
+import { isGovernedPullDirection, legacyDevIntakeWake } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
 
@@ -19,8 +19,13 @@ export type FollowUpRequest = {
 export function parseFollowUpRequest(value: unknown): FollowUpRequest {
   if (
     !isJsonRecord(value) ||
-    !["ci_run_id,head_sha,pr_number,repository", "ci_run_id,head_sha,pr_number,repository,target_branch"].includes(Object.keys(value).sort().join(",")) ||
-    (value.target_branch !== undefined && value.target_branch !== "main" && value.target_branch !== "dev") ||
+    ![
+      "ci_run_id,head_sha,pr_number,repository",
+      "ci_run_id,head_sha,pr_number,repository,target_branch",
+    ].includes(Object.keys(value).sort().join(",")) ||
+    (value.target_branch !== undefined &&
+      value.target_branch !== "main" &&
+      value.target_branch !== "dev") ||
     (value.target_branch === "dev" && value.pr_number === 0) ||
     typeof value.repository !== "string" ||
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.repository) ||
@@ -63,11 +68,7 @@ export function isCurrentFollowUpTarget(request: FollowUpRequest, target: unknow
   return (
     getJsonString(target, "state") === "open" &&
     isGovernedPullDirection(target, request.target_branch ?? "main") &&
-    (request.target_branch !== "dev" ||
-      (isJsonRecord(target.base) && isJsonRecord(target.base.repo) &&
-        target.base.repo.private === false &&
-        getJsonString(target.base.repo, "full_name") === request.repository &&
-        getJsonString(target.head && isJsonRecord(target.head) ? target.head.repo : undefined, "full_name") === request.repository)) &&
+    (request.target_branch !== "dev" || legacyDevIntakeWake(target, request.repository)) &&
     isJsonRecord(target.head) &&
     getJsonString(target.head, "sha") === request.head_sha
   );
@@ -114,7 +115,13 @@ async function main(): Promise<void> {
       await skipStaleFollowUp(request);
       return;
     }
-    expectedPrScope = await readCurrentPrCiScope(reader, request.repository, request.pr_number, request.head_sha, targetBranch);
+    expectedPrScope = await readCurrentPrCiScope(
+      reader,
+      request.repository,
+      request.pr_number,
+      request.head_sha,
+      targetBranch
+    );
     if (!expectedPrScope) {
       await skipStaleFollowUp(request);
       return;
