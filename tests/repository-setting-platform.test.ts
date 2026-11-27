@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   applyRulesets,
   isUnsupportedPrivateRuleset,
+  rulesetPayloads,
   settingMatchesPlatform,
 } from "../scripts/apply-repository-settings.ts";
 import { CliError } from "../scripts/runtime-command.ts";
@@ -85,4 +87,65 @@ test("ambiguous managed rulesets never permit reconciliation", async () => {
     ]),
     /duplicate names/
   );
+});
+
+test("GitHub rule order alone does not trigger repeated writes or read-back failures", async () => {
+  const policy: unknown = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
+  const desired = rulesetPayloads(policy).find((rule) => rule.name === "Protect Main Branch")!;
+  const reordered = { ...desired, rules: desired.rules.toReversed() };
+  for (const isExisting of [true, false]) {
+    const methods: string[] = [];
+    const result = await applyRulesets(
+      "fongap-labs/example",
+      "test-token",
+      false,
+      [desired],
+      async (method, endpoint) => {
+        methods.push(method);
+        if (endpoint.includes("per_page=100")) {
+          return isExisting ? [{ id: 42, name: desired.name }] : [];
+        }
+        if (method === "POST") return { id: 42 };
+        assert.equal(method, "GET");
+        return reordered;
+      }
+    );
+    assert.equal(result.protectionApplied, true);
+    assert.deepEqual(methods, isExisting ? ["GET", "GET"] : ["GET", "POST", "GET"]);
+  }
+  const drifted = {
+    ...reordered,
+    rules: reordered.rules.map((rule) =>
+      typeof rule === "object" &&
+      rule !== null &&
+      "type" in rule &&
+      rule.type === "required_status_checks"
+        ? { ...rule, parameters: { required_status_checks: [] } }
+        : rule
+    ),
+  };
+  for (const actual of [
+    drifted,
+    { ...reordered, rules: [...reordered.rules, reordered.rules[0]] },
+    {
+      ...reordered,
+      bypass_actors: [{ actor_id: 5609149, actor_type: "Integration", bypass_mode: "always" }],
+    },
+    { ...reordered, conditions: { ref_name: { include: ["refs/heads/dev"], exclude: [] } } },
+    { ...reordered, enforcement: "disabled" },
+  ]) {
+    await assert.rejects(
+      applyRulesets(
+        "fongap-labs/example",
+        "test-token",
+        false,
+        [desired],
+        async (method, endpoint) => {
+          if (endpoint.includes("per_page=100")) return [{ id: 42, name: desired.name }];
+          return method === "GET" ? actual : {};
+        }
+      ),
+      /read-back does not match/
+    );
+  }
 });

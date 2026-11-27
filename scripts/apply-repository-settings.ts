@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { formalTagProtection, readBetaReleasePolicy } from "./beta-release-authorization.ts";
 import type { JsonReader } from "./ci-evidence.ts";
+import { devRulesetSnapshot } from "./create-protected-dev.ts";
 import { isClosedDevProtection } from "./dev-bootstrap-authorization.ts";
 import { hasVerifiedDevWriteGuard } from "./dev-write-guard.ts";
 import {
@@ -207,7 +208,7 @@ function rulesetSnapshot(value: unknown): RulesetPayload {
         enforcement: value.enforcement,
         bypass_actors: value.bypass_actors,
         conditions: value.conditions,
-        rules: value.rules,
+        rules: devRulesetSnapshot(value).rules,
       },
     ],
   })[0]!;
@@ -293,6 +294,8 @@ export async function applyRulesets(
 
   let hasDevChanged = false;
   for (const desired of rulesets) {
+    // GitHub may reorder the rules array on every PUT. Compare the complete canonical snapshot.
+    const expected = rulesetSnapshot(desired);
     const opensDev = desired.name === "Protect Dev Branch" && !isClosedDevProtection(desired);
     let id = existingByName.get(desired.name);
     if (id === undefined) {
@@ -311,7 +314,7 @@ export async function applyRulesets(
       const current = rulesetSnapshot(
         await request("GET", `repos/${repository}/rulesets/${id}?includes_parents=false`, token)
       );
-      if (isDeepStrictEqual(current, desired)) {
+      if (isDeepStrictEqual(current, expected)) {
         console.log(`repository ruleset already current: ${repository} / ${desired.name}`);
         continue;
       }
@@ -323,7 +326,7 @@ export async function applyRulesets(
     const verified = rulesetSnapshot(
       await request("GET", `repos/${repository}/rulesets/${id}?includes_parents=false`, token)
     );
-    if (!isDeepStrictEqual(verified, desired)) {
+    if (!isDeepStrictEqual(verified, expected)) {
       throw new CliError("repository ruleset read-back does not match the managed policy", 75);
     }
     if (opensDev) hasDevChanged = true;
