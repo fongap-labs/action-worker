@@ -2,21 +2,69 @@ import { readFileSync } from "node:fs";
 import { verifyCurrentBetaSource } from "./beta-source-proof.ts";
 import type { JsonReader } from "./ci-evidence.ts";
 import { getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { hasRepositoryCapability } from "./repository-policy.ts";
 import { CliError } from "./runtime-command.ts";
 
-export function betaReleaseEnabled(policy: unknown, repository: string): boolean {
+export function betaReleaseMode(policy: unknown): "closed" | "prepare" | "automatic" {
   if (
     !isJsonRecord(policy) ||
     policy.schema_version !== 1 ||
-    !Array.isArray(policy.repositories) ||
-    policy.repositories.some(
-      (item) => typeof item !== "string" || !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(item)
-    ) ||
-    new Set(policy.repositories).size !== policy.repositories.length
+    Object.keys(policy).length !== 2 ||
+    (policy.mode !== "closed" && policy.mode !== "prepare" && policy.mode !== "automatic")
   ) {
     throw new CliError("Invalid Beta release activation policy.", 65);
   }
-  return policy.repositories.includes(repository);
+  return policy.mode;
+}
+
+/** Derive eligibility from existing grants; no parallel list or cross-repository Beta publishing. */
+export function betaReleaseCandidate(
+  repository: string,
+  repositoryPolicy: unknown,
+  controlRepository: string
+): boolean {
+  return (
+    /^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) &&
+    repository !== controlRepository &&
+    hasRepositoryCapability(repository, repositoryPolicy, "pr") &&
+    hasRepositoryCapability(repository, repositoryPolicy, "release-source") &&
+    hasRepositoryCapability(repository, repositoryPolicy, "release-target")
+  );
+}
+
+export function betaReleaseEnabled(
+  policy: unknown,
+  repository: string,
+  repositoryPolicy: unknown,
+  controlRepository: string
+): boolean {
+  return (
+    betaReleaseMode(policy) === "automatic" &&
+    betaReleaseCandidate(repository, repositoryPolicy, controlRepository)
+  );
+}
+
+/** Formal tag protection is prepared without granting the independent Beta writer. */
+export function formalTagProtection(
+  policy: unknown,
+  repository: string,
+  repositoryPolicy: unknown,
+  controlRepository: string
+) {
+  if (
+    betaReleaseMode(policy) === "closed" ||
+    !betaReleaseCandidate(repository, repositoryPolicy, controlRepository)
+  ) {
+    return undefined;
+  }
+  return {
+    name: "Protect Formal Tags",
+    target: "tag",
+    enforcement: "active",
+    conditions: { ref_name: { include: ["refs/tags/**"], exclude: ["refs/tags/*-v*-beta.*"] } },
+    bypass_actors: [{ actor_type: "Integration", actor_id: 5609149, bypass_mode: "always" }],
+    rules: ["creation", "update", "deletion"].map((type) => ({ type })),
+  };
 }
 
 export function readBetaReleasePolicy(): unknown {
@@ -84,9 +132,10 @@ export async function verifyBetaReleaseSource(
   repository: string,
   sha: string,
   controlRepository: string,
-  policy: unknown
+  policy: unknown,
+  repositoryPolicy: unknown
 ): Promise<number> {
-  if (!betaReleaseEnabled(policy, repository) || repository === controlRepository) {
+  if (!betaReleaseEnabled(policy, repository, repositoryPolicy, controlRepository)) {
     throw new CliError("Beta publication is disabled for this repository.", 75);
   }
   return verifyCurrentBetaSource(reader, repository, sha, controlRepository, async () => {

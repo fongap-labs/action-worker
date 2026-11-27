@@ -33,6 +33,7 @@ import {
 import { sha256File } from "./lib/stream-file-hash.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { dispatchAndWaitForNpm } from "./release-npm-dispatch.ts";
 import { selectPreTagNpmAsset, verifyPublishedNpmBeforeTag } from "./release-npm-gate.ts";
 import { assertMatchingPublishedRelease } from "./release-published-replay.ts";
@@ -456,13 +457,15 @@ async function main(): Promise<void> {
     isBeta ? [sourceRepository] : []
   );
   const betaPolicy = isBeta ? readBetaReleasePolicy() : undefined;
+  const betaRepositoryPolicy = isBeta ? JSON.parse(readRepositoryPolicyText()) : undefined;
   const writePr = isBeta
     ? await verifyBetaReleaseSource(
         sourceReader,
         sourceRepository,
         sourceSha,
         controlRepository,
-        betaPolicy
+        betaPolicy,
+        betaRepositoryPolicy
       )
     : (await assertTrustedMainWrite(sourceReader, sourceRepository, sourceSha, true)).pr_number;
   const writeEvidence = isBeta
@@ -818,7 +821,8 @@ async function main(): Promise<void> {
         sourceRepository,
         sourceSha,
         controlRepository,
-        betaPolicy
+        betaPolicy,
+        betaRepositoryPolicy
       );
     }
     const releaseJson = JSON.parse(
@@ -933,7 +937,8 @@ async function main(): Promise<void> {
         sourceRepository,
         sourceSha,
         controlRepository,
-        betaPolicy
+        betaPolicy,
+        betaRepositoryPolicy
       );
     }
     isPublishAttempted = true;

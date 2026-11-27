@@ -278,8 +278,10 @@ test("Beta release and deploy share current dev proof but not channel permission
     bypass_actors: [{ actor_type: "Integration", actor_id: 5609149, bypass_mode: "always" }],
     rules: ["creation", "update", "deletion"].map((type) => ({ type })),
   };
-  const policy = { schema_version: 1, repositories: [repository] };
-  const release = () => verifyBetaReleaseSource(f.reader, repository, writeSha, control, policy);
+  const policy = { schema_version: 1, mode: "automatic" };
+  const grants = { [repository]: ["pr", "release-source", "release-target"] };
+  const release = () =>
+    verifyBetaReleaseSource(f.reader, repository, writeSha, control, policy, grants);
   const deploy = () => verifyBetaDeploySource(f.reader, repository, writeSha, control);
   assert.equal(await deploy(), 7);
   f.entries.set(list, []);

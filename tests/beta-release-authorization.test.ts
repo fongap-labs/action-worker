@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   assertBetaProducer,
+  betaReleaseCandidate,
   betaReleaseEnabled,
+  formalTagProtection,
   protectsFormalTags,
   readBetaReleasePolicy,
   verifyBetaReleaseSource,
@@ -10,9 +12,10 @@ import {
 
 const repository = "fongap-labs/example";
 const control = "fongap-labs/action-worker";
+const grants = { [repository]: ["pr", "release-source", "release-target"] };
 
 test("Beta publication is disabled by default before any source reads", async () => {
-  assert.equal(betaReleaseEnabled(readBetaReleasePolicy(), repository), false);
+  assert.equal(betaReleaseEnabled(readBetaReleasePolicy(), repository, grants, control), false);
   await assert.rejects(
     verifyBetaReleaseSource(
       {
@@ -23,7 +26,8 @@ test("Beta publication is disabled by default before any source reads", async ()
       repository,
       "a".repeat(40),
       control,
-      readBetaReleasePolicy()
+      readBetaReleasePolicy(),
+      grants
     ),
     /disabled/
   );
@@ -71,4 +75,27 @@ test("formal tag protection permits only the formal App to bypass", () => {
   assert.equal(protectsFormalTags({ ...rule, enforcement: "disabled" }), false);
   assert.equal(protectsFormalTags({ ...rule, bypass_actors: [] }), false);
   assert.equal(protectsFormalTags({ ...rule, rules: rule.rules.slice(1) }), false);
+});
+
+test("Beta preparation derives candidates from existing grants without enabling publication", () => {
+  const prepare = { schema_version: 1, mode: "prepare" };
+  const automatic = { schema_version: 1, mode: "automatic" };
+  const closed = { schema_version: 1, mode: "closed" };
+  assert.equal(betaReleaseCandidate(repository, grants, control), true);
+  assert.equal(betaReleaseEnabled(prepare, repository, grants, control), false);
+  assert.equal(betaReleaseEnabled(automatic, repository, grants, control), true);
+  assert.equal(betaReleaseEnabled(closed, repository, grants, control), false);
+  assert.equal(protectsFormalTags(formalTagProtection(prepare, repository, grants, control)), true);
+  assert.equal(formalTagProtection(closed, repository, grants, control), undefined);
+  const sourceOnly = { [repository]: ["pr", "release-source"] };
+  assert.equal(betaReleaseEnabled(automatic, repository, sourceOnly, control), false);
+  assert.equal(formalTagProtection(prepare, repository, sourceOnly, control), undefined);
+  assert.equal(betaReleaseCandidate(control, { [control]: grants[repository] }, control), false);
+  const next = "fongap-labs/new-repository";
+  const expanded = { ...grants, [next]: grants[repository] };
+  assert.equal(betaReleaseEnabled(automatic, next, expanded, control), true);
+  assert.equal(protectsFormalTags(formalTagProtection(prepare, next, expanded, control)), true);
+  assert.throws(() =>
+    betaReleaseEnabled({ schema_version: 1, repositories: [] }, repository, grants, control)
+  );
 });

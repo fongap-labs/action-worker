@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
+import { formalTagProtection, readBetaReleasePolicy } from "./beta-release-authorization.ts";
 import type { JsonReader } from "./ci-evidence.ts";
 import { isClosedDevProtection } from "./dev-bootstrap-authorization.ts";
 import { hasVerifiedDevWriteGuard } from "./dev-write-guard.ts";
@@ -347,7 +348,8 @@ async function main(): Promise<void> {
     throw new CliError("GH_TOKEN is required", 2);
   }
 
-  validateRepositoryCapability(repository, JSON.parse(readRepositoryPolicyText()), "pr");
+  const repositoryPolicy: unknown = JSON.parse(readRepositoryPolicyText());
+  validateRepositoryCapability(repository, repositoryPolicy, "pr");
   const dev = rulesets.find((rule) => rule.name === "Protect Dev Branch");
   if (!isClosedDevProtection(dev)) {
     const reader = statusAwareReader(
@@ -376,6 +378,15 @@ async function main(): Promise<void> {
     }
   }
 
+  if (response.private === false && response.default_branch === "main") {
+    const formalTags = formalTagProtection(
+      readBetaReleasePolicy(),
+      repository,
+      repositoryPolicy,
+      controlRepository
+    );
+    if (formalTags) rulesets.push(formalTags);
+  }
   const hasDevChanged = await applyRulesets(repository, token, response.private === true, rulesets);
   await appendLines(process.env.GITHUB_OUTPUT, [`dev_protection_changed=${hasDevChanged}`]);
   console.log(`repository settings applied: ${repository}`);

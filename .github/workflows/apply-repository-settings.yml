@@ -11,6 +11,8 @@ on:
       - policies/repository.json
       - policies/repository-access.json
       - policies/rulesets.json
+      - policies/beta-release-targets.json
+      - scripts/beta-release-authorization.ts
       - scripts/apply-repository-settings.ts
       - scripts/resolve-dev-settings.ts
       - scripts/apply-review-models.ts
