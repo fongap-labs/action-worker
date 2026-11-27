@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  assertBetaDeployTrigger,
   betaDeployCredentialPlan,
   readBetaDeployPolicy,
   resolveBetaDeployTarget,
@@ -133,8 +134,23 @@ test("manual Beta dispatch carries its trigger and never starts production audit
   assert.match(manual ?? "", /trigger: "manual"/);
   assert.match(
     workflow,
-    /- name: Attest the source main write\n\s+if: steps\.manual_request\.outputs\.source_branch != 'dev'/
+    /- name: Attest the source main write\n\s+if: steps\.manual_request\.outputs\.source_branch != 'dev' && steps\.dispatch_request\.outputs\.source_branch != 'dev'/
   );
   const audit = workflow.split("  record_production_deployment:")[1];
   assert.match(audit ?? "", /needs\.prepare\.outputs\.environment == 'production'/);
+});
+
+test("scheduled Beta requires explicit permission on the existing credential target", () => {
+  const manual = resolveBetaDeployTarget(policy, repository, "");
+  const manifest = { automatic: false, schedule: ["0 12 * * *"] };
+  assert.throws(() => assertBetaDeployTrigger(manual, "schedule", manifest));
+  assert.throws(() => assertBetaDeployTrigger(manual, "manual", manifest));
+  const grant = resolveBetaDeployTarget(
+    { ...policy, targets: { [repository]: { ...target, allow_schedule: true } } },
+    repository,
+    ""
+  );
+  assert.doesNotThrow(() => assertBetaDeployTrigger(grant, "schedule", manifest));
+  assert.throws(() => assertBetaDeployTrigger(grant, "push", { ...manifest, automatic: true }));
+  assert.throws(() => assertBetaDeployTrigger(grant, "schedule", { ...manifest, schedule: [] }));
 });

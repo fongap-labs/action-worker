@@ -14,7 +14,7 @@ on:
         required: false
         type: string
       source_branch:
-        description: 源分支（main 正式部署；dev 仅允许手动 beta 部署）
+        description: 源分支（main 正式部署；dev Beta 部署，定时授权由中央策略控制）
         required: false
         type: choice
         default: main
@@ -104,8 +104,12 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          request="$(jq -ce 'select((.source_branch // "main") == "main" and (.environment // "") != "beta")' <<< "$PAYLOAD")"
+          request="$(jq -ce 'select(
+            (((.source_branch // "main") == "main") and ((.environment // "") != "beta")) or
+            (.source_branch == "dev" and .environment == "beta" and .trigger == "schedule")
+          )' <<< "$PAYLOAD")"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
+          echo "source_branch=$(jq -r '.source_branch // "main"' <<< "$request")" >> "$GITHUB_OUTPUT"
 
       - name: Resolve deploy source API scope
         id: api_scope
@@ -217,7 +221,7 @@ jobs:
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
 
       - name: Mint deploy source CI status token
-        if: steps.manual_request.outputs.source_branch != 'dev'
+        if: steps.manual_request.outputs.source_branch != 'dev' && steps.dispatch_request.outputs.source_branch != 'dev'
         id: ci_status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -228,7 +232,7 @@ jobs:
           permission-statuses: write
 
       - name: Mint central CI dispatch token
-        if: steps.manual_request.outputs.source_branch != 'dev'
+        if: steps.manual_request.outputs.source_branch != 'dev' && steps.dispatch_request.outputs.source_branch != 'dev'
         id: ci_dispatch_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -244,7 +248,7 @@ jobs:
       # scripts/dispatch-central-deploy.ts). The validation stays the authority and reports an
       # untrusted write.
       - name: Request central CI for the source
-        if: steps.manual_request.outputs.source_branch != 'dev'
+        if: steps.manual_request.outputs.source_branch != 'dev' && steps.dispatch_request.outputs.source_branch != 'dev'
         env:
           AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.ci_status_app.outputs.token }}
@@ -255,14 +259,14 @@ jobs:
         run: node scripts/intake-main-ci.ts
 
       - name: Resolve source audit API scope
-        if: steps.manual_request.outputs.source_branch != 'dev'
+        if: steps.manual_request.outputs.source_branch != 'dev' && steps.dispatch_request.outputs.source_branch != 'dev'
         id: audit_scope
         env:
           TARGET_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
       - name: Mint source audit status token
-        if: steps.manual_request.outputs.source_branch != 'dev'
+        if: steps.manual_request.outputs.source_branch != 'dev' && steps.dispatch_request.outputs.source_branch != 'dev'
         id: audit_status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -273,7 +277,7 @@ jobs:
           permission-statuses: write
 
       - name: Mint source audit issue token
-        if: steps.manual_request.outputs.source_branch != 'dev'
+        if: steps.manual_request.outputs.source_branch != 'dev' && steps.dispatch_request.outputs.source_branch != 'dev'
         id: audit_issue_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -284,7 +288,7 @@ jobs:
           permission-issues: write
 
       - name: Attest the source main write
-        if: steps.manual_request.outputs.source_branch != 'dev'
+        if: steps.manual_request.outputs.source_branch != 'dev' && steps.dispatch_request.outputs.source_branch != 'dev'
         env:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
