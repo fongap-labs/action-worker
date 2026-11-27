@@ -318,7 +318,42 @@ async function repairState(
   return "dispatch";
 }
 
-/** A newer trusted base can wake a green but unmerged dev PR once. This is not merge admission. */
+/** Retry an incomplete operational merge only after a different trusted control revision. */
+export async function shouldRetryDevOperation(
+  reader: GithubGet,
+  controlRepository: string,
+  runId: number,
+  run: unknown
+): Promise<boolean> {
+  if (
+    !isJsonRecord(run) ||
+    run.id !== runId ||
+    getJsonString(run.repository, "full_name") !== controlRepository ||
+    run.head_branch !== "main" ||
+    run.path !== ".github/workflows/handle-pr-dispatch.yml" ||
+    run.status !== "completed" ||
+    !shaPattern.test(getJsonString(run, "head_sha"))
+  ) {
+    return false;
+  }
+  const current = await reader.get(`repos/${controlRepository}/branches/main`);
+  const head = isJsonRecord(current) ? getJsonString(current.commit, "sha") : "";
+  if (!shaPattern.test(head) || head === run.head_sha) return false;
+  const jobs = await reader.get(`repos/${controlRepository}/actions/runs/${runId}/jobs?per_page=100`);
+  return (
+    isJsonRecord(jobs) &&
+    Array.isArray(jobs.jobs) &&
+    jobs.jobs.some(
+      (job) =>
+        isJsonRecord(job) &&
+        job.name === "Development squash merge (operational)" &&
+        job.status === "completed" &&
+        ["skipped", "failure", "cancelled"].includes(getJsonString(job, "conclusion"))
+    )
+  );
+}
+
+/** New trusted base or repaired control revision can wake a green unmerged dev PR once. */
 export async function shouldResumeDevMerge(
   reader: GithubGet,
   rulesetPolicy: unknown,
@@ -343,8 +378,7 @@ export async function shouldResumeDevMerge(
     context: "Dev Write Guard",
   });
   const guardAt = Date.parse(getJsonString(guard, "created_at"));
-  // A retry publishes new governance statuses. The same base audit cannot wake it again.
-  if (guard?.state !== "success" || !Number.isFinite(guardAt) || guardAt <= prior) return false;
+  if (guard?.state !== "success" || !Number.isFinite(guardAt)) return false;
   if (
     !(await hasVerifiedDevWriteGuard(
       reader,
@@ -359,6 +393,13 @@ export async function shouldResumeDevMerge(
   }
   const run = await reader.get(`repos/${controlRepository}/actions/runs/${governance.run_id}`);
   if (getJsonString(run, "status") !== "completed") return false;
+  // A new governance receipt consumes either wake-up reason; do not loop on the same revision.
+  if (
+    guardAt <= prior &&
+    !(await shouldRetryDevOperation(reader, controlRepository, governance.run_id, run))
+  ) {
+    return false;
+  }
   // Wait for repository settings to apply the enrolled policy. The merge executor
   // still performs its own privileged live protection and signed admission checks.
   const rules = await reader.get(`${prefix}/rules/branches/dev`);

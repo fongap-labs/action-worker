@@ -7,7 +7,7 @@ function workflow(path: string) {
   return parse(readFileSync(path, "utf8")) as {
     jobs: Record<
       string,
-      { steps: Array<{ name?: string; if?: string; id?: string; run?: string }> }
+      { if?: string; steps: Array<{ name?: string; if?: string; id?: string; run?: string }> }
     >;
   };
 }
@@ -144,4 +144,21 @@ test("dev merge reads the already validated immutable event head instead of mask
   const merge = content.slice(content.indexOf("  dev-merge:"));
   assert.equal(merge.split("HEAD_SHA: ${{ github.event.client_payload.head_sha }}").length - 1, 2);
   assert.match(content, /run: test "\$REQUESTED_HEAD" = "\$RESOLVED_HEAD"/);
+});
+
+test("both merge jobs explicitly handle a skipped legacy ancestor without bypassing governance", () => {
+  const jobs = workflow(".github/workflows/handle-pr-dispatch.yml").jobs;
+  for (const name of ["auto-merge", "dev-merge"]) {
+    assert.match(jobs[name]?.if ?? "", /!cancelled\(\)/);
+    assert.match(jobs[name]?.if ?? "", /needs\.govern\.result == 'success'/);
+  }
+  assert.match(jobs["dev-merge"]?.if ?? "", /needs\.govern\.outputs\.dev_approved == 'true'/);
+  const content = readFileSync(".github/workflows/handle-pr-dispatch.yml", "utf8");
+  assert.doesNotMatch(content, /needs\.govern\.outputs\.dev_base|\bdev_base:/);
+  const steps = jobs["dev-merge"]!.steps;
+  const facts = step(steps, "Fetch current development PR identity");
+  assert.equal(facts.run, "node scripts/resolve-pr-facts.ts fetch");
+  assert.ok(
+    steps.indexOf(facts) < steps.indexOf(step(steps, "Verify protected dev execution boundary"))
+  );
 });

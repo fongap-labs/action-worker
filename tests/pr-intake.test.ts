@@ -800,6 +800,32 @@ test("a green dev PR wakes only after a newer trusted baseline and live enrollme
     }),
     false
   );
+  const oldRun = {
+    id: 55,
+    repository: { full_name: control },
+    path: ".github/workflows/handle-pr-dispatch.yml",
+    head_branch: "main",
+    head_sha: shaA,
+    status: "completed",
+  };
+  const oldGovernance = { ...prior, updated_at: "2026-11-26T11:02:00Z" };
+  const controlHead = `repos/${control}/branches/main`;
+  const operations = `repos/${control}/actions/runs/55/jobs?per_page=100`;
+  responses.set(`repos/${control}/actions/runs/55`, oldRun);
+  responses.set(controlHead, { commit: { sha: shaC } });
+  const skipped = {
+    name: "Development squash merge (operational)",
+    status: "completed",
+    conclusion: "skipped",
+  };
+  responses.set(operations, { jobs: [skipped] });
+  assert.equal(await shouldResumeDevMerge(reader, enrolled, scope, control, oldGovernance), true);
+  responses.set(controlHead, { commit: { sha: shaA } });
+  assert.equal(await shouldResumeDevMerge(reader, enrolled, scope, control, oldGovernance), false);
+  responses.set(controlHead, { commit: { sha: shaC } });
+  responses.set(operations, { jobs: [{ ...skipped, conclusion: "success" }] });
+  assert.equal(await shouldResumeDevMerge(reader, enrolled, scope, control, oldGovernance), false);
+  responses.set(`repos/${control}/actions/runs/55`, { status: "completed" });
   responses.set(`${prefix}/rules/branches/dev`, [...rules, { type: "update" }]);
   assert.equal(await shouldResumeDevMerge(reader, enrolled, scope, control, prior), false);
   responses.set(`${prefix}/rules/branches/dev`, rules);
