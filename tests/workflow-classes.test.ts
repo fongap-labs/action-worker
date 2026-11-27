@@ -95,7 +95,7 @@ const allowedTriggers: Record<WorkflowClass, readonly string[]> = {
   operation: ["workflow_dispatch"],
   recovery: ["workflow_dispatch"],
   branchAuthorization: ["workflow_dispatch"],
-  intake: ["push", "repository_dispatch", "schedule"],
+  intake: ["push", "repository_dispatch", "schedule", "workflow_run"],
   handler: ["repository_dispatch"],
   maintenance: ["pull_request", "push", "schedule", "workflow_run"],
   reusable: ["workflow_call"],

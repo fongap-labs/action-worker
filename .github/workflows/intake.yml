@@ -10,6 +10,10 @@ on:
     branches: [main]
   repository_dispatch:
     types: [run-intake]
+  workflow_run:
+    workflows: ["自动 · PR 分发"]
+    types: [completed]
+    branches: [main]
   schedule:
     - cron: "*/15 * * * *"
     - cron: "17 3 * * 1"
@@ -22,6 +26,7 @@ concurrency:
 
 jobs:
   pull-requests:
+    if: github.event_name != 'workflow_run'
     # Control policy changes can unblock an unchanged business PR head.
     name: Pull requests
     runs-on: ubuntu-24.04
@@ -98,6 +103,7 @@ jobs:
         run: node scripts/intake-open-prs.ts
 
   main-ci:
+    if: github.event_name != 'workflow_run'
     name: Main CI
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -173,6 +179,7 @@ jobs:
         run: node scripts/intake-main-ci.ts
 
   main-writes:
+    if: github.event_name != 'workflow_run'
     name: Main write audit
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -248,6 +255,12 @@ jobs:
         run: node scripts/audit-branch-drift.ts
 
   dev-writes:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.event == 'repository_dispatch')
     name: Dev write audit
     environment:
       name: admin-ops
@@ -318,11 +331,12 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
           DEV_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEV_WRITE_AUDIT_TRIGGER_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
         run: node scripts/audit-dev-writes.ts
 
   task-sources:
     # Task-source changes arrive through repository_dispatch or periodic reconciliation.
-    if: github.event_name != 'push'
+    if: github.event_name != 'push' && github.event_name != 'workflow_run'
     name: Changed task projects
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -409,7 +423,7 @@ jobs:
         run: node scripts/intake-task-sources.ts
 
   task-schedules:
-    if: github.event_name != 'push'
+    if: github.event_name != 'push' && github.event_name != 'workflow_run'
     name: Scheduled task projects
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -499,7 +513,7 @@ jobs:
         run: node scripts/dispatch-scheduled-tasks.ts
 
   deploy-schedules:
-    if: github.event_name != 'push'
+    if: github.event_name != 'push' && github.event_name != 'workflow_run'
     name: Scheduled deploys
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -588,6 +602,7 @@ jobs:
         run: node scripts/dispatch-scheduled-deploys.ts
 
   skill-admissions:
+    if: github.event_name != 'workflow_run'
     name: CI-gated Skill admission continuation
     runs-on: ubuntu-24.04
     timeout-minutes: 20

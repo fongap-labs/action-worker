@@ -98,5 +98,5 @@ test("changed dev protection wakes the existing intake, while unchanged settings
   assert.equal(mint.with["permission-contents"], "write");
   assert.match(wake.run, /event_type:"run-intake"/);
   const intake = parse(readFileSync(".github/workflows/intake.yml", "utf8"));
-  assert.equal(intake.jobs["pull-requests"].if, undefined);
+  assert.equal(intake.jobs["pull-requests"].if, "github.event_name != 'workflow_run'");
 });

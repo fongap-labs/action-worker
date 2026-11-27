@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import type { JsonReader } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
 import { deleteTemporaryDevGuard } from "./create-protected-dev.ts";
 import {
@@ -8,6 +9,7 @@ import {
 } from "./dev-bootstrap-authorization.ts";
 import { recoverInterruptedDevBootstrap } from "./dev-bootstrap-recovery.ts";
 import {
+  devMergeReceiptContext,
   DevWritePendingError,
   hasVerifiedDevWriteGuard,
   verifyRecordedDevWrite,
@@ -33,10 +35,58 @@ import {
 } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
-import { latestAttestedStatus, signedStatusDescription } from "./status-attestation.ts";
+import {
+  latestAttestedStatus,
+  originalStatusDescription,
+  signedStatusDescription,
+} from "./status-attestation.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
 
 const shaPattern = /^[0-9a-f]{40}$/;
+
+/** A completion event selects audit subjects, never grants write authorization. */
+export async function completedDevMergePublisher(
+  reader: JsonReader,
+  controlRepository: string,
+  runId: number
+): Promise<string> {
+  if (!Number.isSafeInteger(runId) || runId < 1) {
+    throw new CliError("Invalid development audit trigger.", 65);
+  }
+  const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+  if (
+    !isJsonRecord(run) ||
+    run.id !== runId ||
+    getJsonString(run.repository, "full_name") !== controlRepository ||
+    run.path !== ".github/workflows/handle-pr-dispatch.yml" ||
+    run.head_branch !== "main" ||
+    run.event !== "repository_dispatch" ||
+    run.status !== "completed" ||
+    run.conclusion !== "success" ||
+    run.run_attempt !== 1
+  ) {
+    throw new CliError("Development audit requires a trusted completed merge publisher.", 75);
+  }
+  return `https://github.com/${controlRepository}/actions/runs/${runId}`;
+}
+
+export function matchesCompletedDevMerge(
+  statuses: unknown,
+  repository: string,
+  sha: string,
+  publisher: string
+): boolean {
+  const receipt = latestAttestedStatus(statuses, {
+    repository,
+    sha,
+    context: devMergeReceiptContext,
+  });
+  return (
+    receipt?.state === "success" &&
+    getJsonString(receipt, "target_url") === publisher &&
+    /^merge-v1=[0-9a-f]{40}$/.test(originalStatusDescription(receipt))
+  );
+}
 
 async function main(): Promise<void> {
   const protectionToken = takeProtectionReadToken();
@@ -57,6 +107,10 @@ async function main(): Promise<void> {
     protectionToken,
     repositories
   );
+  const trigger = process.env.DEV_WRITE_AUDIT_TRIGGER_RUN_ID ?? "";
+  const publisher = trigger
+    ? await completedDevMergePublisher(reader, controlRepository, Number(trigger))
+    : "";
   const rulesetPolicy: unknown = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
   const automatic = isJsonRecord(rulesetPolicy) && rulesetPolicy.dev_merge_mode === "automatic";
   const context = managedBranchWriteContext("dev");
@@ -72,6 +126,7 @@ async function main(): Promise<void> {
     const sha = isJsonRecord(branch) ? getJsonString(branch.commit, "sha") : "";
     if (!shaPattern.test(sha)) throw new CliError("Invalid development branch identity.", 65);
     const statuses = await reader.get(`repos/${repository}/commits/${sha}/status`);
+    if (publisher && !matchesCompletedDevMerge(statuses, repository, sha, publisher)) continue;
     let description: string;
     let state: "success" | "failure" | "pending";
     try {
