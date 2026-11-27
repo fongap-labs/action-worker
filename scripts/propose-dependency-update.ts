@@ -431,9 +431,12 @@ export function buildEngineeringProposal(
   if (!input || !original) return { changes: [...changes.values()], lockPath: null };
   const value: unknown = JSON.parse(input);
   if (!isJsonRecord(value)) throw new CliError("Invalid root manifest.", 65);
-  const managers = ["package-lock.json", "pnpm-lock.yaml", "npm-shrinkwrap.json", "yarn.lock"].filter(
-    (path) => snapshot.files.has(path)
-  );
+  const managers = [
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "npm-shrinkwrap.json",
+    "yarn.lock",
+  ].filter((path) => snapshot.files.has(path));
   if (managers.length !== 1) return { changes: [...changes.values()], lockPath: null };
   const lockPath = managers[0];
   if (lockPath !== "package-lock.json" && lockPath !== "pnpm-lock.yaml") {
@@ -516,7 +519,14 @@ export function buildEngineeringProposal(
     /^\d+\.\d+\.\d+$/.test(centralPnpm) &&
     /^pnpm@\d+\.\d+\.\d+(?:\+.*)?$/.test(manager) &&
     manager.split("+")[0] !== "pnpm@" + centralPnpm &&
-    evaluateDeclaration(policy, repository, branch, "tool:pnpm", manager.slice(5).split("+")[0] ?? "", today) !== "excepted" &&
+    evaluateDeclaration(
+      policy,
+      repository,
+      branch,
+      "tool:pnpm",
+      manager.slice(5).split("+")[0] ?? "",
+      today
+    ) !== "excepted" &&
     canResolve
   ) {
     value.packageManager = "pnpm@" + centralPnpm;
@@ -524,15 +534,29 @@ export function buildEngineeringProposal(
   }
   const updated = serializeJson(value, original);
   if (JSON.stringify(value) !== JSON.stringify(JSON.parse(input))) {
-    changes.set("package.json", { path: "package.json", type: "blob", mode: "100644", content: updated });
+    changes.set("package.json", {
+      path: "package.json",
+      type: "blob",
+      mode: "100644",
+      content: updated,
+    });
     if (lockPath === "package-lock.json" && !hasResolutionChange) {
-      changes.set(lockPath, { path: lockPath, type: "blob", mode: "100644", content: serializeJson(lock, lockContent) });
+      changes.set(lockPath, {
+        path: lockPath,
+        type: "blob",
+        mode: "100644",
+        content: serializeJson(lock, lockContent),
+      });
     }
     if (!changes.has("CHANGELOG.md")) {
       const changelog = snapshot.files.get("CHANGELOG.md");
       const heading = /^## \[Unreleased\]\r?$/gm;
       const marker = "- 维护: 同步中央通用工程依赖及包管理器版本。";
-      if (!changelog || changelog.split(/\r?\n/, 1)[0] !== "# 更新日志" || [...changelog.matchAll(heading)].length !== 1) {
+      if (
+        !changelog ||
+        changelog.split(/\r?\n/, 1)[0] !== "# 更新日志" ||
+        [...changelog.matchAll(heading)].length !== 1
+      ) {
         throw new CliError("Project change record requires manual review.", 65);
       }
       if (!changelog.includes(marker)) {
@@ -541,7 +565,10 @@ export function buildEngineeringProposal(
           path: "CHANGELOG.md",
           type: "blob",
           mode: "100644",
-          content: changelog.replace(heading, "## [Unreleased]" + newline + newline + marker + (newline === "\r\n" ? "\r" : "")),
+          content: changelog.replace(
+            heading,
+            "## [Unreleased]" + newline + newline + marker + (newline === "\r\n" ? "\r" : "")
+          ),
         });
       }
     }
@@ -559,19 +586,27 @@ function checkedLock(path: string, content: string, manifest: string): void {
   if (path === "package-lock.json" && inspectNpmLock(lock).length) {
     throw new CliError("Generated npm lock failed integrity checks.", 65);
   }
-  const root = path === "package-lock.json"
-    ? (isJsonRecord(lock.packages) ? lock.packages[""] : null)
-    : (isJsonRecord(lock.importers) ? lock.importers["."] : null);
+  const root =
+    path === "package-lock.json"
+      ? isJsonRecord(lock.packages)
+        ? lock.packages[""]
+        : null
+      : isJsonRecord(lock.importers)
+        ? lock.importers["."]
+        : null;
   if (!isJsonRecord(root)) throw new CliError("Generated lock has no root importer.", 65);
   for (const section of ["dependencies", "devDependencies", "optionalDependencies"]) {
     const expected = value[section];
     if (!isJsonRecord(expected)) continue;
     const actual = root[section];
-    if (!isJsonRecord(actual)) throw new CliError("Generated lock is missing dependency metadata.", 65);
+    if (!isJsonRecord(actual))
+      throw new CliError("Generated lock is missing dependency metadata.", 65);
     for (const [name, spec] of Object.entries(expected)) {
       const entry = actual[name];
-      const lockedSpec = path === "package-lock.json" ? entry : (isJsonRecord(entry) ? entry.specifier : null);
-      if (lockedSpec !== spec) throw new CliError("Generated lock does not match the proposed manifest.", 65);
+      const lockedSpec =
+        path === "package-lock.json" ? entry : isJsonRecord(entry) ? entry.specifier : null;
+      if (lockedSpec !== spec)
+        throw new CliError("Generated lock does not match the proposed manifest.", 65);
     }
   }
 }
@@ -584,46 +619,96 @@ async function resolvePublicLock(
   lockPath: string,
   pnpmVersion: string
 ): Promise<Change> {
-  if (scope.isPrivate) throw new CliError("Private registry resolution requires a source-native sandbox.", 77);
+  if (scope.isPrivate)
+    throw new CliError("Private registry resolution requires a source-native sandbox.", 77);
   const root = await mkdtemp(join(tmpdir(), "dependency-proposal-"));
   try {
     // The target is public and the job has no App or administrator credential.
     // Source code is never executed by this controller.
-    const env = { PATH: process.env.PATH, HOME: root, CI: "true", GIT_TERMINAL_PROMPT: "0",
-      npm_config_ignore_scripts: "true", npm_config_manage_package_manager_versions: "false",
-      npm_config_pm_on_fail: "error", npm_config_audit: "false", npm_config_fund: "false" };
+    const env = {
+      PATH: process.env.PATH,
+      HOME: root,
+      CI: "true",
+      GIT_TERMINAL_PROMPT: "0",
+      npm_config_ignore_scripts: "true",
+      npm_config_manage_package_manager_versions: "false",
+      npm_config_pm_on_fail: "error",
+      npm_config_audit: "false",
+      npm_config_fund: "false",
+    };
     const run = async (command: string, args: string[]) =>
       runCommand(command, args, { cwd: root, env, timeoutMs: 240000 });
     await run("git", ["init", "--quiet"]);
-    await run("git", ["-c", "protocol.file.allow=never", "fetch", "--depth=1", "https://github.com/" + scope.repository + ".git", snapshot.sha]);
+    await run("git", [
+      "-c",
+      "protocol.file.allow=never",
+      "fetch",
+      "--depth=1",
+      "https://github.com/" + scope.repository + ".git",
+      snapshot.sha,
+    ]);
     await run("git", ["-c", "core.hooksPath=/dev/null", "checkout", "--detach", "FETCH_HEAD"]);
     const actual = (await run("git", ["rev-parse", "HEAD"])).toString("utf8").trim();
-    if (actual !== snapshot.sha) throw new CliError("Sandbox checkout does not match the plan.", 75);
+    if (actual !== snapshot.sha)
+      throw new CliError("Sandbox checkout does not match the plan.", 75);
     for (const change of changes) {
       if (!fileNames.has(change.path)) throw new CliError("Unexpected proposal path.", 77);
       const expected = snapshot.files.get(change.path);
-      if (expected === undefined || await readFile(join(root, change.path), "utf8") !== expected) {
+      if (
+        expected === undefined ||
+        (await readFile(join(root, change.path), "utf8")) !== expected
+      ) {
         throw new CliError("Sandbox manifest does not match the immutable source.", 75);
       }
       await writeFile(join(root, change.path), change.content);
     }
     if (lockPath === "package-lock.json") {
-      await run("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"]);
+      await run("npm", [
+        "install",
+        "--package-lock-only",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+      ]);
     } else {
       const tools = join(root, ".git", "central-pnpm");
-      await run("npm", ["install", "--global", "--prefix", tools, "--ignore-scripts", "--no-audit", "--no-fund", "--registry", "https://registry.npmjs.org", "pnpm@" + pnpmVersion]);
+      await run("npm", [
+        "install",
+        "--global",
+        "--prefix",
+        tools,
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--registry",
+        "https://registry.npmjs.org",
+        "pnpm@" + pnpmVersion,
+      ]);
       const executable = join(tools, "bin", "pnpm");
       if ((await run(executable, ["--version"])).toString("utf8").trim() !== pnpmVersion) {
         throw new CliError("Sandbox pnpm differs from the central version.", 65);
       }
-      await run(executable, ["install", "--lockfile-only", "--ignore-scripts", "--ignore-pnpmfile", "--config.manage-package-manager-versions=false"]);
+      await run(executable, [
+        "install",
+        "--lockfile-only",
+        "--ignore-scripts",
+        "--ignore-pnpmfile",
+        "--config.manage-package-manager-versions=false",
+      ]);
     }
-    const changed = (await run("git", ["diff", "--name-only", "HEAD", "--"])).toString("utf8").trim().split(/\r?\n/).filter(Boolean);
+    const changed = (await run("git", ["diff", "--name-only", "HEAD", "--"]))
+      .toString("utf8")
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean);
     if (changed.some((path) => path !== lockPath && !changes.some((item) => item.path === path))) {
       throw new CliError("Lock resolver modified an unauthorized path.", 77);
     }
     for (const item of changes) {
-      if (item.path !== lockPath && await readFile(join(root, item.path), "utf8") !== item.content) {
+      if (
+        item.path !== lockPath &&
+        (await readFile(join(root, item.path), "utf8")) !== item.content
+      ) {
         throw new CliError("Lock resolver modified the proposed manifest.", 77);
       }
     }
@@ -642,14 +727,25 @@ function writerFor(writeToken: string): Writer {
   return async (path, body) => {
     const response = await runCommand("gh", ["api", "--method", "POST", path, "--input", "-"], {
       input: JSON.stringify(body),
-      env: { PATH: process.env.PATH, HOME: process.env.HOME, GH_TOKEN: writeToken, GIT_TERMINAL_PROMPT: "0" },
+      env: {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        GH_TOKEN: writeToken,
+        GIT_TERMINAL_PROMPT: "0",
+      },
       timeoutMs: 30000,
     });
     return JSON.parse(response.toString("utf8")) as unknown;
   };
 }
 
-async function getScopes(reader: Reader, inventory: readonly InventoryRepo[], grants: unknown, exclusions: readonly string[], isPrivate: boolean): Promise<Scope[]> {
+async function getScopes(
+  reader: Reader,
+  inventory: readonly InventoryRepo[],
+  grants: unknown,
+  exclusions: readonly string[],
+  isPrivate: boolean
+): Promise<Scope[]> {
   const policy = parseRepositoryPolicy(grants);
   const result: Scope[] = [];
   for (const repo of inventory) {
@@ -662,11 +758,16 @@ async function getScopes(reader: Reader, inventory: readonly InventoryRepo[], gr
       repo.default_branch !== "main" ||
       exclusions.includes(repo.full_name) ||
       !policy[repo.full_name]?.includes("pr")
-    ) continue;
+    )
+      continue;
     for (const branch of ["main", "dev"] as const) {
-      const value = await getGithubJsonIfExists("repos/" + repo.full_name + "/branches/" + branch, (path) => reader.get(path));
+      const value = await getGithubJsonIfExists(
+        "repos/" + repo.full_name + "/branches/" + branch,
+        (path) => reader.get(path)
+      );
       if (value === undefined && branch === "dev") continue;
-      if (!isJsonRecord(value) || value.name !== branch) throw new CliError("Branch discovery is incomplete.", 75);
+      if (!isJsonRecord(value) || value.name !== branch)
+        throw new CliError("Branch discovery is incomplete.", 75);
       result.push({ repository: repo.full_name, branch, isPrivate });
     }
   }
@@ -675,33 +776,54 @@ async function getScopes(reader: Reader, inventory: readonly InventoryRepo[], gr
 
 // Mint a single-repository App token without exposing a private repository name as a workflow
 // matrix, input, output, artifact name, or log entry. The App key is never passed to a child process.
-async function privateWriter(repository: string): Promise<{ writeToken: string; revoke: () => Promise<void> }> {
+async function privateWriter(
+  repository: string
+): Promise<{ writeToken: string; revoke: () => Promise<void> }> {
   const client = token("AW_PROPOSAL_APP_CLIENT_ID");
   const key = token("AW_PROPOSAL_APP_PRIVATE_KEY");
   const now = Math.floor(Date.now() / 1000);
   const encoded = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
-  const payload = encoded({ alg: "RS256", typ: "JWT" }) + "." + encoded({ iat: now - 60, exp: now + 480, iss: client });
+  const payload =
+    encoded({ alg: "RS256", typ: "JWT" }) +
+    "." +
+    encoded({ iat: now - 60, exp: now + 480, iss: client });
   const jwt = payload + "." + createSign("RSA-SHA256").update(payload).sign(key, "base64url");
   const request = async (path: string, method: string, auth: string, body?: unknown) => {
     const response = await fetch("https://api.github.com/" + path, {
       method,
-      headers: { Authorization: "Bearer " + auth, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+      headers: {
+        Authorization: "Bearer " + auth,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
+      },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       redirect: "error",
       signal: AbortSignal.timeout(30000),
     });
     if (!response.ok) throw new CliError("Scoped private App request failed.", 75);
-    return response.status === 204 ? null : await response.json() as unknown;
+    return response.status === 204 ? null : ((await response.json()) as unknown);
   };
   const installation = await request("repos/" + repository + "/installation", "GET", jwt);
-  if (!isJsonRecord(installation) || !Number.isSafeInteger(installation.id)) throw new CliError("Private installation identity is invalid.", 75);
-  const credentials = await request("app/installations/" + installation.id + "/access_tokens", "POST", jwt, {
-    repositories: [repository.split("/")[1]],
-    permissions: { contents: "write", pull_requests: "write" },
-  });
+  if (!isJsonRecord(installation) || !Number.isSafeInteger(installation.id))
+    throw new CliError("Private installation identity is invalid.", 75);
+  const credentials = await request(
+    "app/installations/" + installation.id + "/access_tokens",
+    "POST",
+    jwt,
+    {
+      repositories: [repository.split("/")[1]],
+      permissions: { contents: "write", pull_requests: "write" },
+    }
+  );
   const writeToken = getJsonString(credentials, "token");
   if (!writeToken) throw new CliError("Private writer token was not issued.", 77);
-  return { writeToken, revoke: async () => { await request("installation/token", "DELETE", writeToken); } };
+  return {
+    writeToken,
+    revoke: async () => {
+      await request("installation/token", "DELETE", writeToken);
+    },
+  };
 }
 
 async function authorize(repository: string, api: string): Promise<void> {
@@ -729,20 +851,35 @@ async function main(): Promise<void> {
   const api = process.env.GITHUB_API_URL ?? "https://api.github.com";
   const grants: unknown = JSON.parse(readRepositoryPolicyText());
   const access: unknown = JSON.parse(await readFile("policies/repository-access.json", "utf8"));
-  if (!isJsonRecord(access) || !Array.isArray(access.excluded_repositories) || !access.excluded_repositories.every((item) => typeof item === "string")) {
+  if (
+    !isJsonRecord(access) ||
+    !Array.isArray(access.excluded_repositories) ||
+    !access.excluded_repositories.every((item) => typeof item === "string")
+  ) {
     throw new CliError("Repository exclusion policy is invalid.", 65);
   }
   const exclusions = access.excluded_repositories as string[];
-  const policy = parseDependencyPolicy(JSON.parse(await readFile("policies/dependency-versions.json", "utf8")), "fongap-labs");
+  const policy = parseDependencyPolicy(
+    JSON.parse(await readFile("policies/dependency-versions.json", "utf8")),
+    "fongap-labs"
+  );
   const today = new Date().toISOString().slice(0, 10);
   if (stage === "discover" || stage === "private") {
     const reader = new GithubReader(api, token("AW_INVENTORY_TOKEN"));
-    const scopes = await getScopes(reader, await readInstallationInventory(reader), grants, exclusions, stage === "private");
-    if (scopes.length > 128) throw new CliError("Proposal batch exceeds the bounded matrix size.", 65);
+    const scopes = await getScopes(
+      reader,
+      await readInstallationInventory(reader),
+      grants,
+      exclusions,
+      stage === "private"
+    );
+    if (scopes.length > 128)
+      throw new CliError("Proposal batch exceeds the bounded matrix size.", 65);
     if (stage === "discover") {
       await appendLines(process.env.GITHUB_OUTPUT, [
         "count=" + scopes.length,
-        "matrix=" + JSON.stringify({ include: scopes.map(({ repository, branch }) => ({ repository, branch })) }),
+        "matrix=" +
+          JSON.stringify({ include: scopes.map(({ repository, branch }) => ({ repository, branch })) }),
       ]);
       return;
     }
@@ -754,15 +891,37 @@ async function main(): Promise<void> {
       try {
         await authorize(scope.repository, api);
         const snapshot = await readSnapshot(reader, scope.repository, scope.branch, true);
-        const result = buildEngineeringProposal(policy, scope.repository, scope.branch, snapshot, today, false);
-        const full = buildEngineeringProposal(policy, scope.repository, scope.branch, snapshot, today, true);
+        const result = buildEngineeringProposal(
+          policy,
+          scope.repository,
+          scope.branch,
+          snapshot,
+          today,
+          false
+        );
+        const full = buildEngineeringProposal(
+          policy,
+          scope.repository,
+          scope.branch,
+          snapshot,
+          today,
+          true
+        );
         if (full.lockPath) deferred++;
         if (!result.changes.length) continue;
         planned++;
         if (process.env.OPERATOR_CONFIRMED !== "true") continue;
         const scoped = await privateWriter(scope.repository);
         try {
-          const number = await publishNodeProposal(reader, writerFor(scoped.writeToken), scope.repository, snapshot, result.changes, scope.branch, true);
+          const number = await publishNodeProposal(
+            reader,
+            writerFor(scoped.writeToken),
+            scope.repository,
+            snapshot,
+            result.changes,
+            scope.branch,
+            true
+          );
           if (number) published++;
         } finally {
           await scoped.revoke();
@@ -771,7 +930,15 @@ async function main(): Promise<void> {
         failed++;
       }
     }
-    console.log(JSON.stringify({ private_scopes: scopes.length, planned, published, deferred_registry_resolution: deferred, failed }));
+    console.log(
+      JSON.stringify({
+        private_scopes: scopes.length,
+        planned,
+        published,
+        deferred_registry_resolution: deferred,
+        failed,
+      })
+    );
     if (failed) throw new CliError("Some private proposals could not be verified.", 75);
     return;
   }
@@ -779,9 +946,12 @@ async function main(): Promise<void> {
   const branch = process.env.TARGET_BRANCH;
   if (
     (stage !== "compute" && stage !== "prepare" && stage !== "publish") ||
-    !repositoryPattern.test(repository) || repository === control || exclusions.includes(repository) ||
+    !repositoryPattern.test(repository) ||
+    repository === control ||
+    exclusions.includes(repository) ||
     (branch !== "main" && branch !== "dev")
-  ) throw new CliError("Dependency proposal target or stage is invalid.", 65);
+  )
+    throw new CliError("Dependency proposal target or stage is invalid.", 65);
   validateRepositoryCapability(repository, grants, "pr");
   const reader = new GithubReader(api, token("AW_PROPOSAL_READ_TOKEN"));
   const scope: Scope = { repository, branch, isPrivate: false };
@@ -791,36 +961,80 @@ async function main(): Promise<void> {
   const identity = proposalIdentity(snapshot, result.changes, branch);
   if (stage === "compute") {
     const pnpmVersion = policy.catalog.get("tool:pnpm")?.version;
-    if (!pnpmVersion || !/^\d+\.\d+\.\d+$/.test(pnpmVersion)) throw new CliError("Central pnpm version is invalid.", 65);
-    const lock = result.lockPath && process.env.OPERATOR_CONFIRMED === "true"
-      ? await resolvePublicLock(reader, scope, snapshot, result.changes, result.lockPath, pnpmVersion)
-      : null;
+    if (!pnpmVersion || !/^\d+\.\d+\.\d+$/.test(pnpmVersion))
+      throw new CliError("Central pnpm version is invalid.", 65);
+    const lock =
+      result.lockPath && process.env.OPERATOR_CONFIRMED === "true"
+        ? await resolvePublicLock(reader, scope, snapshot, result.changes, result.lockPath, pnpmVersion)
+        : null;
     await assertScope(reader, repository, false);
-    await writeFile("dependency-proposal.json", JSON.stringify({ repository, branch, identity, lock }));
+    await writeFile(
+      "dependency-proposal.json",
+      JSON.stringify({ repository, branch, identity, lock })
+    );
     return;
   }
   if (stage === "prepare") {
-    await appendLines(process.env.GITHUB_OUTPUT, ["changed=" + String(result.changes.length > 0), "identity=" + identity]);
-    console.log(JSON.stringify({ repository, branch, files: result.changes.map((change) => change.path), lock_resolution: result.lockPath, automatic_writes: false }));
+    await appendLines(process.env.GITHUB_OUTPUT, [
+      "changed=" + String(result.changes.length > 0),
+      "identity=" + identity,
+    ]);
+    console.log(
+      JSON.stringify({
+        repository,
+        branch,
+        files: result.changes.map((change) => change.path),
+        lock_resolution: result.lockPath,
+        automatic_writes: false,
+      })
+    );
     return;
   }
-  if (process.env.OPERATOR_CONFIRMED !== "true" || identity !== process.env.PROPOSAL_IDENTITY || !result.changes.length) {
+  if (
+    process.env.OPERATOR_CONFIRMED !== "true" ||
+    identity !== process.env.PROPOSAL_IDENTITY ||
+    !result.changes.length
+  ) {
     throw new CliError("Exact planned dependency proposal is not authorized.", 77);
   }
   const evidence: unknown = JSON.parse(await readFile("dependency-proposal.json", "utf8"));
-  if (!isJsonRecord(evidence) || evidence.repository !== repository || evidence.branch !== branch || evidence.identity !== identity) {
+  if (
+    !isJsonRecord(evidence) ||
+    evidence.repository !== repository ||
+    evidence.branch !== branch ||
+    evidence.identity !== identity
+  ) {
     throw new CliError("Sandbox evidence does not match the trusted plan.", 75);
   }
   const changes = new Map(result.changes.map((change) => [change.path, change]));
   if (result.lockPath) {
     const lock = evidence.lock;
-    if (!isJsonRecord(lock) || lock.path !== result.lockPath || typeof lock.content !== "string" || Buffer.byteLength(lock.content) > 10 * 1024 * 1024) throw new CliError("Missing verified lock result.", 75);
+    if (
+      !isJsonRecord(lock) ||
+      lock.path !== result.lockPath ||
+      typeof lock.content !== "string" ||
+      Buffer.byteLength(lock.content) > 10 * 1024 * 1024
+    )
+      throw new CliError("Missing verified lock result.", 75);
     checkedLock(result.lockPath, lock.content, changes.get("package.json")?.content ?? "");
-    changes.set(result.lockPath, { path: result.lockPath, mode: "100644", type: "blob", content: lock.content });
+    changes.set(result.lockPath, {
+      path: result.lockPath,
+      mode: "100644",
+      type: "blob",
+      content: lock.content,
+    });
   } else if (evidence.lock !== null) {
     throw new CliError("Unexpected lock result.", 77);
   }
-  const number = await publishNodeProposal(reader, writerFor(token("AW_PROPOSAL_WRITE_TOKEN")), repository, snapshot, [...changes.values()].sort((a, b) => a.path.localeCompare(b.path)), branch, false);
+  const number = await publishNodeProposal(
+    reader,
+    writerFor(token("AW_PROPOSAL_WRITE_TOKEN")),
+    repository,
+    snapshot,
+    [...changes.values()].sort((a, b) => a.path.localeCompare(b.path)),
+    branch,
+    false
+  );
   console.log(JSON.stringify({ repository, branch, pull_request: number }));
 }
 

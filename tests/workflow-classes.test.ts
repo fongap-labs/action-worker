@@ -173,7 +173,12 @@ test("only approved entry, diagnostics and private operations expose manual disp
         string,
         Job & { environment: unknown; if: string; needs?: string | string[] }
       >;
-      for (const name of ["audit", "discover-proposals", "propose-dependencies", "private-proposals"]) {
+      for (const name of [
+        "audit",
+        "discover-proposals",
+        "propose-dependencies",
+        "private-proposals",
+      ]) {
         const job = jobs[name]!;
         assert.deepEqual(job.environment, { name: "admin-ops", deployment: false });
         assert.match(job.if, /github\.repository == 'fongap-labs\/action-worker'/);
