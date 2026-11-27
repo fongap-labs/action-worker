@@ -124,10 +124,13 @@ test("pinned private caller is read-only and matches audited workflow hash", asy
     entry.sha256
   );
   assert.match(caller, /pull_request_target/);
+  assert.match(caller, /branches: \[main, dev\]/);
   assert.match(caller, /permissions:\n\s+contents: read/);
   assert.equal(
     parsed["run-name"],
-    "private-ci-${{ github.event.pull_request.number }}-${{ github.event.pull_request.base.sha }}-${{ github.event.pull_request.head.sha }}"
+    "${{ github.event.pull_request.base.ref == 'dev' && 'private-ci-dev' || 'private-ci' }}-" +
+      "${{ github.event.pull_request.number }}-${{ github.event.pull_request.base.sha }}-" +
+      "${{ github.event.pull_request.head.sha }}"
   );
   assert.doesNotMatch(
     caller,

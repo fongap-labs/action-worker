@@ -190,12 +190,6 @@ jobs:
           set -Eeuo pipefail
           echo "is_private=$(gh api "repos/$REPOSITORY" --jq '.private')" >> "$GITHUB_OUTPUT"
 
-      - name: Restrict development CI to the public sandbox
-        if: steps.payload.outputs.target_branch == 'dev'
-        env:
-          IS_PRIVATE: ${{ steps.visibility.outputs.is_private }}
-        run: test "$IS_PRIVATE" = "false"
-
       - name: Validate control credential
         if: github.event.action == 'run-central-ci'
         env:
@@ -242,7 +236,14 @@ jobs:
           IS_PRIVATE: ${{ steps.visibility.outputs.is_private }}
           EVENT_ACTION: ${{ github.event.action }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number || '0' }}
-        run: node scripts/native-ci-enrollment.ts "$REPOSITORY" "$IS_PRIVATE" "$EVENT_ACTION" "$PR_NUMBER"
+          TARGET_BRANCH: ${{ steps.payload.outputs.target_branch || 'main' }}
+        run: node scripts/native-ci-enrollment.ts "$REPOSITORY" "$IS_PRIVATE" "$EVENT_ACTION" "$PR_NUMBER" "$TARGET_BRANCH"
+
+      - name: Require source-owned private development CI
+        if: steps.payload.outputs.target_branch == 'dev' && steps.visibility.outputs.is_private == 'true'
+        env:
+          NATIVE_PRIVATE: ${{ steps.native_pilot.outputs.enabled }}
+        run: test "$NATIVE_PRIVATE" = "true"
 
       - name: Resolve source-owned private main
         id: native_ref
@@ -481,13 +482,14 @@ jobs:
           LINUX_SHARDS: ${{ needs.prepare.outputs.linux_shards }}
           HAS_WINDOWS: ${{ needs.prepare.outputs.has_windows }}
           AW_NATIVE_PRIVATE_CI_WAIT_SECONDS: "2520"
+          TARGET_BRANCH: ${{ needs.prepare.outputs.target_branch }}
         shell: bash
         run: |
           set -Eeuo pipefail
           # A single process retains exact-SHA evidence, queries live jobs at a
           # conservative interval, and respects GitHub primary quota reset.
           # Incomplete, stale or rate-limited verification never returns success.
-          node scripts/private-ci-gate.ts "$REPOSITORY" "$PR_NUMBER" "$BASE_SHA" "$HEAD_SHA" "$MERGE_SHA" "$LINUX_SHARDS" "$HAS_WINDOWS"
+          node scripts/private-ci-gate.ts "$REPOSITORY" "$PR_NUMBER" "$BASE_SHA" "$HEAD_SHA" "$MERGE_SHA" "$LINUX_SHARDS" "$HAS_WINDOWS" "$TARGET_BRANCH"
           echo "Native private CI evidence verified for this immutable PR snapshot."
 
   native-private-ref:

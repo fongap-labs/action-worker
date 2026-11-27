@@ -54,3 +54,15 @@ test("native evidence pilot refuses malformed or duplicate enrollment policies",
     resolveNativeCiPilot(policy, "fongap-labs/private-fixture", "1", "run-central-ci", "491")
   );
 });
+
+test("private dev always uses source-owned CI without a per-repository pilot list", () => {
+  const empty = { schema_version: 1, repositories: [] };
+  assert.equal(
+    resolveNativeCiPilot(empty, "fongap-labs/private-fixture", "true", "run-central-ci", "7", "dev"),
+    true
+  );
+  assert.equal(
+    resolveNativeCiPilot(empty, "fongap-labs/private-fixture", "false", "run-central-ci", "7", "dev"),
+    false
+  );
+});

@@ -20,6 +20,7 @@ export type PrivateCiIdentity = {
   baseSha: string;
   headSha: string;
   headBranch: string;
+  targetBranch?: "main" | "dev";
   linuxShards: readonly string[];
   hasWindows: boolean;
 };
@@ -32,6 +33,9 @@ function fail(): never {
 
 function assertIdentity(identity: PrivateCiIdentity): void {
   if (
+    (identity.targetBranch !== undefined &&
+      identity.targetBranch !== "main" &&
+      identity.targetBranch !== "dev") ||
     !repositoryPattern.test(identity.repository) ||
     !Number.isSafeInteger(identity.prNumber) ||
     identity.prNumber < 1 ||
@@ -48,7 +52,8 @@ function assertIdentity(identity: PrivateCiIdentity): void {
 }
 
 function expectedRunTitle(identity: PrivateCiIdentity): string {
-  return `private-ci-${identity.prNumber}-${identity.baseSha}-${identity.headSha}`;
+  const lane = identity.targetBranch === "dev" ? "private-ci-dev" : "private-ci";
+  return `${lane}-${identity.prNumber}-${identity.baseSha}-${identity.headSha}`;
 }
 
 function matchingRun(value: unknown, identity: PrivateCiIdentity): boolean {
@@ -194,6 +199,7 @@ export type NativePrivateCiRequest = {
   baseSha: string;
   headSha: string;
   mergeSha: string;
+  targetBranch?: "main" | "dev";
   linuxShards: readonly string[];
   hasWindows: boolean;
 };
@@ -204,6 +210,9 @@ export async function fetchAndVerifyPrivateCiForPull(
   request: NativePrivateCiRequest
 ): Promise<VerifiedPrivateCi> {
   if (
+    (request.targetBranch !== undefined &&
+      request.targetBranch !== "main" &&
+      request.targetBranch !== "dev") ||
     !repositoryPattern.test(request.repository) ||
     !Number.isSafeInteger(request.prNumber) ||
     request.prNumber < 1 ||
@@ -228,6 +237,7 @@ export async function fetchAndVerifyPrivateCiForPull(
     getJsonString(pull, "state") !== "open" ||
     !isJsonRecord(pull.base) ||
     !isJsonRecord(pull.head) ||
+    getJsonString(pull.base, "ref") !== (request.targetBranch ?? "main") ||
     getJsonString(pull.base, "sha") !== request.baseSha ||
     getJsonString(pull.head, "sha") !== request.headSha ||
     !isJsonRecord(pull.base.repo) ||
@@ -253,6 +263,7 @@ export async function fetchAndVerifyPrivateCiForPull(
     baseSha: request.baseSha,
     headSha: request.headSha,
     headBranch: getJsonString(pull.head, "ref"),
+    ...(request.targetBranch ? { targetBranch: request.targetBranch } : {}),
     linuxShards: request.linuxShards,
     hasWindows: request.hasWindows,
   };

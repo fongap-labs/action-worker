@@ -9,9 +9,11 @@ export function resolveNativeCiPilot(
   repository: string,
   privateFlag: string,
   eventAction: string,
-  prNumber: string
+  prNumber: string,
+  targetBranch = "main"
 ): boolean {
   if (
+    (targetBranch !== "main" && targetBranch !== "dev") ||
     !repositoryPattern.test(repository) ||
     (privateFlag !== "true" && privateFlag !== "false") ||
     !/^(?:[1-9][0-9]*|0)$/.test(prNumber)
@@ -33,15 +35,20 @@ export function resolveNativeCiPilot(
     privateFlag === "true" &&
     eventAction === "run-central-ci" &&
     /^[1-9][0-9]*$/.test(prNumber) &&
-    rawPolicy.repositories.includes(repository)
+    (targetBranch === "dev" || rawPolicy.repositories.includes(repository))
   );
 }
 
 async function main(): Promise<void> {
-  const [repository = "", privateFlag = "", eventAction = "", prNumber = ""] =
-    process.argv.slice(2);
+  const [
+    repository = "",
+    privateFlag = "",
+    eventAction = "",
+    prNumber = "",
+    branch = "main",
+  ] = process.argv.slice(2);
   const raw: unknown = JSON.parse(readFileSync("policies/private-ci-pilots.json", "utf8"));
-  const enabled = resolveNativeCiPilot(raw, repository, privateFlag, eventAction, prNumber);
+  const enabled = resolveNativeCiPilot(raw, repository, privateFlag, eventAction, prNumber, branch);
   await appendLines(process.env.GITHUB_OUTPUT, [`enabled=${enabled}`]);
   console.log(`Private native evidence pilot enabled: ${enabled}`);
 }
