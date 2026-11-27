@@ -163,7 +163,13 @@ async function main(): Promise<void> {
         );
         const bootstrap =
           recovered ??
-          (await verifyAuthorizedDevBootstrap(reader, repository, sha, statuses, controlRepository));
+          (await verifyAuthorizedDevBootstrap(
+            reader,
+            repository,
+            sha,
+            statuses,
+            controlRepository
+          ));
         const adopted =
           bootstrap === undefined && automatic && repo.private === false
             ? await verifyAutomaticDevAdoption(reader, repository, sha, statuses, controlRepository)
