@@ -226,7 +226,7 @@ test("native CI acceptance binds private repo, PR and exact merge parents", asyn
       {
         number: identity.prNumber,
         state: "open",
-        base: { sha: identity.baseSha, repo: { full_name: identity.repository } },
+        base: { ref: "main", sha: identity.baseSha, repo: { full_name: identity.repository } },
         head: {
           sha: identity.headSha,
           ref: identity.headBranch,
@@ -262,7 +262,7 @@ test("native CI acceptance binds private repo, PR and exact merge parents", asyn
   };
   const pull = values.get(`repos/${identity.repository}/pulls/${identity.prNumber}`) as {
     state: string;
-    base: { sha: string; repo: { full_name: string } };
+    base: { ref: string; sha: string; repo: { full_name: string } };
     head: { sha: string; ref: string; repo: { full_name: string } };
   };
   const merge = values.get(`repos/${identity.repository}/git/commits/${mergeSha}`) as {
@@ -270,6 +270,9 @@ test("native CI acceptance binds private repo, PR and exact merge parents", asyn
     parents: Array<{ sha: string }>;
   };
   const invalids: Array<() => void> = [
+    () => {
+      pull.base.ref = "dev";
+    },
     () => {
       repos.private = false;
     },
@@ -299,4 +302,15 @@ test("native CI acceptance binds private repo, PR and exact merge parents", asyn
     Object.assign(pull, pullBefore);
     Object.assign(merge, mergeBefore);
   }
+});
+
+test("private dev run title cannot reuse a main result at identical SHAs", () => {
+  const { runs, jobs } = fixture();
+  const dev = { ...identity, targetBranch: "dev" as const };
+  assert.throws(() => verifyPrivateCiEvidence(dev, runs, jobs));
+  const run = runs.workflow_runs[0]!;
+  run.name = run.name.replace("private-ci-", "private-ci-dev-");
+  run.display_title = run.name;
+  assert.deepEqual(verifyPrivateCiEvidence(dev, runs, jobs), { runId: 99, runAttempt: 1 });
+  assert.throws(() => verifyPrivateCiEvidence(identity, runs, jobs));
 });

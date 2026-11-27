@@ -295,10 +295,10 @@ test("PR CI reuse, wait and final merge require the current signed snapshot", ()
   assert.match(merge, /originalStatusDescription\(status\) !== prCiScopeDescription\(scope\)/);
 });
 
-test("dev CI uses the public sandbox and shares branch-bound governance continuation", () => {
+test("private dev CI requires native evidence and preserves branch continuation", () => {
   assert.ok(workflow.includes('run: node scripts/validate-pr-payload.ts "$PAYLOAD" --central-ci'));
-  assert.ok(workflow.includes("Restrict development CI to the public sandbox"));
-  assert.ok(workflow.includes('test "$IS_PRIVATE" = "false"'));
+  assert.ok(workflow.includes("Require source-owned private development CI"));
+  assert.ok(workflow.includes('test "$NATIVE_PRIVATE" = "true"'));
   assert.ok(workflow.includes("Dev CI control base changed before snapshot pinning"));
   assert.match(workflow, /context="Dev CI Evidence"/);
   for (const name of [
