@@ -73,7 +73,7 @@ function isRepairPath(value: unknown): value is string {
 export async function resolveRepairFile(
   root: string,
   relative: string,
-  allowMissing = false
+  canBeMissing = false
 ): Promise<string> {
   if (!isRepairPath(relative)) {
     throw new CliError("Invalid dependency repair file path.", 77);
@@ -92,7 +92,7 @@ export async function resolveRepairFile(
         throw new CliError("Dependency repair path is not a regular file or directory.", 77);
       }
     } catch (error) {
-      if (allowMissing && isLeaf && (error as NodeJS.ErrnoException).code === "ENOENT") {
+      if (canBeMissing && isLeaf && (error as NodeJS.ErrnoException).code === "ENOENT") {
         return current;
       }
       throw error;
