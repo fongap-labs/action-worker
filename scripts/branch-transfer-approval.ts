@@ -14,7 +14,8 @@ export async function assertManualBranchAuthorization(
   repository: string,
   runId: number,
   attempt: number,
-  canSelfBootstrap = false
+  canSelfBootstrap = false,
+  expectedWorkflow = branchAuthorizationWorkflow
 ): Promise<void> {
   if (
     !repositoryPattern.test(controlRepository) ||
@@ -34,7 +35,7 @@ export async function assertManualBranchAuthorization(
     getJsonString(run.repository, "full_name") !== controlRepository ||
     getJsonString(run, "event") !== "workflow_dispatch" ||
     getJsonString(run, "head_branch") !== "main" ||
-    getJsonString(run, "path") !== branchAuthorizationWorkflow ||
+    getJsonString(run, "path") !== expectedWorkflow ||
     getJsonString(run, "status") !== "in_progress"
   ) {
     throw new CliError("Branch authorization requires the current trusted manual run.", 75);

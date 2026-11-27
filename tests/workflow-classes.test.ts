@@ -43,6 +43,8 @@ const classes = {
   recovery: ["status-signing-recovery.yml"],
   // Explicit maintainer approval for branch initialization or transfer; never merges code.
   branchAuthorization: ["authorize-branch-transfer.yml"],
+  // Automatic read-only audit plus an isolated, explicitly authorized manual proposal lane.
+  auditWithManualProposal: ["audit-config-scope.yml"],
   // The one reconciler. It sweeps every managed repository and dispatches the work it finds.
   intake: ["intake.yml"],
   // Started by an event another workflow or a managed repository sends; never by a person or a
@@ -63,7 +65,6 @@ const classes = {
   // finished runs.
   maintenance: [
     "apply-repository-settings.yml",
-    "audit-config-scope.yml",
     "delta-macos-smoke.yml",
     "enroll-organization-repositories.yml",
     "publication-key-verify.yml",
@@ -95,6 +96,7 @@ const allowedTriggers: Record<WorkflowClass, readonly string[]> = {
   operation: ["workflow_dispatch"],
   recovery: ["workflow_dispatch"],
   branchAuthorization: ["workflow_dispatch"],
+  auditWithManualProposal: ["push", "schedule", "workflow_dispatch"],
   intake: ["push", "repository_dispatch", "schedule", "workflow_run"],
   handler: ["repository_dispatch"],
   maintenance: ["pull_request", "push", "schedule", "workflow_run"],
@@ -151,6 +153,55 @@ test("only approved entry, diagnostics and private operations expose manual disp
   for (const { file, workflow } of await workflows()) {
     const kind = classOf(file);
     const triggers = workflow.on ?? {};
+    if (kind === "auditWithManualProposal") {
+      assert.deepEqual(Object.keys(triggers).sort(), ["push", "schedule", "workflow_dispatch"]);
+      const manual = triggers.workflow_dispatch as {
+        inputs: Record<string, { type: string; default: boolean; required: boolean }>;
+      };
+      assert.deepEqual(Object.keys(manual.inputs), ["confirm"]);
+      assert.equal(manual.inputs.confirm?.type, "boolean");
+      assert.equal(manual.inputs.confirm?.default, false);
+      assert.equal(manual.inputs.confirm?.required, true);
+      assert.deepEqual(Object.keys(workflow.jobs ?? {}), [
+        "audit",
+        "discover-proposals",
+        "propose-dependencies",
+      ]);
+      const jobs = workflow.jobs as Record<
+        string,
+        Job & { environment: unknown; if: string; needs?: string }
+      >;
+      for (const name of ["audit", "discover-proposals", "propose-dependencies"]) {
+        const job = jobs[name]!;
+        assert.deepEqual(job.environment, { name: "admin-ops", deployment: false });
+        assert.match(job.if, /github\.repository == 'fongap-labs\/action-worker'/);
+        assert.match(job.if, /github\.ref == 'refs\/heads\/main'/);
+        assert.match(
+          job.if,
+          name === "audit"
+            ? /github\.event_name != 'workflow_dispatch'/
+            : /github\.event_name == 'workflow_dispatch'/
+        );
+      }
+      assert.equal(jobs["propose-dependencies"]?.needs, "discover-proposals");
+      const steps = jobs["propose-dependencies"]?.steps ?? [];
+      const writers = steps.filter((step) => step.with?.["permission-contents"] === "write");
+      assert.equal(writers.length, 1);
+      const writer = writers[0]!;
+      assert.equal(writer.id, "writer");
+      assert.equal(writer.if, "inputs.confirm && steps.plan.outputs.changed == 'true'");
+      assert.equal(writer.uses, "./.github/actions/mint-app-token");
+      assert.equal(writer.with?.repositories, "${{ steps.scope.outputs.repository_name }}");
+      assert.equal(writer.with?.["permission-pull-requests"], "write");
+      const source = await readFile(`${workflowDirectory}/${file}`, "utf8");
+      assert.match(source, /scripts\/propose-dependency-update\.ts prepare/);
+      assert.match(source, /scripts\/propose-dependency-update\.ts publish/);
+      assert.equal(
+        source.match(/if: inputs\.confirm && steps\.plan\.outputs\.changed == 'true'/g)?.length,
+        2
+      );
+      continue;
+    }
     if (kind === "privateAgent") {
       assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} is manual-only`);
       assert.deepEqual(
