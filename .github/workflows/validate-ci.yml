@@ -1,6 +1,23 @@
 name: 自动 · CI 验证
 
 on:
+  workflow_call:
+    inputs:
+      dev_merge_sha:
+        type: string
+        required: true
+      dev_base_sha:
+        type: string
+        required: true
+      dev_head_sha:
+        type: string
+        required: true
+      dev_title:
+        type: string
+        required: true
+    secrets:
+      AW_APP_PRIVATE_KEY:
+        required: false
   push:
     branches: [main]
   pull_request:
@@ -14,7 +31,7 @@ permissions:
 # must not cancel the validation of an earlier main commit, which would leave that commit without
 # a verdict.
 concurrency:
-  group: validate-ci-${{ github.ref }}
+  group: validate-ci-${{ inputs.dev_merge_sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -26,9 +43,25 @@ jobs:
       - name: Checkout exact change head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.dev_head_sha || github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify exact controller dev PR head and base
+        if: inputs.dev_merge_sha != ''
+        env:
+          DEV_HEAD_SHA: ${{ inputs.dev_head_sha }}
+          DEV_BASE_SHA: ${{ inputs.dev_base_sha }}
+          DEV_MERGE_SHA: ${{ inputs.dev_merge_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REPOSITORY" == "fongap-labs/action-worker" && "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_EVENT_NAME" == "repository_dispatch" ]]
+          [[ "$DEV_HEAD_SHA" =~ ^[0-9a-f]{40}$ && "$DEV_BASE_SHA" =~ ^[0-9a-f]{40}$ && "$DEV_MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$DEV_HEAD_SHA" ]]
+          git fetch --no-tags origin "$DEV_MERGE_SHA"
+          [[ "$(git show -s --format=%P "$DEV_MERGE_SHA")" == "$DEV_BASE_SHA $DEV_HEAD_SHA" ]]
 
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -38,18 +71,18 @@ jobs:
       - name: Resolve change range
         id: range
         env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AW_CI_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
+          PR_BASE_SHA: ${{ inputs.dev_base_sha || github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ inputs.dev_head_sha || github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           GITHUB_SHA: ${{ github.sha }}
         run: node scripts/ci-change-range.ts
 
       # Reuse the exact change-record policy applied to managed repositories.
       - name: Validate PR change record
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || inputs.dev_merge_sha != ''
         env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_TITLE: ${{ inputs.dev_title || github.event.pull_request.title }}
           AW_VALIDATED_REPOSITORY: ${{ github.repository }}
           BASE_SHA: ${{ steps.range.outputs.base }}
           HEAD_SHA: ${{ steps.range.outputs.head }}
@@ -68,6 +101,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.dev_merge_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -80,9 +114,9 @@ jobs:
         id: range
         shell: bash
         env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AW_CI_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
+          PR_BASE_SHA: ${{ inputs.dev_base_sha || github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ inputs.dev_head_sha || github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           GITHUB_SHA: ${{ github.sha }}
         run: node scripts/ci-change-range.ts
@@ -101,6 +135,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.dev_merge_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -113,9 +148,9 @@ jobs:
         id: range
         shell: bash
         env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AW_CI_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
+          PR_BASE_SHA: ${{ inputs.dev_base_sha || github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ inputs.dev_head_sha || github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           GITHUB_SHA: ${{ github.sha }}
         run: node scripts/ci-change-range.ts
@@ -134,6 +169,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.dev_merge_sha || github.sha }}
           persist-credentials: false
 
       - name: Setup Node
@@ -203,6 +239,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.dev_merge_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -231,6 +268,7 @@ jobs:
       - name: Checkout pinned test harness
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.dev_merge_sha || github.sha }}
           persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -259,6 +297,7 @@ jobs:
       - name: Checkout candidate with baseline history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.dev_merge_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -275,9 +314,9 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          AW_CI_EVENT_NAME: ${{ inputs.dev_merge_sha != '' && 'pull_request' || github.event_name }}
+          BASE_SHA: ${{ inputs.dev_base_sha || (github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before) }}
+          HEAD_SHA: ${{ inputs.dev_head_sha || (github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha) }}
         run: |
           set -Eeuo pipefail
           if [[ ! "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]] || [[ "$BASE_SHA" =~ ^0+$ ]]; then
@@ -296,8 +335,8 @@ jobs:
         id: ci_manifest_delta
         shell: bash
         env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ inputs.dev_base_sha || (github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before) }}
+          HEAD_SHA: ${{ inputs.dev_head_sha || (github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha) }}
         run: |
           set -Eeuo pipefail
           if [[ ! "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]] || [[ "$BASE_SHA" =~ ^0+$ ]]; then
@@ -310,11 +349,17 @@ jobs:
             echo "required=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Require private inventory validation before controller contract changes
+        if: inputs.dev_merge_sha != '' && steps.ci_manifest_delta.outputs.required == 'true'
+        run: |
+          echo "::error::Controller dev changes requiring private CI inventory must use the authorized main validation path." >&2
+          exit 75
+
       # Only use read-only GitHub App permission. Never publish private
       # repository metadata or manifest source in public CI output.
       - name: Mint authorized inventory read token
         id: ci_inventory
-        if: steps.ci_manifest_delta.outputs.required == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: inputs.dev_merge_sha == '' && steps.ci_manifest_delta.outputs.required == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
@@ -323,7 +368,7 @@ jobs:
           permission-contents: read
 
       - name: Check downstream CI manifests before accepting contract changes
-        if: steps.ci_manifest_delta.outputs.required == 'true'
+        if: inputs.dev_merge_sha == '' && steps.ci_manifest_delta.outputs.required == 'true'
         env:
           AW_CI_COMPAT_READ_TOKEN: ${{ steps.ci_inventory.outputs.token }}
         run: node scripts/ci-contract-compatibility.ts
@@ -348,6 +393,7 @@ jobs:
       - name: Aggregate merge gate
         env:
           EVENT: ${{ github.event_name }}
+          DEV_MERGE_SHA: ${{ inputs.dev_merge_sha }}
           PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           CHANGE_GOVERNANCE_RESULT: ${{ needs.change-governance.result }}
@@ -360,6 +406,11 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+
+          if [[ -n "$DEV_MERGE_SHA" ]]; then
+            [[ "$EVENT" == "repository_dispatch" && "$GITHUB_REF" == "refs/heads/main" ]] || exit 75
+            jq -e '.client_payload.repository == "fongap-labs/action-worker" and .client_payload.target_branch == "dev"' "$GITHUB_EVENT_PATH" >/dev/null
+          fi
 
           # Match the shared ordinary-PR boundary: managed branch heads need manual authorization.
           if [[ "$EVENT" == "pull_request" ]]; then
@@ -400,7 +451,7 @@ jobs:
   automatic-squash-merge:
     name: Automatic squash merge after CI
     needs: [validate-merge]
-    if: ${{ github.event_name == 'pull_request' && needs.validate-merge.result == 'success' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ inputs.dev_merge_sha == '' && github.event_name == 'pull_request' && needs.validate-merge.result == 'success' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

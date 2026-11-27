@@ -15,7 +15,10 @@ test("controller PR governance reuses shared validators and blocks merge on fail
     workflow,
     /types: \[opened, reopened, synchronize, edited, ready_for_review, converted_to_draft\]/
   );
-  assert.match(job, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+  assert.match(
+    job,
+    /ref: \$\{\{ inputs\.dev_head_sha \|\| github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/
+  );
   assert.match(job, /Validate PR change record\n\s+if: github\.event_name == 'pull_request'/);
   assert.match(job, /node scripts\/validate-change-record\.ts/);
   assert.match(job, /node scripts\/validate-engineering-language\.ts/);

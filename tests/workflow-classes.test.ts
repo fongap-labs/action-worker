@@ -139,7 +139,8 @@ test("each workflow is started only by the events its class allows", async () =>
     assert.ok(triggers.length > 0, `${file} declares no trigger`);
     for (const trigger of triggers) {
       assert.ok(
-        allowedTriggers[kind].includes(trigger),
+        allowedTriggers[kind].includes(trigger) ||
+          (file === "validate-ci.yml" && trigger === "workflow_call"),
         `${file} is a ${kind} workflow and must not start on ${trigger}`
       );
     }

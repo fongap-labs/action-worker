@@ -27,6 +27,8 @@ jobs:
       repository_name: ${{ steps.api_scope.outputs.repository_name }}
       pr_number: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number }}
       target_branch: ${{ steps.payload.outputs.target_branch || 'main' }}
+      controller_dev: ${{ steps.api_scope.outputs.is_control_repository == 'true' && steps.payload.outputs.target_branch == 'dev' }}
+      pr_title: ${{ steps.facts.outputs.title }}
       delta_privacy_deferred: ${{ steps.merge_ref.outputs.delta_privacy_deferred || 'false' }}
       base_sha: ${{ steps.merge_ref.outputs.base_sha || steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       diff_base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
@@ -555,10 +557,25 @@ jobs:
             sleep 60
           done
 
+  controller-dev-ci:
+    name: Central CI / Controller dev
+    needs: prepare
+    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.controller_dev == 'true'
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    uses: ./.github/workflows/validate-ci.yml
+    with:
+      dev_merge_sha: ${{ needs.prepare.outputs.merge_sha }}
+      dev_base_sha: ${{ needs.prepare.outputs.base_sha }}
+      dev_head_sha: ${{ needs.prepare.outputs.head_sha }}
+      dev_title: ${{ needs.prepare.outputs.pr_title }}
+
   linux:
     name: Central CI / Linux (${{ matrix.shard }})
     needs: prepare
-    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot != 'true' && needs.prepare.outputs.native_private_ref != 'true'
+    if: needs.prepare.outputs.controller_dev != 'true' && needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot != 'true' && needs.prepare.outputs.native_private_ref != 'true'
     strategy:
       fail-fast: true
       matrix:
@@ -681,7 +698,7 @@ jobs:
   windows:
     name: Central CI / Windows
     needs: prepare
-    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.has_windows == 'true' && needs.prepare.outputs.native_private_pilot != 'true' && needs.prepare.outputs.native_private_ref != 'true'
+    if: needs.prepare.outputs.controller_dev != 'true' && needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.has_windows == 'true' && needs.prepare.outputs.native_private_pilot != 'true' && needs.prepare.outputs.native_private_ref != 'true'
     uses: ./.github/workflows/central-ci-sandbox.yml
     with:
       platform: windows
@@ -707,6 +724,7 @@ jobs:
     needs:
       - prepare
       - linux
+      - controller-dev-ci
       - security
       - windows
       - native-private-pilot
@@ -800,6 +818,8 @@ jobs:
           AW_CI_SCOPE_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
           AW_CI_SCOPE_MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}
           LINUX_RESULT: ${{ needs.linux.result }}
+          CONTROLLER_DEV: ${{ needs.prepare.outputs.controller_dev }}
+          CONTROLLER_DEV_RESULT: ${{ needs['controller-dev-ci'].result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
           DELTA_PRIVACY_DEFERRED: ${{ needs.prepare.outputs.delta_privacy_deferred }}
@@ -828,6 +848,16 @@ jobs:
               echo "Central CI PR direction or head changed; no verdict for the stale scope."
               exit 0
             fi
+          fi
+
+          # Controller dev uses the complete self-CI job suite, not the reduced business sandbox.
+          if [[ "$CONTROLLER_DEV" == "true" ]]; then
+            if [[ "$LINUX_RESULT" != "skipped" || "$WINDOWS_RESULT" != "skipped" || "$HAS_WINDOWS" != "false" || "$NATIVE_PRIVATE_PILOT" == "true" || "$NATIVE_PRIVATE_REF" == "true" ]]; then
+              echo "::error::Controller dev CI routing contract violated." >&2
+              exit 75
+            fi
+            if [[ "$CONTROLLER_DEV_RESULT" == "cancelled" ]]; then exit 0; fi
+            LINUX_RESULT="$CONTROLLER_DEV_RESULT"
           fi
 
           state=failure

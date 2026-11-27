@@ -438,7 +438,10 @@ export async function scanOpenPullRequests(
 ): Promise<IntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr").filter(
     (repository) =>
-      repository !== controlRepository && (!onlyRepository || repository === onlyRepository)
+      (!onlyRepository || repository === onlyRepository) &&
+      (repository !== controlRepository ||
+        (rulesetPolicy !== undefined &&
+          devMergePolicyEnabled(rulesetPolicy, repository, controlRepository)))
   );
   const result: IntakeResult = {
     repositories: repositories.length,
@@ -452,7 +455,9 @@ export async function scanOpenPullRequests(
   };
 
   for (const repository of repositories) {
-    const pulls = await openPullRequests(reader, repository);
+    const pulls = (await openPullRequests(reader, repository)).filter(
+      (pull) => repository !== controlRepository || getJsonString(pull.pull.base, "ref") === "dev"
+    );
     result.open_pull_requests += pulls.length;
     for (const pull of pulls) {
       const headRef = getJsonString(pull.pull.head, "ref");

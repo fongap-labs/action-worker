@@ -49,7 +49,7 @@ function main(): void {
   const outputPath = process.env.GITHUB_OUTPUT;
   if (!outputPath) throw new Error("GITHUB_OUTPUT is required for CI range resolution.");
   const range = resolveCiChangeRange({
-    event: process.env.GITHUB_EVENT_NAME ?? "",
+    event: process.env.AW_CI_EVENT_NAME ?? process.env.GITHUB_EVENT_NAME ?? "",
     prBase: process.env.PR_BASE_SHA ?? "",
     prHead: process.env.PR_HEAD_SHA ?? "",
     pushBefore: process.env.PUSH_BEFORE_SHA ?? "",
