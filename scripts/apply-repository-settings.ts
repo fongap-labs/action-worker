@@ -10,7 +10,7 @@ import {
 } from "./github-api.ts";
 import { findActiveIncidents } from "./main-write-incidents.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
-import { CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
 
 type RulesetPayload = {
   name: string;
@@ -242,12 +242,12 @@ async function applyRulesets(
   token: string,
   isPrivate: boolean,
   rulesets: readonly RulesetPayload[]
-): Promise<void> {
+): Promise<boolean> {
   if (isPrivate) {
     console.warn(
       `::warning::Managed branch protection is NOT enforced for private repository ${repository}: GitHub Free organization rulesets are unavailable. The post-merge audit cannot prevent a merge. Upgrade the GitHub plan to enable enforceable required checks.`
     );
-    return;
+    return false;
   }
 
   const existingValue = await ghJson(
@@ -272,11 +272,14 @@ async function applyRulesets(
     existingByName.set(item.name, item.id);
   }
 
+  let devChanged = false;
   for (const desired of rulesets) {
+    const opensDev = desired.name === "Protect Dev Branch" && !isClosedDevProtection(desired);
     const id = existingByName.get(desired.name);
     if (id === undefined) {
       await ghJson("POST", `repos/${repository}/rulesets`, token, desired);
       console.log(`repository ruleset created: ${repository} / ${desired.name}`);
+      if (opensDev) devChanged = true;
       continue;
     }
 
@@ -290,7 +293,9 @@ async function applyRulesets(
 
     await ghJson("PUT", `repos/${repository}/rulesets/${id}`, token, desired);
     console.log(`repository ruleset updated: ${repository} / ${desired.name}`);
+    if (opensDev) devChanged = true;
   }
+  return devChanged;
 }
 
 async function main(): Promise<void> {
@@ -364,7 +369,8 @@ async function main(): Promise<void> {
     }
   }
 
-  await applyRulesets(repository, token, response.private === true, rulesets);
+  const devChanged = await applyRulesets(repository, token, response.private === true, rulesets);
+  await appendLines(process.env.GITHUB_OUTPUT, [`dev_protection_changed=${devChanged}`]);
   console.log(`repository settings applied: ${repository}`);
 }
 

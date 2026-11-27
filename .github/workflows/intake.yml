@@ -22,8 +22,7 @@ concurrency:
 
 jobs:
   pull-requests:
-    # Control-repository pushes do not change business PR heads.
-    if: github.event_name != 'push'
+    # Control policy changes can unblock an unchanged business PR head.
     name: Pull requests
     runs-on: ubuntu-24.04
     timeout-minutes: 10

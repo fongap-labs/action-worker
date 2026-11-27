@@ -83,3 +83,20 @@ test("only the exact existing display-name reference is accepted by the language
   assert.notEqual(engineeringLineViolation(path, `${reference} # ${intake.name}`), null);
   assert.notEqual(engineeringLineViolation(path, `run: echo "${intake.name}"`), null);
 });
+
+test("changed dev protection wakes the existing intake, while unchanged settings do not", () => {
+  const workflow = readFileSync(".github/workflows/apply-repository-settings.yml", "utf8");
+  const settings = parse(workflow);
+  const steps = settings.jobs["apply-managed"].steps;
+  const mint = steps.find((step: { id?: string }) => step.id === "wake_app");
+  const wake = steps.find(
+    (step: { name?: string }) => step.name === "Wake PR intake after dev protection changes"
+  );
+  assert.equal(mint.if, "steps.applied.outputs.dev_protection_changed == 'true'");
+  assert.equal(wake.if, mint.if);
+  assert.equal(mint.with.repositories, "${{ github.event.repository.name }}");
+  assert.equal(mint.with["permission-contents"], "write");
+  assert.match(wake.run, /event_type:"run-intake"/);
+  const intake = parse(readFileSync(".github/workflows/intake.yml", "utf8"));
+  assert.equal(intake.jobs["pull-requests"].if, undefined);
+});
