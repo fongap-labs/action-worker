@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { parseDependencyPolicy } from "../scripts/dependency-version-policy.ts";
 import {
+  buildEngineeringProposal,
   buildNodeProposal,
   discoverProposalTargets,
   publishNodeProposal,
@@ -140,4 +141,36 @@ test("an existing open proposal is reused rather than writing a duplicate branch
     changes
   );
   assert.equal(result, 42);
+});
+
+test("engineering proposal resolves only catalogued dev dependencies", () => {
+  const packageJson = JSON.stringify({
+    engines: { node: ">=22" },
+    devDependencies: { typescript: "6.0.3", vite: "7.0.0" },
+  });
+  const packageLock = JSON.stringify({
+    lockfileVersion: 3,
+    packages: {
+      "": { engines: { node: ">=22" }, devDependencies: { typescript: "6.0.3", vite: "7.0.0" } },
+      "node_modules/typescript": { version: "6.0.3", integrity: "sha512-example" },
+    },
+  });
+  const snapshot = {
+    sha: "a".repeat(40),
+    tree: "b".repeat(40),
+    files: new Map([
+      ["package.json", packageJson],
+      ["package-lock.json", packageLock],
+      ["CHANGELOG.md", record],
+    ]),
+  };
+  const publicResult = buildEngineeringProposal(policy, repo, "dev", snapshot, date, true);
+  const manifestResult = JSON.parse(publicResult.changes.find((item) => item.path === "package.json")?.content ?? "");
+  assert.equal(publicResult.lockPath, "package-lock.json");
+  assert.equal(manifestResult.devDependencies.typescript, policy.catalog.get("npm:typescript")?.version);
+  assert.equal(manifestResult.devDependencies.vite, "7.0.0");
+  const privateResult = buildEngineeringProposal(policy, repo, "main", snapshot, date, false);
+  assert.equal(privateResult.lockPath, null);
+  const privateManifest = JSON.parse(privateResult.changes.find((item) => item.path === "package.json")?.content ?? "");
+  assert.equal(privateManifest.devDependencies.typescript, "6.0.3");
 });

@@ -25,7 +25,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 确认批量创建公开主分支版本整改 PR（默认仅检查）
+        description: 确认批量创建版本整改 PR（默认仅检查）
         type: boolean
         default: false
         required: true
@@ -151,9 +151,58 @@ jobs:
           AW_INVENTORY_TOKEN: ${{ steps.inventory.outputs.token }}
         run: node scripts/propose-dependency-update.ts discover
 
-  propose-dependencies:
-    name: Plan dependency proposal / ${{ matrix.repository }}
+
+  compute-proposals:
+    name: Compute public dependency proposal / ${{ matrix.repository }} / ${{ matrix.branch }}
     needs: discover-proposals
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main' && needs.discover-proposals.outputs.count != '0'
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix: ${{ fromJSON(needs.discover-proposals.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.runtime.outputs.node }}
+          package-manager-cache: false
+
+      - name: Install trusted inventory parsers
+        run: npm ci --ignore-scripts
+
+      - name: Compute public immutable lock proposal
+        env:
+          TARGET_REPOSITORY: ${{ matrix.repository }}
+          TARGET_BRANCH: ${{ matrix.branch }}
+          AW_PROPOSAL_READ_TOKEN: ${{ github.token }}
+          OPERATOR_CONFIRMED: ${{ inputs.confirm }}
+        run: node scripts/propose-dependency-update.ts compute
+
+      - name: Upload public proposal evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-proposal-${{ strategy.job-index }}-${{ matrix.branch }}
+          path: dependency-proposal.json
+          if-no-files-found: error
+          retention-days: 1
+
+  propose-dependencies:
+    name: Plan dependency proposal / ${{ matrix.repository }} / ${{ matrix.branch }}
+    needs: [discover-proposals, compute-proposals]
     if: github.event_name == 'workflow_dispatch' && github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main' && needs.discover-proposals.outputs.count != '0'
     strategy:
       fail-fast: false
@@ -204,9 +253,16 @@ jobs:
         id: plan
         env:
           TARGET_REPOSITORY: ${{ matrix.repository }}
+          TARGET_BRANCH: ${{ matrix.branch }}
           AW_PROPOSAL_READ_TOKEN: ${{ steps.read.outputs.token }}
           AW_PROPOSAL_ADMIN_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
         run: node scripts/propose-dependency-update.ts prepare
+
+      - name: Download public proposal evidence
+        if: inputs.confirm && steps.plan.outputs.changed == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dependency-proposal-${{ strategy.job-index }}-${{ matrix.branch }}
 
       - name: Mint target-scoped proposal writer
         id: writer
@@ -224,9 +280,56 @@ jobs:
         if: inputs.confirm && steps.plan.outputs.changed == 'true'
         env:
           TARGET_REPOSITORY: ${{ matrix.repository }}
+          TARGET_BRANCH: ${{ matrix.branch }}
           AW_PROPOSAL_READ_TOKEN: ${{ steps.read.outputs.token }}
           AW_PROPOSAL_ADMIN_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_PROPOSAL_WRITE_TOKEN: ${{ steps.writer.outputs.token }}
           PROPOSAL_IDENTITY: ${{ steps.plan.outputs.identity }}
           OPERATOR_CONFIRMED: ${{ inputs.confirm }}
         run: node scripts/propose-dependency-update.ts publish
+
+  private-proposals:
+    name: Process private dependency metadata (aggregate only)
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: admin-ops
+      deployment: false
+    steps:
+      - name: Checkout trusted control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.runtime.outputs.node }}
+
+      - name: Install trusted inventory parsers
+        run: npm ci --ignore-scripts
+
+      - name: Mint organization inventory read token
+        id: inventory
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-contents: read
+          permission-pull-requests: read
+
+      - name: Process private metadata proposals
+        env:
+          AW_INVENTORY_TOKEN: ${{ steps.inventory.outputs.token }}
+          AW_PROPOSAL_ADMIN_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_PROPOSAL_APP_CLIENT_ID: ${{ vars.AW_APP_CLIENT_ID }}
+          AW_PROPOSAL_APP_PRIVATE_KEY: ${{ inputs.confirm && secrets.AW_APP_PRIVATE_KEY || '' }}
+          OPERATOR_CONFIRMED: ${{ inputs.confirm }}
+        run: node scripts/propose-dependency-update.ts private
