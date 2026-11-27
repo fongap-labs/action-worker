@@ -1,6 +1,6 @@
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { TRUSTED_ASSOCIATIONS } from "./pr-trust.ts";
-import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
+import { isGovernedPullDirection, isManagedTransferDirection } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -26,7 +26,8 @@ export function resolveCiControlDecision(
   expectedHeadSha: string,
   pull: unknown,
   changedFiles: readonly string[],
-  targetBranch = "main"
+  targetBranch = "main",
+  isTransfer = false
 ): ControlDecision {
   if (!repositoryPattern.test(repository)) {
     throw new CliError(`Invalid repository: ${repository}.`, 64);
@@ -52,7 +53,11 @@ export function resolveCiControlDecision(
     throw new CliError("PR head changed before CI control resolution.", 75);
   }
 
-  if (!isGovernedPullDirection(pull, targetBranch)) {
+  if (
+    isTransfer
+      ? baseRef !== targetBranch || !isManagedTransferDirection(pull, repository)
+      : !isGovernedPullDirection(pull, targetBranch)
+  ) {
     throw new CliError("PR is outside the admitted main CI branch direction.", 75);
   }
   if (targetBranch === "dev" && headRepo !== repository) {
@@ -82,7 +87,7 @@ export function resolveCiControlDecision(
   };
 }
 
-async function changedFiles(
+export async function changedFiles(
   repository: string,
   prNumber: string,
   token: string

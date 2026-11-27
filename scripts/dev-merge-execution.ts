@@ -83,7 +83,7 @@ export function devMergePolicyEnabled(
   );
 }
 
-async function requireLiveProtection(
+export async function requireLiveProtection(
   reader: JsonReader,
   repository: string,
   controlRepository: string

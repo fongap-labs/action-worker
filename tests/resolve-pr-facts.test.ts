@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  hasManagedPullHead,
   isGovernedPullDirection,
+  isManagedTransferDirection,
   legacyDevIntakeWake,
   resolvePullDiffBaseSha,
 } from "../scripts/resolve-pr-facts.ts";
@@ -102,4 +104,28 @@ test("legacy bridge notifications can only wake intake for open public same-repo
     legacyDevIntakeWake({ ...pull, head: { ...pull.head, sha: "invalid" } }, repository),
     false
   );
+});
+
+test("managed transfers never enter ordinary governance", () => {
+  const repo = { full_name: repository };
+  for (const [source, target] of [
+    ["dev", "main"],
+    ["main", "dev"],
+  ]) {
+    const pull = {
+      head: { ref: source, repo },
+      base: { ref: target, repo },
+    };
+    assert.equal(hasManagedPullHead(pull), true);
+    assert.equal(isManagedTransferDirection(pull, repository), true);
+    assert.equal(isGovernedPullDirection(pull, target), false);
+    assert.equal(
+      isManagedTransferDirection(
+        { ...pull, head: { ...pull.head, repo: { full_name: "other/fork" } } },
+        repository
+      ),
+      false
+    );
+  }
+  assert.equal(hasManagedPullHead({ head: { ref: "fix/example" } }), false);
 });

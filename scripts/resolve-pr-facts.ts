@@ -11,6 +11,25 @@ export function isManagedBranchRef(ref: string): boolean {
   return ref === "main" || ref === "dev";
 }
 
+export function isManagedTransferDirection(pull: unknown, repository: string): boolean {
+  if (!isJsonRecord(pull)) return false;
+  const base = isJsonRecord(pull.base) ? pull.base : {};
+  const head = isJsonRecord(pull.head) ? pull.head : {};
+  const source = getJsonString(head, "ref");
+  const target = getJsonString(base, "ref");
+  return (
+    isManagedBranchRef(source) &&
+    isManagedBranchRef(target) &&
+    source !== target &&
+    getJsonString(head.repo, "full_name") === repository &&
+    getJsonString(base.repo, "full_name") === repository
+  );
+}
+
+export function hasManagedPullHead(pull: unknown): boolean {
+  return isJsonRecord(pull) && isManagedBranchRef(getJsonString(pull.head, "ref"));
+}
+
 // The existing main-only admission path cannot authorize transfers from a managed branch.
 // Its commit statuses are SHA-scoped and must not overwrite protected branch evidence.
 export function isGovernedPullDirection(pull: unknown, targetBranch = "main"): boolean {
@@ -122,7 +141,10 @@ async function main(): Promise<void> {
   if (stage === "route-legacy") {
     const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
     const wake = legacyDevIntakeWake(pull, repository);
-    await appendLines(process.env.GITHUB_OUTPUT, [`wake_dev=${String(wake)}`]);
+    await appendLines(process.env.GITHUB_OUTPUT, [
+      `wake_dev=${String(wake)}`,
+      `managed_head=${String(hasManagedPullHead(pull))}`,
+    ]);
     return;
   }
   if (stage === "fetch") {

@@ -1,3 +1,4 @@
+import { TransferWritePendingError, verifyRecordedTransferWrite } from "./branch-transfer-write.ts";
 import {
   hasVerifiedControlStatus,
   type JsonReader,
@@ -67,6 +68,29 @@ export async function verifyRecordedDevWrite(
   const prefix = `repos/${repository}`;
   const commit = await reader.get(`${prefix}/commits/${sha}`);
   const origin = await resolveManagedBranchMerge(reader, repository, "dev", sha, commit);
+  if (origin.managed_source) {
+    if (origin.managed_source !== "main") {
+      throw new CliError("Invalid protected development transfer source.", 65);
+    }
+    try {
+      const scope = await verifyRecordedTransferWrite(
+        reader,
+        repository,
+        "dev",
+        sha,
+        origin.pr_number,
+        origin.pr_head_sha,
+        controlRepository,
+        now
+      );
+      return { scope, description: prCiScopeDescription(scope) };
+    } catch (error) {
+      if (error instanceof TransferWritePendingError) {
+        throw new DevWritePendingError(error.message, 75);
+      }
+      throw error;
+    }
+  }
   const pull = await reader.get(`${prefix}/pulls/${origin.pr_number}`);
   const statuses = await reader.get(`${prefix}/commits/${sha}/status`);
   const receipt = latestAttestedStatus(statuses, {
