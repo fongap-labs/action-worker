@@ -150,8 +150,8 @@ test("only signed bootstrap or a matching public baseline requests admin reconci
   };
   const signed = (status: typeof receipt) =>
     attestFixtureStatuses({ statuses: [status] }, repository, sha);
-  const check = (statuses: unknown, isPublic = true, automatic = true) =>
-    requiresDevBootstrapAudit(reader, repository, sha, statuses, control, isPublic, automatic);
+  const check = (statuses: unknown, isPublic = true, isAutomatic = true) =>
+    requiresDevBootstrapAudit(reader, repository, sha, statuses, control, isPublic, isAutomatic);
   assert.equal(await check(signed(receipt)), true);
   assert.equal(await check(signed(merged)), false);
   assert.equal(await check({ statuses: [] }, false), false);

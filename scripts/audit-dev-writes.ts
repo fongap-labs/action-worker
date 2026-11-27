@@ -107,14 +107,14 @@ export async function requiresDevBootstrapAudit(
   statuses: unknown,
   controlRepository: string,
   isPublic: boolean,
-  automatic: boolean
+  isAutomatic: boolean
 ): Promise<boolean> {
   if (latestAttestedStatus(statuses, { repository, sha, context: devBootstrapContext })) {
     return true;
   }
   if (
     !isPublic ||
-    !automatic ||
+    !isAutomatic ||
     repository === controlRepository ||
     latestAttestedStatus(statuses, { repository, sha, context: devMergeReceiptContext })
   ) {
@@ -154,11 +154,11 @@ async function main(): Promise<void> {
     ? await completedDevMergePublisher(reader, controlRepository, Number(trigger))
     : "";
   const rulesetPolicy: unknown = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
-  const automatic = isJsonRecord(rulesetPolicy) && rulesetPolicy.dev_merge_mode === "automatic";
+  const isAutomatic = isJsonRecord(rulesetPolicy) && rulesetPolicy.dev_merge_mode === "automatic";
   const context = managedBranchWriteContext("dev");
   const betaTargets = parseBetaDeployTargets(readBetaDeployPolicy());
   const wakeRepositories = new Set<string>();
-  let bootstrapRequired = false;
+  let isBootstrapRequired = false;
   for (const repository of repositories) {
     const repo = await reader.get(`repos/${repository}`);
     if (!isJsonRecord(repo) || repo.full_name !== repository) {
@@ -194,10 +194,10 @@ async function main(): Promise<void> {
           statuses,
           controlRepository,
           repo.private === false,
-          automatic
+          isAutomatic
         ));
       if (mode === "sweep" && bootstrapCandidate) {
-        bootstrapRequired = true;
+        isBootstrapRequired = true;
         console.log("Development bootstrap requires protected reconciliation.");
         continue;
       }
@@ -231,7 +231,7 @@ async function main(): Promise<void> {
             controlRepository
           ));
         const adopted =
-          bootstrap === undefined && automatic && repo.private === false
+          bootstrap === undefined && isAutomatic && repo.private === false
             ? await verifyAutomaticDevAdoption(reader, repository, sha, statuses, controlRepository)
             : undefined;
         description =
@@ -286,7 +286,7 @@ async function main(): Promise<void> {
     if (canWakeBeta && state === "success") wakeRepositories.add(repository);
   }
   await appendLines(process.env.GITHUB_OUTPUT, [
-    `bootstrap_required=${bootstrapRequired}`,
+    `bootstrap_required=${isBootstrapRequired}`,
     `beta_push_wake=${wakeRepositories.size > 0}`,
     `beta_push_repository=${wakeRepositories.size === 1 ? [...wakeRepositories][0] : ""}`,
   ]);
