@@ -2,6 +2,19 @@ import { readFileSync } from "node:fs";
 import { resolveTransferPrNumber } from "./authorize-branch-operation.ts";
 import { assertManualBranchAuthorization } from "./branch-transfer-approval.ts";
 import {
+  readTransferPlan,
+  type TransferIntent,
+  transferIntentDescription,
+  transferPlanDescription,
+} from "./branch-transfer-intent.ts";
+import {
+  closeOriginalTransfer,
+  closeUnusedStagedTransfer,
+  createStagedTransfer,
+  transferStageWriter,
+  verifyStagedTransferProof,
+} from "./branch-transfer-staging.ts";
+import {
   transferGateContext,
   transferReceiptContext,
   verifyTransferCommit,
@@ -11,6 +24,7 @@ import { requiredCiJobsPassed } from "./ci-required-jobs.ts";
 import {
   type PrCiScope,
   prCiScopeDescription,
+  readCurrentStagedTransferScope,
   readCurrentTransferScope,
 } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
@@ -25,7 +39,7 @@ import { takeProtectionReadToken, withProtectionReads } from "./protection-read-
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { resolveCiCapabilities } from "./resolve-ci-capabilities.ts";
 import { changedFiles, resolveCiControlDecision } from "./resolve-ci-control-ref.ts";
-import { isManagedTransferDirection } from "./resolve-pr-facts.ts";
+import { isManagedTransferDirection, isStagedTransferDirection } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import {
   hasValidStatusAttestation,
@@ -184,14 +198,18 @@ export function assertTransferReady(
   scope: PrCiScope,
   expected: string,
   pull: unknown,
-  titleFingerprint = ""
+  titleFingerprint = "",
+  stagingRef = ""
 ): string {
   const title = getJsonString(pull, "title").replace(/[\r\n]/g, " ");
   if (
     prCiScopeDescription(scope) !== expected ||
     !isJsonRecord(pull) ||
     pull.number !== scope.prNumber ||
-    !isManagedTransferDirection(pull, scope.repository) ||
+    (stagingRef
+      ? !isStagedTransferDirection(pull, scope.repository) ||
+        getJsonString(pull.head, "ref") !== stagingRef
+      : !isManagedTransferDirection(pull, scope.repository)) ||
     getJsonString(pull.base, "ref") !== scope.targetBranch ||
     pull.state !== "open" ||
     pull.draft !== false ||
@@ -216,9 +234,10 @@ async function main(): Promise<void> {
   const stage = process.argv[2];
   const repository = process.env.REPOSITORY ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
-  const headSha = process.env.SOURCE_SHA ?? "";
-  const prNumber = Number(process.env.PR_NUMBER ?? "");
-  const snapshot = process.env.TRANSFER_SNAPSHOT ?? "";
+  let headSha = process.env.SOURCE_SHA ?? "";
+  let prNumber = Number(process.env.PR_NUMBER ?? "");
+  let snapshot = process.env.TRANSFER_SNAPSHOT ?? "";
+  let stagingRef = process.env.TRANSFER_STAGING_REF ?? "";
   const isConfirmed = process.env.OPERATOR_CONFIRMED === "true";
   const runId = Number(process.env.GITHUB_RUN_ID ?? "");
   if (
@@ -270,6 +289,18 @@ async function main(): Promise<void> {
       runUrl,
       publish
     );
+    if (stagingRef) {
+      await closeUnusedStagedTransfer(
+        reader,
+        transferStageWriter(process.env.AW_TRANSFER_CLEANUP_TOKEN ?? ""),
+        repository,
+        prNumber,
+        headSha,
+        stagingRef,
+        runId,
+        runUrl
+      );
+    }
     return;
   }
   await assertManualBranchAuthorization(
@@ -305,10 +336,93 @@ async function main(): Promise<void> {
     );
   }
   await requireLiveProtection(reader, repository, controlRepository);
-  if ((await resolveTransferPrNumber(reader, repository, prNumber)) !== prNumber) {
-    throw new CliError("Transfer must use the locked PR number.", 75);
+  const originalPr = stagingRef ? Number(process.env.TRANSFER_ORIGINAL_PR ?? "") : prNumber;
+  const originalHead = stagingRef ? (process.env.TRANSFER_ORIGINAL_HEAD ?? "") : headSha;
+  const originalSnapshot = stagingRef ? (process.env.TRANSFER_ORIGINAL_SNAPSHOT ?? "") : snapshot;
+  const titleFingerprint = process.env.TRANSFER_TITLE_FINGERPRINT ?? "";
+  if (stage === "execute" && !/^[0-9a-f]{64}$/.test(titleFingerprint)) {
+    throw new CliError("Missing locked transfer title fingerprint.", 75);
   }
-  const observed = await readCurrentTransferScope(reader, repository, prNumber, headSha);
+  if ((await resolveTransferPrNumber(reader, repository, originalPr)) !== originalPr) {
+    throw new CliError("Transfer must use the locked original PR number.", 75);
+  }
+
+  const requireOriginalPlan = async (expectedTitle = titleFingerprint) => {
+    const plan = await readTransferPlan(reader, repository, originalPr, originalHead);
+    if (
+      transferPlanDescription(plan) !== originalSnapshot ||
+      (expectedTitle && prTitleFingerprint(plan.title) !== expectedTitle)
+    ) {
+      throw new CliError("Original transfer intent or title changed; authorize again.", 75);
+    }
+    return plan;
+  };
+
+  let stagedIntent: TransferIntent | undefined;
+  let observed: PrCiScope | undefined;
+  let originalTitle = "";
+  if (stage === "prepare" || stagingRef) {
+    const plan = await requireOriginalPlan();
+    originalTitle = plan.title;
+    const original = plan.kind === "direct" ? plan.scope : plan.intent;
+    const mainSha = original.targetBranch === "main" ? original.baseSha : originalHead;
+    const devSha = original.targetBranch === "dev" ? original.baseSha : originalHead;
+    await assertTrustedMainWrite(reader, repository, mainSha);
+    await assertTrustedDevWrite(reader, repository, devSha, controlRepository);
+    if (plan.kind === "noop") {
+      if (stage !== "prepare") {
+        throw new CliError("Original transfer became empty after preparation.", 75);
+      }
+      await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+        "## No content transfer required",
+        "The protected source is already represented in the target. Neither branch was changed.",
+      ]);
+      return;
+    }
+    if (stage === "prepare" && !isConfirmed) {
+      await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+        `Transfer mode: ${plan.kind}. Check only; no staging ref, PR or merge gate was created.`,
+      ]);
+      return;
+    }
+    if (plan.kind === "direct") {
+      if (stagingRef) throw new CliError("Staged transfer cannot become a direct transfer.", 75);
+      observed = plan.scope;
+    } else {
+      stagedIntent = plan.intent;
+      if (stage === "prepare") {
+        const prepared = await createStagedTransfer(
+          reader,
+          transferStageWriter(process.env.AW_TRANSFER_STAGE_TOKEN ?? ""),
+          publish,
+          stagedIntent,
+          originalTitle,
+          runId,
+          async () => {
+            const current = await requireOriginalPlan(prTitleFingerprint(originalTitle));
+            if (current.kind !== "staged") {
+              throw new CliError("Original staged transfer intent changed.", 75);
+            }
+          }
+        );
+        observed = prepared.scope;
+        stagingRef = prepared.ref;
+        headSha = observed.headSha;
+        prNumber = observed.prNumber;
+        snapshot = prCiScopeDescription(observed);
+      } else {
+        observed = await readCurrentStagedTransferScope(
+          reader,
+          repository,
+          prNumber,
+          headSha,
+          stagingRef
+        );
+      }
+    }
+  } else {
+    observed = await readCurrentTransferScope(reader, repository, prNumber, headSha);
+  }
   if (!observed) throw new CliError("Transfer snapshot is unavailable.", 75);
   const scope =
     stage === "execute"
@@ -320,19 +434,32 @@ async function main(): Promise<void> {
   await requireEquivalentTransferSnapshot(reader, scope, observed);
   const pullPath = `repos/${repository}/pulls/${prNumber}`;
   const pull = await reader.get(pullPath);
-  const titleFingerprint = process.env.TRANSFER_TITLE_FINGERPRINT ?? "";
-  if (stage === "execute" && !/^[0-9a-f]{64}$/.test(titleFingerprint)) {
-    throw new CliError("Missing locked transfer title fingerprint.", 75);
+  const title = assertTransferReady(scope, snapshot, pull, titleFingerprint, stagingRef);
+  if (originalTitle && title !== originalTitle) {
+    throw new CliError("Staged PR title differs from the authorized original.", 75);
   }
-  const title = assertTransferReady(scope, snapshot, pull, titleFingerprint);
   assertTransferCompare(
     scope,
     await reader.get(`repos/${repository}/compare/${scope.baseSha}...${scope.headSha}`)
   );
-  const mainSha = scope.targetBranch === "main" ? scope.baseSha : scope.headSha;
-  const devSha = scope.targetBranch === "dev" ? scope.baseSha : scope.headSha;
-  await assertTrustedMainWrite(reader, repository, mainSha);
-  await assertTrustedDevWrite(reader, repository, devSha, controlRepository);
+  if (stage === "execute" && !stagingRef) {
+    const mainSha = scope.targetBranch === "main" ? scope.baseSha : scope.headSha;
+    const devSha = scope.targetBranch === "dev" ? scope.baseSha : scope.headSha;
+    await assertTrustedMainWrite(reader, repository, mainSha);
+    await assertTrustedDevWrite(reader, repository, devSha, controlRepository);
+  }
+  const requireStagingProof = async () => {
+    if (!stagingRef || !stagedIntent) return;
+    const current = await requireOriginalPlan(prTitleFingerprint(title));
+    if (current.kind !== "staged") {
+      throw new CliError("Original transfer intent changed before merge.", 75);
+    }
+    const proof = await verifyStagedTransferProof(reader, scope, stagingRef, runId, runUrl);
+    if (transferIntentDescription(proof.intent) !== transferPlanDescription(current)) {
+      throw new CliError("Staged transfer proof does not match the live original intent.", 75);
+    }
+  };
+  if (stage === "execute") await requireStagingProof();
   const gateContext = transferGateContext(scope.targetBranch);
   const sourceStatuses = await reader.get(`repos/${repository}/commits/${scope.headSha}/status`);
   if (latestCiStatus(sourceStatuses, gateContext)?.state === "success") {
@@ -343,31 +470,56 @@ async function main(): Promise<void> {
   }
 
   if (stage === "prepare") {
-    const decision = resolveCiControlDecision(
-      repository,
-      headSha,
-      pull,
-      await changedFiles(repository, String(prNumber), controlToken),
-      scope.targetBranch,
-      true
-    );
-    const controlRef = decision.candidate_control ? scope.headSha : scope.baseSha;
-    const capabilities = await resolveCiCapabilities(repository, controlRef, controlToken, false);
-    await appendLines(process.env.GITHUB_OUTPUT, [
-      `repository=${repository}`,
-      `owner=${repository.split("/")[0]}`,
-      `repository_name=${repository.split("/")[1]}`,
-      `pr_number=${prNumber}`,
-      `base_sha=${scope.baseSha}`,
-      `head_sha=${scope.headSha}`,
-      `merge_sha=${scope.mergeSha}`,
-      `target_branch=${scope.targetBranch}`,
-      `title=${title}`,
-      `title_fingerprint=${prTitleFingerprint(title)}`,
-      `control_ref=${controlRef}`,
-      `has_windows=${capabilities.has_windows}`,
-      `linux_shards=${JSON.stringify(capabilities.linux_shards)}`,
-    ]);
+    try {
+      // For a staged PR, check the original maintainer trust against the actual staged diff.
+      const originalPull = stagingRef
+        ? await reader.get(`repos/${repository}/pulls/${originalPr}`)
+        : pull;
+      const decision = resolveCiControlDecision(
+        repository,
+        originalHead,
+        originalPull,
+        await changedFiles(repository, String(prNumber), controlToken),
+        scope.targetBranch,
+        true
+      );
+      const controlRef = decision.candidate_control ? scope.headSha : scope.baseSha;
+      const capabilities = await resolveCiCapabilities(repository, controlRef, controlToken, false);
+      await appendLines(process.env.GITHUB_OUTPUT, [
+        `repository=${repository}`,
+        `owner=${repository.split("/")[0]}`,
+        `repository_name=${repository.split("/")[1]}`,
+        `pr_number=${prNumber}`,
+        `base_sha=${scope.baseSha}`,
+        `head_sha=${scope.headSha}`,
+        `merge_sha=${scope.mergeSha}`,
+        `target_branch=${scope.targetBranch}`,
+        `title=${title}`,
+        `title_fingerprint=${prTitleFingerprint(title)}`,
+        `transfer_snapshot=${snapshot}`,
+        `staging_ref=${stagingRef}`,
+        `original_pr=${originalPr}`,
+        `original_head=${originalHead}`,
+        `original_snapshot=${originalSnapshot}`,
+        `control_ref=${controlRef}`,
+        `has_windows=${capabilities.has_windows}`,
+        `linux_shards=${JSON.stringify(capabilities.linux_shards)}`,
+      ]);
+    } catch (error) {
+      if (stagingRef) {
+        await closeUnusedStagedTransfer(
+          reader,
+          transferStageWriter(process.env.AW_TRANSFER_STAGE_TOKEN ?? ""),
+          repository,
+          prNumber,
+          headSha,
+          stagingRef,
+          runId,
+          runUrl
+        );
+      }
+      throw error;
+    }
     return;
   }
 
@@ -396,12 +548,15 @@ async function main(): Promise<void> {
       hasAttemptedHeadGrant
     );
   const requireCurrent = async (): Promise<PrCiScope> => {
-    const current = await readCurrentTransferScope(reader, repository, prNumber, headSha);
+    await requireStagingProof();
+    const current = stagingRef
+      ? await readCurrentStagedTransferScope(reader, repository, prNumber, headSha, stagingRef)
+      : await readCurrentTransferScope(reader, repository, prNumber, headSha);
     if (!current) {
       throw new CliError("Transfer snapshot changed; a new manual authorization is required.", 75);
     }
     await requireEquivalentTransferSnapshot(reader, scope, current);
-    assertTransferReady(scope, snapshot, await reader.get(pullPath), titleFingerprint);
+    assertTransferReady(scope, snapshot, await reader.get(pullPath), titleFingerprint, stagingRef);
     await requireExclusiveTransferHead(reader, scope);
     return current;
   };
@@ -466,6 +621,13 @@ async function main(): Promise<void> {
           await publish(sha, gateContext, "failure", snapshot);
         }
       }
+    }
+  }
+  if (stagedIntent) {
+    try {
+      await closeOriginalTransfer(reader, transferStageWriter(mergeToken), stagedIntent, writeSha);
+    } catch {
+      console.log("::warning::Staged transfer merged; original PR closure requires inspection.");
     }
   }
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [

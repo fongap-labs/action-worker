@@ -76,13 +76,27 @@ test("branch authorization reuses admin-ops and never signs an unchecked request
   assert.ok(steps.indexOf(ref) < steps.indexOf(approve));
   assert.equal(approve.env?.AW_DEV_REF_TOKEN, "${{ steps.ref_app.outputs.token }}");
   assert.doesNotMatch(source, /name: branch-transfer/);
-  assert.equal(source.match(/permission-contents: write/g)?.length, 2);
-  assert.equal(source.match(/permission-pull-requests: write/g)?.length, 1);
+  assert.equal(source.match(/permission-contents: write/g)?.length, 3);
+  assert.equal(source.match(/permission-pull-requests: write/g)?.length, 3);
   assert.ok(source.includes("needs.transfer-governance.result == 'success'"));
   assert.ok(source.includes("needs.transfer-linux.result == 'success'"));
   assert.ok(source.includes("scripts/branch-transfer-execution.ts execute"));
   assert.ok(source.includes("scripts/branch-transfer-execution.ts cleanup"));
   assert.ok(source.includes("TRANSFER_MERGE_SHA:"));
+  const stageWriter = steps.find((step) => step.name === "Mint scoped staging creation token");
+  assert.equal(
+    stageWriter?.if,
+    "inputs.confirm && inputs.operation == 'transfer' && steps.plan.outputs.transfer_mode == 'staged'"
+  );
+  const execute = workflow.jobs["transfer-execute"]!.steps;
+  for (const name of ["Mint scoped transfer merge token", "Execute verified immutable transfer"]) {
+    const step = execute.find((candidate) => candidate.name === name);
+    assert.ok(step?.if?.includes("needs.transfer-governance.result == 'success'"));
+    assert.ok(step?.if?.includes("needs.transfer-linux.result == 'success'"));
+    assert.ok(step?.if?.includes("needs.transfer-windows.result == 'success'"));
+  }
+  assert.ok(source.includes("TRANSFER_ORIGINAL_SNAPSHOT:"));
+  assert.ok(source.includes("AW_TRANSFER_CLEANUP_TOKEN:"));
   assert.ok(source.includes("if: always() && steps.transfer_status.outputs.token != ''"));
 });
 

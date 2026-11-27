@@ -11,7 +11,7 @@ import {
   runGithubCli,
 } from "./github-api.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
-import { isManagedBranchRef } from "./resolve-pr-facts.ts";
+import { isReservedMergeSourceRef } from "./resolve-pr-facts.ts";
 import { CliError, handleError, isMain, parseJson, runText } from "./runtime-command.ts";
 
 type Decision = {
@@ -63,7 +63,9 @@ export function parseBranchPruneManifest(raw: string, defaultBranch: string): Br
 }
 
 export function isProtectedBranch(branch: string, defaultBranch: string): boolean {
-  return isManagedBranchRef(branch) || branch === defaultBranch || branch.startsWith("legacy/");
+  return (
+    isReservedMergeSourceRef(branch) || branch === defaultBranch || branch.startsWith("legacy/")
+  );
 }
 
 function openPullHeads(value: unknown): Set<string> {

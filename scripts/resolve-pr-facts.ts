@@ -11,6 +11,31 @@ export function isManagedBranchRef(ref: string): boolean {
   return ref === "main" || ref === "dev";
 }
 
+/** The entire namespace is excluded from ordinary CI and merge paths, including malformed names. */
+export function isReservedMergeSourceRef(ref: string): boolean {
+  return isManagedBranchRef(ref) || ref === "aw-transfer" || ref.startsWith("aw-transfer/");
+}
+
+export function stagedTransferSource(ref: string): "main" | "dev" | undefined {
+  const match = /^aw-transfer\/(main|dev)\/[1-9][0-9]*\/[1-9][0-9]*$/.exec(ref);
+  return match?.[1] === "main" ? "main" : match?.[1] === "dev" ? "dev" : undefined;
+}
+
+export function isStagedTransferDirection(pull: unknown, repository: string): boolean {
+  if (!isJsonRecord(pull)) return false;
+  const base = isJsonRecord(pull.base) ? pull.base : {};
+  const head = isJsonRecord(pull.head) ? pull.head : {};
+  const source = stagedTransferSource(getJsonString(head, "ref"));
+  const target = getJsonString(base, "ref");
+  return (
+    source !== undefined &&
+    isManagedBranchRef(target) &&
+    source !== target &&
+    getJsonString(head.repo, "full_name") === repository &&
+    getJsonString(base.repo, "full_name") === repository
+  );
+}
+
 export function isManagedTransferDirection(pull: unknown, repository: string): boolean {
   if (!isJsonRecord(pull)) return false;
   const base = isJsonRecord(pull.base) ? pull.base : {};
@@ -27,7 +52,7 @@ export function isManagedTransferDirection(pull: unknown, repository: string): b
 }
 
 export function hasManagedPullHead(pull: unknown): boolean {
-  return isJsonRecord(pull) && isManagedBranchRef(getJsonString(pull.head, "ref"));
+  return isJsonRecord(pull) && isReservedMergeSourceRef(getJsonString(pull.head, "ref"));
 }
 
 // The existing main-only admission path cannot authorize transfers from a managed branch.
@@ -38,7 +63,9 @@ export function isGovernedPullDirection(pull: unknown, targetBranch = "main"): b
   const head = isJsonRecord(pull.head) ? pull.head : {};
   const headRef = getJsonString(head, "ref");
   return (
-    getJsonString(base, "ref") === targetBranch && headRef !== "" && !isManagedBranchRef(headRef)
+    getJsonString(base, "ref") === targetBranch &&
+    headRef !== "" &&
+    !isReservedMergeSourceRef(headRef)
   );
 }
 

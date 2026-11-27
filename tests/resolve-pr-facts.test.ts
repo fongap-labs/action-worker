@@ -4,6 +4,7 @@ import {
   hasManagedPullHead,
   isGovernedPullDirection,
   isManagedTransferDirection,
+  isStagedTransferDirection,
   legacyDevIntakeWake,
   resolvePullDiffBaseSha,
 } from "../scripts/resolve-pr-facts.ts";
@@ -128,4 +129,32 @@ test("managed transfers never enter ordinary governance", () => {
     );
   }
   assert.equal(hasManagedPullHead({ head: { ref: "fix/example" } }), false);
+});
+
+test("the complete staging namespace is reserved and cannot enter ordinary PR governance", () => {
+  const repo = { full_name: repository };
+  const pull = {
+    state: "open",
+    head: { ref: "aw-transfer/dev/103/42", repo },
+    base: { ref: "main", repo },
+  };
+  assert.equal(isStagedTransferDirection(pull, repository), true);
+  assert.equal(isManagedTransferDirection(pull, repository), false);
+  for (const ref of ["aw-transfer", "aw-transfer/invalid", pull.head.ref]) {
+    const candidate = { ...pull, head: { ...pull.head, ref } };
+    assert.equal(hasManagedPullHead(candidate), true);
+    assert.equal(isGovernedPullDirection(candidate), false);
+    assert.equal(legacyDevIntakeWake(candidate, repository), false);
+  }
+  assert.equal(
+    isStagedTransferDirection({ ...pull, base: { ref: "dev", repo } }, repository),
+    false
+  );
+  assert.equal(
+    isStagedTransferDirection(
+      { ...pull, head: { ...pull.head, repo: { full_name: "other/fork" } } },
+      repository
+    ),
+    false
+  );
 });

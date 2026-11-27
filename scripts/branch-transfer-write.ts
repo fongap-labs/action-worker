@@ -1,8 +1,9 @@
+import { verifyStagedTransferProof } from "./branch-transfer-staging.ts";
 import { hasVerifiedControlStatus, type JsonReader, trustedControlRunId } from "./ci-evidence.ts";
 import { type PrCiScope, prCiScopeDescription } from "./ci-scope-receipt.ts";
 import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import type { ManagedBranch } from "./managed-branch-provenance.ts";
-import { isManagedTransferDirection } from "./resolve-pr-facts.ts";
+import { isManagedTransferDirection, isStagedTransferDirection } from "./resolve-pr-facts.ts";
 import { CliError } from "./runtime-command.ts";
 import {
   latestAttestedStatus,
@@ -40,7 +41,8 @@ export function verifyTransferCommit(
     pull.number !== scope.prNumber ||
     pull.state !== "closed" ||
     pull.merged !== true ||
-    !isManagedTransferDirection(pull, scope.repository) ||
+    (!isManagedTransferDirection(pull, scope.repository) &&
+      !isStagedTransferDirection(pull, scope.repository)) ||
     getJsonString(pull.base, "ref") !== scope.targetBranch ||
     getJsonString(pull.head, "sha") !== scope.headSha ||
     getJsonString(pull, "merge_commit_sha") !== writeSha ||
@@ -121,6 +123,28 @@ export async function verifyRecordedTransferWrite(
   };
   const snapshot = await reader.get(`${prefix}/git/commits/${scope.mergeSha}`);
   verifyTransferCommit(scope, writeSha, pull, commit, snapshot);
+  if (isStagedTransferDirection(pull, repository)) {
+    if (!isJsonRecord(pull)) throw new CliError("Invalid staged transfer PR.", 65);
+    const preparation = await verifyStagedTransferProof(
+      reader,
+      scope,
+      getJsonString(pull.head, "ref"),
+      runId,
+      runUrl
+    );
+    if (
+      preparation.createdAt > mergedAt ||
+      !(await hasVerifiedControlStatus(reader, preparation.statuses, "Transfer Preparation", {
+        controlRepository,
+        targetRepository: repository,
+        targetSha: headSha,
+        workflowPaths: [transferWorkflowPath],
+        runAttempts: 1,
+      }))
+    ) {
+      throw new CliError("Staged transfer preparation is not independently verified.", 65);
+    }
+  }
   const receiptAt = Date.parse(getJsonString(receipt, "created_at"));
   const gateContext = transferGateContext(targetBranch);
   const gateStatuses = await reader.get(`${prefix}/commits/${scope.mergeSha}/status`);

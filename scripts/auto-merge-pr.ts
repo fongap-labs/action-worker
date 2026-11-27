@@ -5,7 +5,7 @@ import { loadGateContract, requiredGateContexts } from "./governance-gate-contra
 import { sleep } from "./lib/promise-delay-runtime.ts";
 import { squashManagedPull } from "./managed-pr-squash.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
-import { isManagedBranchRef } from "./resolve-pr-facts.ts";
+import { isReservedMergeSourceRef } from "./resolve-pr-facts.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { latestAttestedStatus, originalStatusDescription } from "./status-attestation.ts";
 
@@ -101,7 +101,7 @@ export function assertReadyForAutomaticMerge(
   ) {
     throw new CliError("Pull request head or base changed since central CI; revalidate first.", 75);
   }
-  if (isManagedBranchRef(getJsonString(head, "ref"))) {
+  if (isReservedMergeSourceRef(getJsonString(head, "ref"))) {
     throw new CliError("Managed branch transfer requires separate human authorization.", 75);
   }
   assertSignedMergeGates(pull, statuses, repository, headSha, governanceRunUrl);
@@ -114,7 +114,7 @@ export function mustRefreshBehindBranch(pull: unknown, repository: string): bool
   const headRepo = isJsonRecord(head.repo) ? head.repo : {};
   const baseRepo = isJsonRecord(base.repo) ? base.repo : {};
   return (
-    !isManagedBranchRef(getJsonString(head, "ref")) &&
+    !isReservedMergeSourceRef(getJsonString(head, "ref")) &&
     getJsonString(base, "ref") === "main" &&
     getJsonString(headRepo, "full_name") === repository &&
     getJsonString(baseRepo, "full_name") === repository
@@ -195,7 +195,7 @@ export function isApprovedCompletedMerge(
     pull.number !== prNumber ||
     !SHA.test(getJsonString(pull, "merge_commit_sha")) ||
     getJsonString(pull.head, "sha") !== headSha ||
-    isManagedBranchRef(getJsonString(pull.head, "ref")) ||
+    isReservedMergeSourceRef(getJsonString(pull.head, "ref")) ||
     getJsonString(pull.base, "ref") !== "main"
   ) {
     return false;
