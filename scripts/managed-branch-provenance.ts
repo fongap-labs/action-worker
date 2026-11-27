@@ -45,7 +45,7 @@ export async function resolveManagedBranchMerge(
   targetBranch: ManagedBranch,
   writeSha: string,
   commit: unknown
-): Promise<{ pr_number: number; pr_head_sha: string }> {
+): Promise<{ pr_number: number; pr_head_sha: string; managed_source?: ManagedBranch }> {
   if (
     !repositoryPattern.test(repository) ||
     (targetBranch !== "main" && targetBranch !== "dev") ||
@@ -110,5 +110,10 @@ export async function resolveManagedBranchMerge(
     );
   }
 
-  return { pr_number: prNumber, pr_head_sha: prHeadSha };
+  const source = isJsonRecord(pr) ? getJsonString(pr.head, "ref") : "";
+  return {
+    pr_number: prNumber,
+    pr_head_sha: prHeadSha,
+    ...(source === "main" || source === "dev" ? { managed_source: source } : {}),
+  };
 }

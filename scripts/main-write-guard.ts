@@ -1,3 +1,4 @@
+import { TransferWritePendingError, verifyRecordedTransferWrite } from "./branch-transfer-write.ts";
 import {
   completedPrRunReader,
   controlRepositoryOf,
@@ -368,15 +369,33 @@ export async function validateMainWriteProvenance(
     };
   }
 
-  const { pr_number: prNumber, pr_head_sha: prHeadSha } = await resolveManagedBranchMerge(
-    reader,
-    repository,
-    "main",
-    mainSha,
-    commit
-  );
+  const {
+    pr_number: prNumber,
+    pr_head_sha: prHeadSha,
+    managed_source: managedSource,
+  } = await resolveManagedBranchMerge(reader, repository, "main", mainSha, commit);
 
-  if (isCentralStatusRequired) {
+  if (managedSource) {
+    if (managedSource !== "dev" || !isCentralStatusRequired) {
+      throw new CliError("Invalid protected main transfer source.", 65);
+    }
+    try {
+      await verifyRecordedTransferWrite(
+        reader,
+        repository,
+        "main",
+        mainSha,
+        prNumber,
+        prHeadSha,
+        getControlRepository()
+      );
+    } catch (error) {
+      if (error instanceof TransferWritePendingError) {
+        throw new MainWriteVerificationPendingError(error.message, 75);
+      }
+      throw error;
+    }
+  } else if (isCentralStatusRequired) {
     await requireCentralPrEvidence(reader, repository, prHeadSha);
   } else {
     await requireLocalMergeCheck(reader, repository, prHeadSha);
