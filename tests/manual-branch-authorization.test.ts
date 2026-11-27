@@ -37,7 +37,10 @@ test("branch authorization reuses admin-ops and never signs an unchecked request
   assert.equal(plan.if, undefined);
   assert.equal(verify.if, "inputs.confirm");
   assert.equal(approve.if, "inputs.confirm");
-  assert.equal(mint.if, "inputs.confirm && inputs.operation == 'initialize-dev'");
+  assert.equal(
+    mint.if,
+    "inputs.confirm && (inputs.operation == 'initialize-dev' || inputs.operation == 'adopt-dev')"
+  );
   assert.ok(steps.indexOf(plan) < steps.indexOf(verify));
   assert.ok(steps.indexOf(verify) < steps.indexOf(mint));
   assert.ok(steps.indexOf(mint) < steps.indexOf(approve));
