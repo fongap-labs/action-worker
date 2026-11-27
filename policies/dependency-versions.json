@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "mode": "advisory",
+  "default_class": "project",
+  "catalog": {
+    "tool:node": { "class": "toolchain", "version": "24.22.3" },
+    "tool:python": { "class": "toolchain", "version": "3.12" },
+    "tool:pnpm": { "class": "toolchain", "version": "11.28.5" },
+    "tool:npm": { "class": "toolchain", "version": null },
+    "tool:rust": { "class": "toolchain", "version": null },
+    "tool:uv": { "class": "toolchain", "version": null },
+    "tool:git": { "class": "toolchain", "version": null },
+    "npm:typescript": { "class": "engineering", "version": "7.0.2" },
+    "npm:@biomejs/biome": { "class": "engineering", "version": "2.6.4" },
+    "npm:@types/node": { "class": "engineering", "version": null },
+    "npm:vitest": { "class": "engineering", "version": null },
+    "npm:eslint": { "class": "engineering", "version": null },
+    "python:ruff": { "class": "engineering", "version": null },
+    "npm:react": { "class": "framework", "version": null },
+    "npm:vite": { "class": "framework", "version": null },
+    "npm:zod": { "class": "framework", "version": null },
+    "npm:wrangler": { "class": "framework", "version": null },
+    "npm:electron": { "class": "framework", "version": null }
+  },
+  "exceptions": []
+}

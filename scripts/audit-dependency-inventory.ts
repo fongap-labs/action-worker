@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import {
+  type DeclarationStatus,
+  type DependencyPolicy,
+  evaluateDeclaration,
+  parseDependencyPolicy,
+} from "./dependency-version-policy.ts";
+import {
   decodeGithubContent,
   GithubReader,
   getGithubJsonIfExists,
@@ -241,7 +247,9 @@ export async function inventoryDependencies(
   reader: Reader,
   inventory: readonly InventoryRepo[],
   organization: string,
-  exclusions: readonly string[]
+  exclusions: readonly string[],
+  policy: DependencyPolicy,
+  today: string
 ) {
   const seen = new Set<string>();
   const publicRefs: Array<{
@@ -253,6 +261,20 @@ export async function inventoryDependencies(
     unsupported: number;
   }> = [];
   const groups = new Map<string, Map<string, Set<string>>>();
+  const policyCounts: Record<DeclarationStatus, number> = {
+    matching: 0,
+    different: 0,
+    "range-review": 0,
+    excepted: 0,
+    observe: 0,
+  };
+  const publicPolicyFindings: Array<{
+    repository: string;
+    branch: Branch;
+    key: string;
+    version: string;
+    status: DeclarationStatus;
+  }> = [];
   let privateRepositories = 0;
   let incomplete = 0;
   let skipped = 0;
@@ -275,6 +297,30 @@ export async function inventoryDependencies(
     for (const branch of ["main", "dev"] as const) {
       const result = await inspectRef(reader, repo.full_name, branch);
       if (result.state === "incomplete") incomplete++;
+      if (result.state === "scanned") {
+        const unique = new Map(
+          result.declarations.map((item) => [JSON.stringify([item.key, item.version]), item])
+        );
+        for (const declaration of unique.values()) {
+          const status = evaluateDeclaration(
+            policy,
+            repo.full_name,
+            branch,
+            declaration.key,
+            declaration.version,
+            today
+          );
+          policyCounts[status]++;
+          if (!repo.private && status !== "observe" && status !== "matching") {
+            publicPolicyFindings.push({
+              repository: repo.full_name,
+              branch,
+              ...declaration,
+              status,
+            });
+          }
+        }
+      }
       if (repo.private) continue;
       publicRefs.push({
         repository: repo.full_name,
@@ -317,6 +363,10 @@ export async function inventoryDependencies(
     incomplete_refs: incomplete,
     public_refs: publicRefs,
     common_public_dependencies: common,
+    policy_mode: policy.mode,
+    policy_counts: policyCounts,
+    expired_exception_count: policy.exceptions.filter((item) => item.expires_on < today).length,
+    public_policy_findings: publicPolicyFindings,
     automatic_writes: false,
     resolved_lock_versions_scanned: false,
   };
@@ -336,6 +386,10 @@ async function main(): Promise<void> {
     ) {
       throw new Error("Invalid access policy.");
     }
+    const versionPolicy = parseDependencyPolicy(
+      JSON.parse(await readFile("policies/dependency-versions.json", "utf8")),
+      policy.organization
+    );
     const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token, {
       attemptLimit: 2,
       timeoutMs: 10000,
@@ -344,7 +398,9 @@ async function main(): Promise<void> {
       reader,
       await readInstallationInventory(reader),
       policy.organization,
-      policy.excluded_repositories as string[]
+      policy.excluded_repositories as string[],
+      versionPolicy,
+      new Date().toISOString().slice(0, 10)
     );
     console.log(JSON.stringify(result));
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
@@ -358,6 +414,11 @@ async function main(): Promise<void> {
       "Different public declarations: " +
         result.common_public_dependencies.filter((item) => item.differentDeclarations).length,
       "",
+      "Central version policy: " + result.policy_mode,
+      "Exact declaration differences: " + result.policy_counts.different,
+      "Ranges needing review: " + result.policy_counts["range-review"],
+      "Active exceptions matched: " + result.policy_counts.excepted,
+      "Expired exceptions: " + result.expired_exception_count,
       "See the structured log for public branch observations and version differences.",
       "Declaration differences are informational; lock resolution and compatibility are not verified.",
     ]);
