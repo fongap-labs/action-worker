@@ -14,6 +14,11 @@ import {
   getJsonString,
   isJsonRecord,
 } from "./github-api.ts";
+import {
+  type LocatedDeclaration,
+  planDependencyRemediation,
+  type RemediationPlan,
+} from "./plan-dependency-remediation.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import { type InventoryRepo, readInstallationInventory } from "./security-coverage-audit.ts";
 
@@ -27,6 +32,9 @@ type Observation = {
   locks: number;
   unsupported: number;
   declarations: Declaration[];
+  located: LocatedDeclaration[];
+  lockPaths: string[];
+  baseSha: string | null;
 };
 
 const shaPattern = /^[a-f0-9]{40}$/;
@@ -181,6 +189,9 @@ export async function inspectRef(
     locks: 0,
     unsupported: 0,
     declarations: [],
+    located: [],
+    lockPaths: [],
+    baseSha: null,
   };
   try {
     const prefix = "repos/" + repository;
@@ -207,7 +218,12 @@ export async function inspectRef(
         continue;
       }
       const name = entry.path.split("/").at(-1) ?? "";
-      if (lockPattern.test(name) && entry.type === "blob") result.locks++;
+      if (lockPattern.test(name) && entry.type === "blob") {
+        result.locks++;
+        if (["100644", "100755"].includes(getJsonString(entry, "mode"))) {
+          result.lockPaths.push(entry.path);
+        }
+      }
       if (!manifestPattern.test(name)) continue;
       result.manifests++;
       if (
@@ -228,6 +244,13 @@ export async function inspectRef(
         if (Buffer.byteLength(content) !== entry.size) throw new Error("Invalid blob size.");
         const parsed = inspectManifest(entry.path, content);
         result.declarations.push(...parsed.declarations);
+        for (const declaration of parsed.declarations) {
+          result.located.push({
+            ...declaration,
+            path: entry.path,
+            blob_sha: getJsonString(entry, "sha"),
+          });
+        }
         result.unsupported += parsed.unsupported;
       } catch {
         isIncomplete = true;
@@ -236,7 +259,10 @@ export async function inspectRef(
     const latest = await reader.get(prefix + "/branches/" + branch);
     if (!isJsonRecord(latest) || getJsonString(latest.commit, "sha") !== commit)
       isIncomplete = true;
-    if (!isIncomplete) result.state = "scanned";
+    if (!isIncomplete) {
+      result.state = "scanned";
+      result.baseSha = commit;
+    }
   } catch {
     // Public audit logs must never expose private API paths or upstream error bodies.
   }
@@ -275,6 +301,10 @@ export async function inventoryDependencies(
     version: string;
     status: DeclarationStatus;
   }> = [];
+  const publicPlans: RemediationPlan[] = [];
+  let privatePlanCount = 0;
+  let planCount = 0;
+  let reviewCount = 0;
   let privateRepositories = 0;
   let incomplete = 0;
   let skipped = 0;
@@ -298,6 +328,22 @@ export async function inventoryDependencies(
       const result = await inspectRef(reader, repo.full_name, branch);
       if (result.state === "incomplete") incomplete++;
       if (result.state === "scanned") {
+        if (!result.baseSha) throw new Error("Scanned branch has no base SHA.");
+        const plan = planDependencyRemediation(
+          policy,
+          repo.full_name,
+          branch,
+          result.baseSha,
+          result.located,
+          result.lockPaths,
+          today
+        );
+        if (plan.changes.length > 0) {
+          planCount++;
+          reviewCount += plan.changes.filter((item) => item.strategy === "manual-review").length;
+          if (repo.private) privatePlanCount++;
+          else publicPlans.push(plan);
+        }
         const unique = new Map(
           result.declarations.map((item) => [JSON.stringify([item.key, item.version]), item])
         );
@@ -367,6 +413,10 @@ export async function inventoryDependencies(
     policy_counts: policyCounts,
     expired_exception_count: policy.exceptions.filter((item) => item.expires_on < today).length,
     public_policy_findings: publicPolicyFindings,
+    remediation_plan_count: planCount,
+    private_remediation_plan_count: privatePlanCount,
+    remediation_manual_review_count: reviewCount,
+    public_remediation_plans: publicPlans,
     automatic_writes: false,
     resolved_lock_versions_scanned: false,
   };
@@ -419,6 +469,9 @@ async function main(): Promise<void> {
       "Ranges needing review: " + result.policy_counts["range-review"],
       "Active exceptions matched: " + result.policy_counts.excepted,
       "Expired exceptions: " + result.expired_exception_count,
+      "Branch remediation plans: " + result.remediation_plan_count,
+      "Private branch plans (details withheld): " + result.private_remediation_plan_count,
+      "Declaration changes requiring manual review: " + result.remediation_manual_review_count,
       "See the structured log for public branch observations and version differences.",
       "Declaration differences are informational; lock resolution and compatibility are not verified.",
     ]);
