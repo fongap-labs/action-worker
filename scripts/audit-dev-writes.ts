@@ -1,4 +1,9 @@
 import { readFileSync } from "node:fs";
+import {
+  hasBetaPushGrant,
+  parseBetaDeployTargets,
+  readBetaDeployPolicy,
+} from "./beta-deploy-authorization.ts";
 import type { JsonReader } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
 import { deleteTemporaryDevGuard } from "./create-protected-dev.ts";
@@ -34,8 +39,12 @@ import {
   takeProtectionReadToken,
   withProtectionReads,
 } from "./protection-read-scope.ts";
-import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
-import { CliError, handleError, isMain } from "./runtime-command.ts";
+import {
+  hasRepositoryCapability,
+  readRepositoryPolicyText,
+  repositoriesForCapability,
+} from "./repository-policy.ts";
+import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import {
   latestAttestedStatus,
   originalStatusDescription,
@@ -108,7 +117,8 @@ async function main(): Promise<void> {
   }
   const statusToken = requireToken("status");
   const issueToken = requireToken("issue");
-  const repositories = repositoriesForCapability(JSON.parse(readRepositoryPolicyText()), "pr");
+  const repositoryPolicy: unknown = JSON.parse(readRepositoryPolicyText());
+  const repositories = repositoriesForCapability(repositoryPolicy, "pr");
   const ordinaryReader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
     requireToken("control"),
@@ -121,6 +131,8 @@ async function main(): Promise<void> {
   const rulesetPolicy: unknown = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
   const automatic = isJsonRecord(rulesetPolicy) && rulesetPolicy.dev_merge_mode === "automatic";
   const context = managedBranchWriteContext("dev");
+  const betaTargets = parseBetaDeployTargets(readBetaDeployPolicy());
+  const wakeRepositories = new Set<string>();
   for (const repository of repositories) {
     const repo = await reader.get(`repos/${repository}`);
     if (!isJsonRecord(repo) || repo.full_name !== repository) {
@@ -134,11 +146,17 @@ async function main(): Promise<void> {
     if (!shaPattern.test(sha)) throw new CliError("Invalid development branch identity.", 65);
     const statuses = await reader.get(`repos/${repository}/commits/${sha}/status`);
     if (publisher && !matchesCompletedDevMerge(statuses, repository, sha, publisher)) continue;
+    const canWakeBeta =
+      publisher !== "" &&
+      repo.private === false &&
+      hasRepositoryCapability(repository, repositoryPolicy, "deploy") &&
+      hasBetaPushGrant(betaTargets, repository);
     let description: string;
     let state: "success" | "failure" | "pending";
     try {
       await assertNoOpenManagedWriteIncidents(reader, repository, "dev");
       if (await hasVerifiedDevWriteGuard(reader, repository, sha, statuses, controlRepository)) {
+        if (canWakeBeta) wakeRepositories.add(repository);
         continue;
       }
       if (publisher) {
@@ -223,7 +241,12 @@ async function main(): Promise<void> {
       description: signedStatusDescription(status),
     });
     console.log(`Dev write audit: ${repository}@${sha} ${state}`);
+    if (canWakeBeta && state === "success") wakeRepositories.add(repository);
   }
+  await appendLines(process.env.GITHUB_OUTPUT, [
+    `beta_push_wake=${wakeRepositories.size > 0}`,
+    `beta_push_repository=${wakeRepositories.size === 1 ? [...wakeRepositories][0] : ""}`,
+  ]);
 }
 
 if (isMain(import.meta.url)) {

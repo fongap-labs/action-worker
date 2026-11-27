@@ -6,6 +6,7 @@ import {
   resolveBetaDeployTarget,
   verifyBetaDeploySource,
 } from "./beta-deploy-authorization.ts";
+import { dispatchBetaPushDeploys } from "./beta-push-dispatch.ts";
 import { assertMainPublicationBranch } from "./branch-publication-policy.ts";
 import { hasVerifiedCiEvidence, type JsonReader, latestCiStatus } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
@@ -140,7 +141,7 @@ export async function scheduledDeployTargets(
         if (
           environment.environment !== "beta" ||
           grant?.allow_schedule !== true ||
-          environment.push_paths !== null
+          (environment.push_paths !== null && grant.allow_push !== true)
         ) {
           continue;
         }
@@ -498,12 +499,23 @@ async function main(): Promise<void> {
     results.push({ ...label, result: "dispatched" });
   }
 
+  const pushCount = await dispatchBetaPushDeploys({
+    reader,
+    repositoryPolicy: policy,
+    betaPolicy,
+    controlRepository,
+    onlyRepository: target,
+    eventType,
+    statusToken,
+    dispatch: (body) => dispatchDeploy(controlRepository, ingressToken, body),
+  });
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
     "## Scheduled deploys",
     "",
     `- Now: ${utcText(minuteFloor(now))} / ${beijingText(minuteFloor(now))}`,
     `- Lookback: ${lookbackMinutes} minutes`,
     `- Due: ${deploys.length}; dispatched: ${dispatched}`,
+    `- Beta push requests dispatched: ${pushCount}`,
     ...results.map(
       (item) =>
         `- ${item.repository} ${item.product} ${item.environment}: slot ${item.slot_utc} / ${item.slot_beijing} at ${item.commit.slice(0, 12)} — ${item.result}`
@@ -515,6 +527,7 @@ async function main(): Promise<void> {
       lookback_minutes: lookbackMinutes,
       due: deploys.length,
       dispatched,
+      beta_push_dispatched: pushCount,
       results,
     })
   );

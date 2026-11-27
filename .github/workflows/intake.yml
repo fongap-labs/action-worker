@@ -395,6 +395,7 @@ jobs:
           permission-issues: read
 
       - name: Audit managed dev branches
+        id: audit
         if: ${{ always() && steps.control_read_app.outputs.token != '' && steps.status_app.outputs.token != '' && steps.issue_app.outputs.token != '' }}
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
@@ -405,6 +406,30 @@ jobs:
           DEV_WRITE_AUDIT_TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
           DEV_WRITE_AUDIT_MODE: merge
         run: node scripts/audit-dev-writes.ts
+
+      - name: Mint control dispatch token
+        if: steps.audit.outputs.beta_push_wake == 'true'
+        id: beta_dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      # Intake is serialized; the next run can verify this completed audit publisher.
+      - name: Wake authorized Beta deployment intake
+        if: steps.audit.outputs.beta_push_wake == 'true'
+        env:
+          GH_TOKEN: ${{ steps.beta_dispatch_app.outputs.token }}
+          TARGET_REPOSITORY: ${{ steps.audit.outputs.beta_push_repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -cn --arg repository "$TARGET_REPOSITORY" \
+            '{event_type:"run-intake",client_payload:{repository:$repository}}' |
+            gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input -
 
   task-sources:
     # Task-source changes arrive through repository_dispatch or periodic reconciliation.
