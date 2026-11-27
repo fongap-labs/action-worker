@@ -7,6 +7,7 @@ import {
   buildNodeProposal,
   discoverProposalTargets,
   publishNodeProposal,
+  requiresProposalAuthorization,
 } from "../scripts/propose-dependency-update.ts";
 
 const repo = "fongap-labs/example";
@@ -180,4 +181,12 @@ test("engineering proposal resolves only catalogued dev dependencies", () => {
     privateResult.changes.find((item) => item.path === "package.json")?.content ?? ""
   );
   assert.equal(privateManifest.devDependencies.typescript, "6.0.3");
+});
+
+test("only changed public plans require administrator authorization and publish always does", () => {
+  assert.equal(requiresProposalAuthorization("compute", 1), false);
+  assert.equal(requiresProposalAuthorization("prepare", 0), false);
+  assert.equal(requiresProposalAuthorization("prepare", 1), true);
+  assert.equal(requiresProposalAuthorization("publish", 0), true);
+  assert.equal(requiresProposalAuthorization("publish", 1), true);
 });
