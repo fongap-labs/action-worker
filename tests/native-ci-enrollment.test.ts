@@ -58,10 +58,7 @@ test("native evidence pilot refuses malformed or duplicate enrollment policies",
 test("private dev always uses source-owned CI without a per-repository pilot list", () => {
   const empty = { schema_version: 1, repositories: [] };
   const repository = "fongap-labs/private-fixture";
-  assert.equal(
-    resolveNativeCiPilot(empty, repository, "true", "run-central-ci", "7", "dev"),
-    true
-  );
+  assert.equal(resolveNativeCiPilot(empty, repository, "true", "run-central-ci", "7", "dev"), true);
   assert.equal(
     resolveNativeCiPilot(empty, repository, "false", "run-central-ci", "7", "dev"),
     false
