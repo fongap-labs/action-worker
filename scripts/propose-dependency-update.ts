@@ -460,8 +460,7 @@ export function buildEngineeringProposal(
       const key = "npm:" + name;
       const entry = policy.catalog.get(key);
       if (
-        !entry ||
-        entry.class !== "engineering" ||
+        entry?.class !== "engineering" ||
         !entry.version ||
         !/^\d+\.\d+\.\d+$/.test(entry.version) ||
         typeof version !== "string" ||
@@ -553,8 +552,7 @@ export function buildEngineeringProposal(
       const heading = /^## \[Unreleased\]\r?$/gm;
       const marker = "- 维护: 同步中央通用工程依赖及包管理器版本。";
       if (
-        !changelog ||
-        changelog.split(/\r?\n/, 1)[0] !== "# 更新日志" ||
+        changelog?.split(/\r?\n/, 1)[0] !== "# 更新日志" ||
         [...changelog.matchAll(heading)].length !== 1
       ) {
         throw new CliError("Project change record requires manual review.", 65);
@@ -879,7 +877,9 @@ async function main(): Promise<void> {
       await appendLines(process.env.GITHUB_OUTPUT, [
         "count=" + scopes.length,
         "matrix=" +
-          JSON.stringify({ include: scopes.map(({ repository, branch }) => ({ repository, branch })) }),
+          JSON.stringify({
+            include: scopes.map(({ repository, branch }) => ({ repository, branch })),
+          }),
       ]);
       return;
     }
@@ -965,7 +965,14 @@ async function main(): Promise<void> {
       throw new CliError("Central pnpm version is invalid.", 65);
     const lock =
       result.lockPath && process.env.OPERATOR_CONFIRMED === "true"
-        ? await resolvePublicLock(reader, scope, snapshot, result.changes, result.lockPath, pnpmVersion)
+        ? await resolvePublicLock(
+            reader,
+            scope,
+            snapshot,
+            result.changes,
+            result.lockPath,
+            pnpmVersion
+          )
         : null;
     await assertScope(reader, repository, false);
     await writeFile(
