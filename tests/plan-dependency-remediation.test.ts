@@ -44,7 +44,15 @@ test("remediation plans bind file locations and branch snapshots without writing
     declaration("packages/app/package.json", "npm:react", "18.0.0"),
     declaration("packages/app/package.json", "npm:typescript", "^6.0.3"),
   ];
-  const main = planDependencyRemediation(policy, repo, "main", sha, input, ["pnpm-lock.yaml"], date);
+  const main = planDependencyRemediation(
+    policy,
+    repo,
+    "main",
+    sha,
+    input,
+    ["pnpm-lock.yaml"],
+    date
+  );
   assert.equal(main.base_sha, sha);
   assert.equal(main.automatic_writes, false);
   assert.deepEqual(
