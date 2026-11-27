@@ -73,3 +73,46 @@ test("both sandbox jobs resolve versions after the trusted checkout and before s
     assert.equal(steps[node]?.with?.["node-version"], "${{ steps.runtime.outputs.node }}");
   }
 });
+
+test("central controller workflows use the same runtime catalog after checkout", () => {
+  const workflows = [
+    "apply-repository-settings",
+    "audit-config-scope",
+    "authorize-branch-transfer",
+    "central-ci-dispatch",
+    "ci-follow-up",
+    "enroll-organization-repositories",
+    "handle-pr-dispatch",
+    "handle-pr-review",
+    "intake",
+    "validate-ci",
+  ];
+  type Step = {
+    id?: string;
+    uses?: string;
+    run?: string;
+    if?: string;
+    with?: Record<string, string>;
+  };
+  for (const name of workflows) {
+    const workflow = parse(readFileSync(`.github/workflows/${name}.yml`, "utf8")) as {
+      jobs: Record<string, { steps?: Step[] }>;
+    };
+    let setups = 0;
+    for (const job of Object.values(workflow.jobs)) {
+      const steps = job.steps ?? [];
+      for (const [index, step] of steps.entries()) {
+        if (!step.uses?.startsWith("actions/setup-node@")) continue;
+        setups++;
+        const runtime = steps[index - 1];
+        assert.equal(runtime?.id, "runtime");
+        assert.equal(runtime?.run, "node scripts/resolve-runtime-versions.mjs --github-output .");
+        assert.equal(runtime?.if, step.if);
+        assert.equal(step.with?.["node-version"], "${{ steps.runtime.outputs.node }}");
+        const checkout = steps.findIndex((item) => item.uses?.startsWith("actions/checkout@"));
+        assert.ok(checkout >= 0 && checkout < index - 1);
+      }
+    }
+    assert.ok(setups > 0, name);
+  }
+});

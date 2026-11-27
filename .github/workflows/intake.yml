@@ -41,10 +41,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve PR repository scope
         id: pr_scope
@@ -117,10 +121,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve PR repository scope
         id: pr_scope
@@ -193,10 +201,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve PR repository scope
         id: pr_scope
@@ -273,10 +285,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve PR repository scope
         id: pr_scope
@@ -352,10 +368,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve PR repository scope
         id: pr_scope
@@ -450,10 +470,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve task repository scope
         id: task_scope
@@ -537,10 +561,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve task repository scope
         id: task_scope
@@ -627,10 +655,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve deploy repository scope
         id: deploy_scope
@@ -716,10 +748,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve versioned Skill admission repository scope
         id: scope
@@ -827,10 +863,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve PR repository scope
         id: pr_scope
