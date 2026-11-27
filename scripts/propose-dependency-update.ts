@@ -196,13 +196,14 @@ export function buildNodeProposal(
   if (!marker) {
     throw new CliError("Project change record requires manual review.", 65);
   }
-  if (!changelog.includes(entry)) add(
-    "CHANGELOG.md",
-    changelog.replace(
-      heading,
-      marker.replace(/\r$/, "") + newline + newline + entry + (newline === "\r\n" ? "\r" : "")
-    )
-  );
+  if (!changelog.includes(entry))
+    add(
+      "CHANGELOG.md",
+      changelog.replace(
+        heading,
+        marker.replace(/\r$/, "") + newline + newline + entry + (newline === "\r\n" ? "\r" : "")
+      )
+    );
   return changes.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -319,7 +320,9 @@ export async function publishNodeProposal(
   // Do not generate a second proposal while the repository already has an open baseline PR.
   for (let page = 1; page <= 10; page++) {
     const pulls = getJsonArray(
-      await reader.get(repo + "/pulls?state=open&base=" + targetBranch + "&per_page=100&page=" + page)
+      await reader.get(
+        repo + "/pulls?state=open&base=" + targetBranch + "&per_page=100&page=" + page
+      )
     );
     for (const pull of pulls) {
       if (
