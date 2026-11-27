@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { parse } from "yaml";
 import { resolveDevSettings } from "../scripts/resolve-dev-settings.ts";
+import { engineeringLineViolation } from "../scripts/validate-engineering-language.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const control = "fongap-labs/action-worker";
@@ -64,5 +66,20 @@ test("audit continuation reuses settings workflow and never expands repository p
   assert.match(workflow, /scripts\/resolve-dev-settings\.ts/);
   assert.match(workflow, /steps\.dev_settings\.outputs\.repositories/);
   assert.match(workflow, /permission-statuses: read/);
-  assert.doesNotMatch(workflow, /permission-contents: write[^\n]*\n[^\n]*permission-statuses: write/);
+  assert.doesNotMatch(
+    workflow,
+    /permission-contents: write[^\n]*\n[^\n]*permission-statuses: write/
+  );
+});
+
+test("only the exact existing display-name reference is accepted by the language gate", () => {
+  const path = ".github/workflows/apply-repository-settings.yml";
+  const intake = parse(readFileSync(".github/workflows/intake.yml", "utf8"));
+  const settings = parse(readFileSync(path, "utf8"));
+  assert.deepEqual(settings.on.workflow_run.workflows, [intake.name]);
+  const reference = `workflows: ["${intake.name}"]`;
+  assert.equal(engineeringLineViolation(path, reference), null);
+  assert.notEqual(engineeringLineViolation(".github/workflows/other.yml", reference), null);
+  assert.notEqual(engineeringLineViolation(path, `${reference} # ${intake.name}`), null);
+  assert.notEqual(engineeringLineViolation(path, `run: echo "${intake.name}"`), null);
 });
