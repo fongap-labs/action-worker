@@ -26,6 +26,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       wake_dev: ${{ steps.route.outputs.wake_dev }}
+      managed_head: ${{ steps.route.outputs.managed_head }}
     steps:
       - name: Mask target repository identity
         shell: bash
@@ -105,7 +106,7 @@ jobs:
 
   govern:
     needs: route-legacy
-    if: ${{ !cancelled() && (needs.route-legacy.result == 'skipped' || (needs.route-legacy.result == 'success' && needs.route-legacy.outputs.wake_dev == 'false')) }}
+    if: ${{ !cancelled() && (needs.route-legacy.result == 'skipped' || (needs.route-legacy.result == 'success' && needs.route-legacy.outputs.wake_dev == 'false' && needs.route-legacy.outputs.managed_head == 'false')) }}
     name: PR Governance
     runs-on: ubuntu-24.04
     timeout-minutes: 180
