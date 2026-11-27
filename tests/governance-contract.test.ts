@@ -368,7 +368,11 @@ test("skills README is beginner-friendly", async () => {
 test("runtime and machine policies preserve trust boundaries", async () => {
   const pkg = await json("package.json");
   assert.equal(pkg.private, true);
-  assert.deepEqual(pkg.engines, { node: ">=24" });
+  const lock = await json("package-lock.json");
+  const packages = lock.packages as Record<string, { engines?: { node?: string } }>;
+  const node = packages[""]?.engines?.node;
+  assert.match(node ?? "", /^\d+\.\d+\.\d+$/);
+  assert.deepEqual(pkg.engines, { node });
   const scripts = pkg.scripts as Record<string, unknown>;
   assert.equal(scripts.typecheck, "tsc --noEmit");
   assert.match(String(scripts.test), /^node --test/);
