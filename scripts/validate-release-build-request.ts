@@ -1,4 +1,5 @@
 import { betaReleaseEnabled, readBetaReleasePolicy } from "./beta-release-authorization.ts";
+import { verifyCurrentBetaSource } from "./beta-source-proof.ts";
 import {
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
@@ -9,7 +10,6 @@ import {
   defaultControlRepository,
   requireVerifiedCiEvidence,
 } from "./ci-evidence.ts";
-import { assertTrustedDevWrite, verifyRecordedDevWrite } from "./dev-write-guard.ts";
 import { isPinPublished, type JsonReader, readFileAt } from "./follow-github.ts";
 import { isPinValueOf, parseFollowManifest, pinValueAt } from "./follow-pins.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
@@ -428,13 +428,8 @@ async function main(): Promise<void> {
       throw new CliError("Dev Beta builds require attestation for every build.", 66);
     }
     const control = process.env.GITHUB_REPOSITORY ?? defaultControlRepository;
-    await assertTrustedDevWrite(reader, request.source_repository, request.source_sha, control);
-    // Initialization alone is not a dev CI result: require a completed recorded dev PR write.
-    await verifyRecordedDevWrite(reader, request.source_repository, request.source_sha, control);
-    const live = await reader.get(`repos/${request.source_repository}/commits/dev`);
-    if (getJsonString(live, "sha") !== request.source_sha) {
-      throw new CliError("Dev Beta build source changed during validation.", 75);
-    }
+    // Build, release and deployment reconstruct the same immutable dev proof.
+    await verifyCurrentBetaSource(reader, request.source_repository, request.source_sha, control);
   } else {
     await requireVerifiedCiEvidence(
       reader,
@@ -456,7 +451,12 @@ async function main(): Promise<void> {
   const betaReleaseAuthorized =
     branch === "dev" &&
     manifest.target_repository === request.source_repository &&
-    betaReleaseEnabled(readBetaReleasePolicy(), request.source_repository);
+    betaReleaseEnabled(
+      readBetaReleasePolicy(),
+      request.source_repository,
+      repositoryPolicy,
+      process.env.GITHUB_REPOSITORY ?? defaultControlRepository
+    );
 
   await appendLines(process.env.GITHUB_OUTPUT, [
     `source_repository=${request.source_repository}`,

@@ -169,7 +169,8 @@ async function main(): Promise<void> {
       source,
       String(request.source_sha),
       controlRepository,
-      readBetaReleasePolicy()
+      readBetaReleasePolicy(),
+      policy
     );
   }
   await appendLines(process.env.GITHUB_OUTPUT, [

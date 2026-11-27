@@ -42,6 +42,7 @@ import {
   selectVerifiedReleaseNotes,
   type TwoPhaseReleasePolicy,
 } from "./release-two-phase-mode.ts";
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
@@ -456,13 +457,15 @@ async function main(): Promise<void> {
     isBeta ? [sourceRepository] : []
   );
   const betaPolicy = isBeta ? readBetaReleasePolicy() : undefined;
+  const betaRepositoryPolicy = isBeta ? JSON.parse(readRepositoryPolicyText()) : undefined;
   const writePr = isBeta
     ? await verifyBetaReleaseSource(
         sourceReader,
         sourceRepository,
         sourceSha,
         controlRepository,
-        betaPolicy
+        betaPolicy,
+        betaRepositoryPolicy
       )
     : (await assertTrustedMainWrite(sourceReader, sourceRepository, sourceSha, true)).pr_number;
   const writeEvidence = isBeta
@@ -818,7 +821,8 @@ async function main(): Promise<void> {
         sourceRepository,
         sourceSha,
         controlRepository,
-        betaPolicy
+        betaPolicy,
+        betaRepositoryPolicy
       );
     }
     const releaseJson = JSON.parse(
@@ -933,7 +937,8 @@ async function main(): Promise<void> {
         sourceRepository,
         sourceSha,
         controlRepository,
-        betaPolicy
+        betaPolicy,
+        betaRepositoryPolicy
       );
     }
     isPublishAttempted = true;

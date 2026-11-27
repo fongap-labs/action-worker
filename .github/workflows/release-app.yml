@@ -10,11 +10,11 @@ on:
         required: true
         type: string
       requested_version:
-        description: main 正式版 X.Y.Z；dev Beta 仅构建 X.Y.Z-beta.N，暂不发布。plugins 仓库必须手动填写；其他仓库留空可按提交历史推算
+        description: main 正式版 X.Y.Z；dev Beta X.Y.Z-beta.N（发布由中央策略控制）。plugins 仓库必须手动填写；其他仓库留空可按提交历史推算
         required: false
         type: string
       source_branch:
-        description: 源分支（dev 仅允许 Beta 构建，不发布）
+        description: 源分支（main 正式版；dev Beta，发布须通过独立授权）
         required: false
         type: choice
         default: main
