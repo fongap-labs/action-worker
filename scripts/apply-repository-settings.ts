@@ -245,24 +245,37 @@ async function ghJson(
   return output ? (JSON.parse(output) as unknown) : {};
 }
 
+/** Only the explicit GitHub plan restriction permits an unenforceable private repository. */
+export function isUnsupportedPrivateRuleset(error: unknown, isPrivate: boolean): boolean {
+  return (
+    isPrivate &&
+    error instanceof CliError &&
+    /Upgrade to GitHub (?:Pro|Team|Enterprise) or make this repository public to enable this feature\.?\s*\(HTTP 403\)/i.test(
+      error.message
+    )
+  );
+}
+
 async function applyRulesets(
   repository: string,
   token: string,
   isPrivate: boolean,
   rulesets: readonly RulesetPayload[]
-): Promise<boolean> {
-  if (isPrivate) {
-    console.warn(
-      `::warning::Managed branch protection is NOT enforced for private repository ${repository}: GitHub Free organization rulesets are unavailable. The post-merge audit cannot prevent a merge. Upgrade the GitHub plan to enable enforceable required checks.`
+): Promise<{ hasDevChanged: boolean; protectionApplied: boolean }> {
+  let existingValue: unknown;
+  try {
+    existingValue = await ghJson(
+      "GET",
+      `repos/${repository}/rulesets?includes_parents=false&per_page=100`,
+      token
     );
-    return false;
+  } catch (error) {
+    if (!isUnsupportedPrivateRuleset(error, isPrivate)) throw error;
+    console.warn(
+      `::warning::Managed branch protection is NOT enforced for ${repository}: GitHub plan does not support private repository rulesets. Post-merge audit cannot prevent a merge.`
+    );
+    return { hasDevChanged: false, protectionApplied: false };
   }
-
-  const existingValue = await ghJson(
-    "GET",
-    `repos/${repository}/rulesets?includes_parents=false&per_page=100`,
-    token
-  );
   if (!Array.isArray(existingValue)) {
     throw new CliError("repository ruleset list response is invalid");
   }
@@ -303,7 +316,7 @@ async function applyRulesets(
     console.log(`repository ruleset updated: ${repository} / ${desired.name}`);
     if (opensDev) hasDevChanged = true;
   }
-  return hasDevChanged;
+  return { hasDevChanged, protectionApplied: true };
 }
 
 async function main(): Promise<void> {
@@ -387,8 +400,19 @@ async function main(): Promise<void> {
     );
     if (formalTags) rulesets.push(formalTags);
   }
-  const hasDevChanged = await applyRulesets(repository, token, response.private === true, rulesets);
-  await appendLines(process.env.GITHUB_OUTPUT, [`dev_protection_changed=${hasDevChanged}`]);
+  const { hasDevChanged, protectionApplied } = await applyRulesets(
+    repository,
+    token,
+    response.private === true,
+    rulesets
+  );
+  await appendLines(process.env.GITHUB_OUTPUT, [
+    `dev_protection_changed=${hasDevChanged}`,
+    `branch_protection_applied=${protectionApplied}`,
+  ]);
+  await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+    `- ${repository}: ${protectionApplied ? "managed rulesets applied" : "UNPROTECTED (GitHub plan restriction)"}`,
+  ]);
   console.log(`repository settings applied: ${repository}`);
 }
 
