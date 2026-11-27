@@ -135,8 +135,9 @@ export function engineeringLineViolation(
     // A workflow_run selector must use the existing human-facing workflow display name.
     // Admit only this exact reference; other workflow engineering text remains checked.
     if (
-      path === ".github/workflows/apply-repository-settings.yml" &&
-      line.trim() === 'workflows: ["自动 · 总控调度"]'
+      (path === ".github/workflows/apply-repository-settings.yml" &&
+        line.trim() === 'workflows: ["自动 · 总控调度"]') ||
+      (path === ".github/workflows/intake.yml" && line.trim() === 'workflows: ["自动 · PR 分发"]')
     ) {
       return null;
     }
