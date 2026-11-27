@@ -1,6 +1,6 @@
 name: 自动 · 仓库设置
 
-# A change to the shared policy applies it at once; the daily run corrects drift made by hand in
+# A change to the shared policy applies it at once; the hourly run corrects drift made by hand in
 # repository settings. Both apply the same policy to every managed repository, so nobody has to
 # start this workflow.
 on:
@@ -20,7 +20,7 @@ on:
       - policies/review-models.json
       - .github/workflows/apply-repository-settings.yml
   schedule:
-    - cron: "43 4 * * *"
+    - cron: "43 * * * *"
 
 permissions:
   contents: read

@@ -1,7 +1,15 @@
 import { isDeepStrictEqual } from "node:util";
+import type { JsonReader } from "./ci-evidence.ts";
 import { isClosedDevProtection } from "./dev-bootstrap-authorization.ts";
-import { assertTrustedDevWrite } from "./dev-write-guard.ts";
-import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { hasVerifiedDevWriteGuard } from "./dev-write-guard.ts";
+import {
+  getGithubJsonIfExists,
+  getJsonString,
+  isJsonRecord,
+  statusAwareReader,
+} from "./github-api.ts";
+import { findActiveIncidents } from "./main-write-incidents.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
 
 type RulesetPayload = {
@@ -103,32 +111,31 @@ export function rulesetsForRepository(
   });
 }
 
-/** Keep the default closed policy intact. Only explicit repository enrollment derives a dev gate. */
+/** Derive the ordinary dev gate from one organization-wide policy, never a second repo list. */
 export function managedRepositoryRulesets(
   policy: unknown,
   repository: string,
-  controlRepository: string
+  controlRepository: string,
+  isDevReady = true
 ): RulesetPayload[] {
   const rulesets = rulesetPayloads(policy);
   const closed = rulesets.find((rule) => rule.name === "Protect Dev Branch");
   if (!closed || !isClosedDevProtection(closed)) {
     throw new CliError("Default dev protection must remain closed.", 65);
   }
-  const enrolled = isJsonRecord(policy) ? policy.dev_merge_repositories : undefined;
-  if (
-    !Array.isArray(enrolled) ||
-    enrolled.some(
-      (name) =>
-        typeof name !== "string" ||
-        !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(name) ||
-        name === controlRepository
-    ) ||
-    new Set(enrolled).size !== enrolled.length
-  ) {
-    throw new CliError("Invalid development repository enrollment.", 65);
+  const mode = isJsonRecord(policy) ? policy.dev_merge_mode : undefined;
+  if (mode !== "automatic" && mode !== "closed") {
+    throw new CliError("Invalid development enrollment mode.", 65);
   }
   const scoped = rulesetsForRepository(rulesets, repository, controlRepository);
-  if (!enrolled.includes(repository)) return scoped;
+  if (
+    mode === "closed" ||
+    !isDevReady ||
+    repository === controlRepository ||
+    !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository)
+  ) {
+    return scoped;
+  }
   const main = scoped.find((rule) => rule.name === "Protect Main Branch");
   if (!main) throw new CliError("Main protection template is missing.", 65);
   return scoped.map((rule) => {
@@ -157,31 +164,32 @@ export function managedRepositoryRulesets(
   });
 }
 
-async function requireInitializedDev(
+/** Live trust, not a static enrollment list, determines whether protection may open to PRs. */
+export async function isDevEnrollmentReady(
+  reader: JsonReader,
   repository: string,
-  controlRepository: string,
-  token: string
-): Promise<void> {
-  const reader = statusAwareReader(
-    process.env.GITHUB_API_URL ?? "https://api.github.com",
-    token,
-    token
-  );
-  const metadata = await reader.get(`repos/${repository}`);
-  if (
-    !isJsonRecord(metadata) ||
-    metadata.full_name !== repository ||
-    metadata.private !== false ||
-    metadata.default_branch !== "main"
-  ) {
-    throw new CliError("Development enrollment requires a public managed main repository.", 75);
+  controlRepository: string
+): Promise<boolean> {
+  if (repository === controlRepository) return false;
+  const prefix = `repos/${repository}`;
+  const metadata = await reader.get(prefix);
+  if (!isJsonRecord(metadata) || metadata.full_name !== repository) {
+    throw new CliError("Development enrollment repository identity is invalid.", 75);
   }
-  const branch = await reader.get(`repos/${repository}/branches/dev`);
+  if (metadata.private !== false || metadata.default_branch !== "main") return false;
+  const branch = await getGithubJsonIfExists(`${prefix}/branches/dev`, (path) => reader.get(path));
+  if (branch === undefined) return false;
   const sha = isJsonRecord(branch) ? getJsonString(branch.commit, "sha") : "";
   if (!/^[0-9a-f]{40}$/.test(sha)) {
-    throw new CliError("Development enrollment requires an initialized dev branch.", 75);
+    throw new CliError("Development enrollment branch identity is invalid.", 75);
   }
-  await assertTrustedDevWrite(reader, repository, sha, controlRepository);
+  if ((await findActiveIncidents(reader, repository, "dev")).length > 0) return false;
+  const statuses = await reader.get(`${prefix}/commits/${sha}/status`);
+  if (!(await hasVerifiedDevWriteGuard(reader, repository, sha, statuses, controlRepository))) {
+    return false;
+  }
+  const current = await reader.get(`${prefix}/branches/dev`);
+  return isJsonRecord(current) && getJsonString(current.commit, "sha") === sha;
 }
 
 function rulesetSnapshot(value: unknown): RulesetPayload {
@@ -298,15 +306,13 @@ async function main(): Promise<void> {
   }
 
   let payload: Record<string, unknown>;
+  let rulesetPolicy: unknown;
   let rulesets: RulesetPayload[];
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "fongap-labs/action-worker";
   try {
     payload = settingsPayload(await readJson(policyPath));
-    rulesets = managedRepositoryRulesets(
-      await readJson(rulesetPolicyPath),
-      repository,
-      controlRepository
-    );
+    rulesetPolicy = await readJson(rulesetPolicyPath);
+    rulesets = managedRepositoryRulesets(rulesetPolicy, repository, controlRepository);
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       throw new CliError(
@@ -318,7 +324,9 @@ async function main(): Promise<void> {
   }
 
   if (dryValue === "true") {
-    console.log(JSON.stringify({ repository: payload, rulesets }, null, 2));
+    console.log(
+      JSON.stringify({ repository: payload, rulesets, requires_live_dev_proof: true }, null, 2)
+    );
     return;
   }
 
@@ -327,9 +335,17 @@ async function main(): Promise<void> {
     throw new CliError("GH_TOKEN is required", 2);
   }
 
+  validateRepositoryCapability(repository, JSON.parse(readRepositoryPolicyText()), "pr");
   const dev = rulesets.find((rule) => rule.name === "Protect Dev Branch");
   if (!isClosedDevProtection(dev)) {
-    await requireInitializedDev(repository, controlRepository, token);
+    const reader = statusAwareReader(
+      process.env.GITHUB_API_URL ?? "https://api.github.com",
+      token,
+      token
+    );
+    const ready = await isDevEnrollmentReady(reader, repository, controlRepository);
+    rulesets = managedRepositoryRulesets(rulesetPolicy, repository, controlRepository, ready);
+    console.log(`Development enrollment: ${repository} / ${ready ? "ready" : "closed"}`);
   }
   const response = await ghJson("PATCH", `repos/${repository}`, token, payload);
   if (!isJsonRecord(response)) {

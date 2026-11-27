@@ -189,3 +189,27 @@ export async function verifyAuthorizedDevBootstrap(
   await verifyBootstrapSource(reader, repository, sha, controlRepository, true);
   return `init-v1=${sha}`;
 }
+
+/** An existing, closed dev identical to trusted main needs no branch write or manual dispatch.
+ * This never resolves incidents or overrides prior manual authorization evidence.
+ */
+export async function verifyAutomaticDevAdoption(
+  reader: JsonReader,
+  repository: string,
+  sha: string,
+  statuses: unknown,
+  controlRepository: string
+): Promise<string | undefined> {
+  if (repository === controlRepository) return undefined;
+  for (const context of [devBootstrapContext, "Dev Merge Receipt"]) {
+    if (latestAttestedStatus(statuses, { repository, sha, context })) return undefined;
+  }
+  const main = await reader.get(`repos/${repository}/branches/main`);
+  if (!isJsonRecord(main) || getJsonString(main.commit, "sha") !== sha) return undefined;
+  await verifyBootstrapSource(reader, repository, sha, controlRepository, true);
+  const current = await reader.get(`repos/${repository}/branches/dev`);
+  if (!isJsonRecord(current) || getJsonString(current.commit, "sha") !== sha) {
+    throw new CliError("Development adoption branch identity changed.", 75);
+  }
+  return `init-v1=${sha}`;
+}

@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { requireToken } from "./control-token.ts";
 import { deleteTemporaryDevGuard } from "./create-protected-dev.ts";
 import {
   DevBootstrapPendingError,
   verifyAuthorizedDevBootstrap,
+  verifyAutomaticDevAdoption,
 } from "./dev-bootstrap-authorization.ts";
 import { recoverInterruptedDevBootstrap } from "./dev-bootstrap-recovery.ts";
 import {
@@ -55,6 +57,8 @@ async function main(): Promise<void> {
     protectionToken,
     repositories
   );
+  const rulesetPolicy: unknown = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
+  const automatic = isJsonRecord(rulesetPolicy) && rulesetPolicy.dev_merge_mode === "automatic";
   const context = managedBranchWriteContext("dev");
   for (const repository of repositories) {
     const repo = await reader.get(`repos/${repository}`);
@@ -92,8 +96,13 @@ async function main(): Promise<void> {
       const bootstrap =
         recovered ??
         (await verifyAuthorizedDevBootstrap(reader, repository, sha, statuses, controlRepository));
+      const adopted =
+        bootstrap === undefined && automatic && repo.private === false
+          ? await verifyAutomaticDevAdoption(reader, repository, sha, statuses, controlRepository)
+          : undefined;
       description =
         bootstrap ??
+        adopted ??
         (await verifyRecordedDevWrite(reader, repository, sha, controlRepository)).description;
       state = "success";
     } catch (error) {

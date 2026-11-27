@@ -10,7 +10,8 @@ import {
   protectedMergeRuleset,
 } from "../scripts/dev-merge-execution.ts";
 
-const policy: unknown = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
+const policy: Record<string, unknown> = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
+const closedPolicy = { ...policy, dev_merge_mode: "closed" };
 const identity = {
   repository: "fongap-labs/example",
   prNumber: 7,
@@ -27,14 +28,14 @@ test("closed versioned dev protection withholds all merge writes and even live r
     },
   };
   assert.equal(
-    devMergePolicyEnabled(policy, identity.repository, identity.controlRepository),
+    devMergePolicyEnabled(closedPolicy, identity.repository, identity.controlRepository),
     false
   );
-  assert.equal(await authorizeDevMerge(reader, policy, identity), undefined);
+  assert.equal(await authorizeDevMerge(reader, closedPolicy, identity), undefined);
   await assert.rejects(
     executeDevMerge(
       reader,
-      policy,
+      closedPolicy,
       identity,
       async () => assert.fail("merge must not be attempted"),
       async () => assert.fail("receipt must not be published")
@@ -75,75 +76,37 @@ test("development protection requires strict independent status and no bypass", 
   );
 });
 
-test("dev enrollment only derives a protected gate for the selected repository", () => {
-  const configured = {
-    ...(policy as Record<string, unknown>),
-    dev_merge_repositories: [identity.repository],
-  };
-  const selected = managedRepositoryRulesets(
-    configured,
-    identity.repository,
-    identity.controlRepository
-  );
-  const other = managedRepositoryRulesets(
-    configured,
-    "fongap-labs/other",
-    identity.controlRepository
-  );
-  assert.equal(
-    protectedMergeRuleset(
-      selected.find((rule) => rule.name === "Protect Dev Branch"),
-      "dev"
-    ),
-    true
-  );
-  assert.equal(
-    isClosedDevProtection(other.find((rule) => rule.name === "Protect Dev Branch")),
-    true
-  );
-  assert.equal(
-    devMergePolicyEnabled(configured, identity.repository, identity.controlRepository),
-    true
-  );
-  assert.equal(
-    devMergePolicyEnabled(configured, "fongap-labs/other", identity.controlRepository),
-    false
-  );
-  for (const repositories of [
-    [identity.controlRepository],
-    ["outside/example"],
-    [identity.repository, identity.repository],
-  ]) {
-    assert.throws(() =>
-      managedRepositoryRulesets(
-        { ...configured, dev_merge_repositories: repositories },
-        identity.repository,
-        identity.controlRepository
-      )
+test("automatic policy derives dev rules for every eligible repository without a second list", () => {
+  for (const repository of [identity.repository, "fongap-labs/delta", "fongap-labs/new-repo"]) {
+    const selected = managedRepositoryRulesets(policy, repository, identity.controlRepository);
+    assert.equal(
+      protectedMergeRuleset(
+        selected.find((rule) => rule.name === "Protect Dev Branch"),
+        "dev"
+      ),
+      true
+    );
+    assert.equal(devMergePolicyEnabled(policy, repository, identity.controlRepository), true);
+    const unready = managedRepositoryRulesets(
+      policy,
+      repository,
+      identity.controlRepository,
+      false
+    );
+    assert.equal(
+      isClosedDevProtection(unready.find((rule) => rule.name === "Protect Dev Branch")),
+      true
     );
   }
-});
-
-test("Delta enrollment does not open other repositories or reuse the main gate", () => {
-  const delta = "fongap-labs/delta";
-  assert.equal(devMergePolicyEnabled(policy, delta, identity.controlRepository), true);
-  const rules = managedRepositoryRulesets(policy, delta, identity.controlRepository);
-  assert.equal(
-    protectedMergeRuleset(
-      rules.find((rule) => rule.name === "Protect Main Branch"),
-      "main"
-    ),
-    true
-  );
-  assert.equal(
-    protectedMergeRuleset(
-      rules.find((rule) => rule.name === "Protect Dev Branch"),
-      "dev"
-    ),
-    true
-  );
-  assert.equal(
-    devMergePolicyEnabled(policy, identity.repository, identity.controlRepository),
-    false
+  for (const repository of [identity.controlRepository, "outside/example"]) {
+    assert.equal(devMergePolicyEnabled(policy, repository, identity.controlRepository), false);
+  }
+  assert.equal(Object.hasOwn(policy, "dev_merge_repositories"), false);
+  assert.throws(() =>
+    managedRepositoryRulesets(
+      { ...policy, dev_merge_mode: "invalid" },
+      identity.repository,
+      identity.controlRepository
+    )
   );
 });
