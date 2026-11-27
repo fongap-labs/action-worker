@@ -3,7 +3,7 @@
   "mode": "advisory",
   "default_class": "project",
   "catalog": {
-    "tool:node": { "class": "toolchain", "version": "24.22.3" },
+    "tool:node": { "class": "toolchain", "version": "26.13.1" },
     "tool:python": { "class": "toolchain", "version": "3.12" },
     "tool:pnpm": { "class": "toolchain", "version": "11.28.5" },
     "tool:npm": { "class": "toolchain", "version": null },

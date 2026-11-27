@@ -18,7 +18,7 @@ test("only public Delta may restore a pinned cache for its exact Windows depende
   assert.match(windows, /path: \$\{\{ runner\.temp \}\}\/delta-pnpm-store/);
   assert.match(
     windows,
-    /key: delta-win-x64-node26\.13\.1-pnpm11\.28\.5-\$\{\{ hashFiles\('target\/pnpm-lock\.yaml', 'target\/pnpm-workspace\.yaml'\) \}\}/
+    /key: delta-win-x64-node\$\{\{ steps\.runtime\.outputs\.node \}\}-pnpm\$\{\{ steps\.runtime\.outputs\.pnpm \}\}-\$\{\{ hashFiles\('target\/pnpm-lock\.yaml', 'target\/pnpm-workspace\.yaml'\) \}\}/
   );
   assert.match(
     suite,
@@ -28,7 +28,7 @@ test("only public Delta may restore a pinned cache for its exact Windows depende
   assert.match(windows, /steps\.delta_pnpm_cache\.outputs\.cache-hit != 'true'/);
   assert.match(
     windows,
-    /key: delta-win-x64-node26\.13\.1-pnpm11\.28\.5-\$\{\{ hashFiles\('ci-control\/pnpm-lock\.yaml', 'ci-control\/pnpm-workspace\.yaml'\) \}\}/
+    /key: delta-win-x64-node\$\{\{ steps\.runtime\.outputs\.node \}\}-pnpm\$\{\{ steps\.runtime\.outputs\.pnpm \}\}-\$\{\{ hashFiles\('ci-control\/pnpm-lock\.yaml', 'ci-control\/pnpm-workspace\.yaml'\) \}\}/
   );
   assert.doesNotMatch(windows, /restore-keys:/);
   assert.doesNotMatch(windows, /uses: actions\/cache@/);

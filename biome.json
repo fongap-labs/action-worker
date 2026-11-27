@@ -42,7 +42,14 @@
     }
   },
   "files": {
-    "includes": ["**/*.ts", "**/*.json", "**/*.yml", "**/*.yaml", "tests/kit/**/*.mjs"],
+    "includes": [
+      "**/*.ts",
+      "**/*.json",
+      "**/*.yml",
+      "**/*.yaml",
+      "scripts/resolve-runtime-versions.mjs",
+      "tests/kit/**/*.mjs"
+    ],
     "ignoreUnknown": true
   }
 }

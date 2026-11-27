@@ -92,25 +92,6 @@ jobs:
             printf '::add-mask::%s\n' "$identity"
           done
 
-      - name: Setup Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.12"
-
-      - name: Setup Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: ${{ inputs.repository == 'fongap-labs/delta' && '26.13.1' || '22' }}
-
-      - name: Provision pinned Delta package manager
-        if: inputs.repository == 'fongap-labs/delta' && inputs.is_private == 'false'
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          npm install --prefix "$RUNNER_TEMP/delta-ci-tools" \
-            --no-audit --no-fund --no-save --package-lock=false pnpm@11.28.5
-          echo "$RUNNER_TEMP/delta-ci-tools/node_modules/.bin" >> "$GITHUB_PATH"
-
       # A pull request is tested as it would merge into the default branch, so the central test pack
       # from the control ref never runs against code that the default branch has already moved past.
       # When the default branch changed under the PR and the merge conflicts, GitHub has no merge
@@ -198,6 +179,32 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
           path: aw-security
+
+      - name: Resolve central runtime versions
+        id: runtime
+        shell: pwsh
+        run: node aw-security/scripts/resolve-runtime-versions.mjs --github-output ci-control
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ steps.runtime.outputs.python }}
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.runtime.outputs.node }}
+
+      - name: Provision central package manager
+        if: steps.runtime.outputs.requires_pnpm == 'true'
+        env:
+          PNPM_VERSION: ${{ steps.runtime.outputs.pnpm }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --prefix "$RUNNER_TEMP/delta-ci-tools" \
+            --ignore-scripts --no-audit --no-fund --no-save --package-lock=false "pnpm@$PNPM_VERSION"
+          echo "$RUNNER_TEMP/delta-ci-tools/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Verify pinned CI checkout
         env:
@@ -480,21 +487,38 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Checkout current central runtime policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: aw-security
+
+      - name: Resolve central runtime versions
+        id: runtime
+        shell: pwsh
+        run: node aw-security/scripts/resolve-runtime-versions.mjs --github-output ci-control
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ steps.runtime.outputs.python }}
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: ${{ inputs.repository == 'fongap-labs/delta' && '26.13.1' || '22' }}
+          node-version: ${{ steps.runtime.outputs.node }}
 
-      - name: Setup Python for Delta Windows privacy scan
-        if: inputs.repository == 'fongap-labs/delta'
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.12"
-
-      - name: Install pinned pnpm for Delta Windows suite
-        if: inputs.repository == 'fongap-labs/delta'
+      - name: Install central package manager
+        if: steps.runtime.outputs.requires_pnpm == 'true'
+        env:
+          PNPM_VERSION: ${{ steps.runtime.outputs.pnpm }}
         shell: pwsh
-        run: npm.cmd install --global --no-audit --no-fund --ignore-scripts pnpm@11.28.5
+        run: |
+          npm.cmd install --global --no-audit --no-fund --ignore-scripts "pnpm@$env:PNPM_VERSION"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Checkout central test pack
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -526,7 +550,7 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/delta-pnpm-store
-          key: delta-win-x64-node26.13.1-pnpm11.28.5-${{ hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') }}
+          key: delta-win-x64-node${{ steps.runtime.outputs.node }}-pnpm${{ steps.runtime.outputs.pnpm }}-${{ hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') }}
 
       # On a lockfile change, reuse only the exact control baseline store when available.
       # All entries still undergo the target's frozen install; never save from a PR.
@@ -537,7 +561,7 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/delta-pnpm-store
-          key: delta-win-x64-node26.13.1-pnpm11.28.5-${{ hashFiles('ci-control/pnpm-lock.yaml', 'ci-control/pnpm-workspace.yaml') }}
+          key: delta-win-x64-node${{ steps.runtime.outputs.node }}-pnpm${{ steps.runtime.outputs.pnpm }}-${{ hashFiles('ci-control/pnpm-lock.yaml', 'ci-control/pnpm-workspace.yaml') }}
 
       - name: Run trusted Windows CI
         env:
@@ -684,7 +708,7 @@ jobs:
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/delta-pnpm-store
-          key: delta-win-x64-node26.13.1-pnpm11.28.5-${{ hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') }}
+          key: delta-win-x64-node${{ steps.runtime.outputs.node }}-pnpm${{ steps.runtime.outputs.pnpm }}-${{ hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') }}
 
       # Only centrally authorized private Windows suites may export numeric failure indices.
       # The source code, test names, paths and stderr stay in runner-local log.

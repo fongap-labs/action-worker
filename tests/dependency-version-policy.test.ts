@@ -36,6 +36,7 @@ test("central version catalog validates and remains advisory", () => {
   );
   assert.equal(policy.mode, "advisory");
   assert.equal(policy.default_class, "project");
+  assert.equal(policy.catalog.get("tool:node")?.version, "26.13.1");
   assert.equal(policy.catalog.get("tool:pnpm")?.version, "11.28.5");
   assert.equal(policy.catalog.get("npm:react")?.version, null);
   assert.equal(policy.exceptions.length, 0);

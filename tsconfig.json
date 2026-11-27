@@ -14,6 +14,12 @@
     "types": ["node"],
     "verbatimModuleSyntax": true
   },
-  "include": ["scripts/**/*.ts", "tests/**/*.ts", "tests/run-pack.mjs", "tests/kit/*.mjs"],
+  "include": [
+    "scripts/**/*.ts",
+    "scripts/resolve-runtime-versions.mjs",
+    "tests/**/*.ts",
+    "tests/run-pack.mjs",
+    "tests/kit/*.mjs"
+  ],
   "exclude": ["tests/packs/delta/product-integration"]
 }
