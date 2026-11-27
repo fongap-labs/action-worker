@@ -80,7 +80,10 @@ test("automatic policy derives dev rules for every eligible repository without a
   for (const repository of [identity.repository, "fongap-labs/delta", "fongap-labs/new-repo"]) {
     const selected = managedRepositoryRulesets(policy, repository, identity.controlRepository);
     assert.equal(
-      protectedMergeRuleset(selected.find((rule) => rule.name === "Protect Dev Branch"), "dev"),
+      protectedMergeRuleset(
+        selected.find((rule) => rule.name === "Protect Dev Branch"),
+        "dev"
+      ),
       true
     );
     assert.equal(devMergePolicyEnabled(policy, repository, identity.controlRepository), true);
