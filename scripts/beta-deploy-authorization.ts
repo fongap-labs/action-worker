@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
+import { verifyCurrentBetaSource } from "./beta-source-proof.ts";
 import type { JsonReader } from "./ci-evidence.ts";
 import { isDeployPolicyKey, productPolicyKey } from "./deploy-policy-key.ts";
-import { assertTrustedDevWrite, verifyRecordedDevWrite } from "./dev-write-guard.ts";
-import { getJsonString, isJsonRecord } from "./github-api.ts";
+import { isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 type Binding = { source: string; kind: "secret" | "variable" };
@@ -134,21 +134,5 @@ export async function verifyBetaDeploySource(
   sha: string,
   controlRepository: string
 ): Promise<number> {
-  const source = await reader.get(`repos/${repository}`);
-  if (
-    !isJsonRecord(source) ||
-    source.private !== false ||
-    source.full_name !== repository ||
-    source.default_branch !== "main" ||
-    repository === controlRepository
-  ) {
-    throw new CliError("Beta deploy requires a public managed source.", 75);
-  }
-  await assertTrustedDevWrite(reader, repository, sha, controlRepository);
-  const proof = await verifyRecordedDevWrite(reader, repository, sha, controlRepository);
-  const live = await reader.get(`repos/${repository}/commits/dev`);
-  if (getJsonString(live, "sha") !== sha) {
-    throw new CliError("Beta deployment source is no longer current dev HEAD.", 75);
-  }
-  return proof.scope.prNumber;
+  return verifyCurrentBetaSource(reader, repository, sha, controlRepository);
 }

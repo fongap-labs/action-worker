@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { verifyBetaDeploySource } from "../scripts/beta-deploy-authorization.ts";
+import { verifyBetaReleaseSource } from "../scripts/beta-release-authorization.ts";
+import { verifyCurrentBetaSource } from "../scripts/beta-source-proof.ts";
 import { devGovernanceReceipt, prCiScopeDescription } from "../scripts/ci-scope-receipt.ts";
 import { verifyDevMergeAdmission, verifyDevSquashWrite } from "../scripts/dev-merge-admission.ts";
 import { verifyRecordedDevWrite } from "../scripts/dev-write-guard.ts";
@@ -213,4 +216,92 @@ test("recorded development write requires signed receipt and a trusted dev paren
     )
   );
   await assert.rejects(verify(), /lacks trusted Dev Write Guard/);
+});
+
+test("Beta release and deploy share current dev proof but not channel permissions", async () => {
+  const f = fixture();
+  f.entries.set(`${prefix}/pulls/7`, f.closed);
+  f.entries.set(prefix, { full_name: repository, private: false, default_branch: "main" });
+  f.entries.set(`${prefix}/commits/dev`, { sha: writeSha });
+  const guard = (sha: string, createdAt: string) => ({
+    context: "Dev Write Guard",
+    state: "success",
+    description: `init-v1=${sha}`,
+    target_url: `https://github.com/${control}/actions/runs/53`,
+    created_at: createdAt,
+  });
+  f.entries.set(
+    `${prefix}/commits/${scope.baseSha}/status`,
+    attestFixtureStatuses(
+      { statuses: [guard(scope.baseSha, "2026-11-25T09:00:00Z")] },
+      repository,
+      scope.baseSha
+    )
+  );
+  f.entries.set(
+    `${prefix}/commits/${writeSha}/status`,
+    attestFixtureStatuses(
+      {
+        statuses: [
+          guard(writeSha, "2026-11-25T10:04:00Z"),
+          {
+            context: "Dev Merge Receipt",
+            state: "success",
+            description: `merge-v1=${scope.mergeSha}`,
+            target_url: runUrl,
+            created_at: "2026-11-25T10:02:01Z",
+          },
+        ],
+      },
+      repository,
+      writeSha
+    )
+  );
+  const governance = f.entries.get(`repos/${control}/actions/runs/51`) as Record<string, unknown>;
+  f.entries.set(`repos/${control}/actions/runs/51`, {
+    ...governance,
+    updated_at: "2026-11-25T10:03:00Z",
+  });
+  f.entries.set(`repos/${control}/actions/runs/53`, {
+    ...governance,
+    id: 53,
+    path: ".github/workflows/intake.yml",
+    run_started_at: "2026-11-25T08:59:00Z",
+    updated_at: "2026-11-25T10:05:00Z",
+  });
+  const list = `${prefix}/rulesets?includes_parents=false&per_page=100`;
+  const detail = `${prefix}/rulesets/12?includes_parents=false`;
+  const rule = {
+    target: "tag",
+    enforcement: "active",
+    conditions: { ref_name: { include: ["refs/tags/**"], exclude: ["refs/tags/*-v*-beta.*"] } },
+    bypass_actors: [{ actor_type: "Integration", actor_id: 5609149, bypass_mode: "always" }],
+    rules: ["creation", "update", "deletion"].map((type) => ({ type })),
+  };
+  const policy = { schema_version: 1, repositories: [repository] };
+  const release = () => verifyBetaReleaseSource(f.reader, repository, writeSha, control, policy);
+  const deploy = () => verifyBetaDeploySource(f.reader, repository, writeSha, control);
+  assert.equal(await deploy(), 7);
+  f.entries.set(list, []);
+  await assert.rejects(release(), /formal tag protection/);
+  f.entries.set(list, [{ id: 12, name: "Protect Formal Tags" }]);
+  f.entries.set(detail, rule);
+  assert.equal(await release(), 7);
+  f.entries.set(detail, { ...rule, bypass_actors: [] });
+  await assert.rejects(release(), /formal tag protection/);
+  assert.equal(await deploy(), 7);
+  f.entries.set(detail, rule);
+
+  await assert.rejects(
+    verifyCurrentBetaSource(f.reader, repository, writeSha, control, async () => {
+      f.entries.set(`${prefix}/commits/dev`, { sha: scope.baseSha });
+    }),
+    /current dev HEAD/
+  );
+  await assert.rejects(deploy(), /current dev HEAD/);
+  await assert.rejects(release(), /current dev HEAD/);
+  f.entries.set(`${prefix}/commits/dev`, { sha: writeSha });
+  f.entries.set(prefix, { full_name: repository, private: true, default_branch: "main" });
+  await assert.rejects(deploy(), /public managed repository/);
+  await assert.rejects(release(), /public managed repository/);
 });
