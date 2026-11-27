@@ -5,12 +5,7 @@ import { type PrCiScope, prCiScopeDescription } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
 import { verifyDevMergeAdmission, verifyDevSquashCommit } from "./dev-merge-admission.ts";
 import { assertTrustedDevWrite, devMergeReceiptContext } from "./dev-write-guard.ts";
-import {
-  getJsonArray,
-  getJsonString,
-  isJsonRecord,
-  statusAwareReader,
-} from "./github-api.ts";
+import { getJsonArray, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { squashManagedPull } from "./managed-pr-squash.ts";
 import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
