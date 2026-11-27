@@ -389,3 +389,47 @@ test("the Intake deploy-schedules job matches the task-schedules job", async () 
     /# A slot up to 12 hours late runs once: only the latest due slot of each product environment is dispatched\./
   );
 });
+
+test("shared scheduler selects Beta only on dev and only with an exact authorized product", async () => {
+  const manifest = {
+    ...alphaManifest,
+    environments: {
+      production: { triggers: { push: true } },
+      beta: { triggers: { schedule: ["0 12 * * *"] } },
+    },
+  };
+  const routes = {
+    ...productRoutes(manifest, { production: open }),
+    [`repos/${repository}`]: {
+      default_branch: "main",
+      full_name: repository,
+      private: false,
+    },
+    [`repos/${repository}/commits/dev`]: { sha: newerHead },
+  };
+  const reader = repositoryReader(routes);
+  const key = repository + "/alpha";
+  const binding = { credential_environment: "beta-alpha-ops", credentials: {} };
+  const resolve = (targets: unknown) =>
+    resolveScheduledDeploys(
+      policy,
+      at("2026-10-13T12:05:00Z"),
+      720,
+      controlRepository,
+      reader,
+      "",
+      { schema_version: 1, targets }
+    );
+  assert.deepEqual(await resolve({ [key]: binding }), []);
+  assert.deepEqual(await resolve({ [repository]: { ...binding, allow_schedule: true } }), []);
+  const targets = await resolve({ [key]: { ...binding, allow_schedule: true } });
+  assert.equal(targets.length, 1);
+  const selected = targets[0]!;
+  assert.equal(selected.head_sha, newerHead);
+  assert.equal(selected.source_branch, "dev");
+  assert.equal(selected.environment, "beta");
+  const body = JSON.parse(scheduledDeployRequestBody(selected, "run-source-script-deploy"));
+  assert.equal(body.client_payload.source_branch, "dev");
+  assert.equal(body.client_payload.environment, "beta");
+  assert.equal(body.client_payload.trigger, "schedule");
+});

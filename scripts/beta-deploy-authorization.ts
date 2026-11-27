@@ -9,6 +9,7 @@ type Binding = { source: string; kind: "secret" | "variable" };
 export type BetaDeployTarget = {
   credential_environment: string;
   credentials: Record<string, Binding>;
+  allow_schedule?: boolean;
 };
 
 export function readBetaDeployPolicy(): unknown {
@@ -40,11 +41,7 @@ function safeName(name: string): boolean {
   );
 }
 
-export function resolveBetaDeployTarget(
-  policy: unknown,
-  repository: string,
-  product: string
-): BetaDeployTarget {
+export function parseBetaDeployTargets(policy: unknown): Map<string, BetaDeployTarget> {
   if (
     !isJsonRecord(policy) ||
     policy.schema_version !== 1 ||
@@ -62,7 +59,10 @@ export function resolveBetaDeployTarget(
       !key.startsWith("fongap-labs/") ||
       key.split("/")[1] === "action-worker" ||
       !isJsonRecord(target) ||
-      Object.keys(target).length !== 2 ||
+      Object.keys(target).some(
+        (name) => !["credential_environment", "credentials", "allow_schedule"].includes(name)
+      ) ||
+      (target.allow_schedule !== undefined && typeof target.allow_schedule !== "boolean") ||
       typeof target.credential_environment !== "string" ||
       !/^beta-[a-z0-9][a-z0-9-]{0,48}-ops$/.test(target.credential_environment) ||
       environments.has(target.credential_environment) ||
@@ -90,11 +90,38 @@ export function resolveBetaDeployTarget(
       sources.add(binding.source);
       credentials[name] = { source: binding.source, kind: binding.kind };
     }
-    targets.set(key, { credential_environment: target.credential_environment, credentials });
+    targets.set(key, {
+      credential_environment: target.credential_environment,
+      credentials,
+      ...(target.allow_schedule === undefined ? {} : { allow_schedule: target.allow_schedule }),
+    });
   }
-  const selected = targets.get(productPolicyKey(repository, product));
+  return targets;
+}
+
+export function resolveBetaDeployTarget(
+  policy: unknown,
+  repository: string,
+  product: string
+): BetaDeployTarget {
+  const selected = parseBetaDeployTargets(policy).get(productPolicyKey(repository, product));
   if (!selected) throw new CliError("Beta deployment is disabled for this product.", 77);
   return selected;
+}
+
+export function assertBetaDeployTrigger(
+  target: BetaDeployTarget,
+  trigger: string,
+  manifest: { automatic: boolean; schedule: readonly string[] }
+): void {
+  if (
+    manifest.automatic ||
+    (manifest.schedule.length > 0 && target.allow_schedule !== true) ||
+    (trigger !== "manual" &&
+      !(trigger === "schedule" && target.allow_schedule === true && manifest.schedule.length > 0))
+  ) {
+    throw new CliError("Beta deployment trigger is not centrally authorized.", 77);
+  }
 }
 
 export function selectBetaDeployVariables(

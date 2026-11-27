@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { requireVerifiedCiEvidence } from "../scripts/ci-evidence.ts";
-import { assertExpectedRepository, parseDeployRequest } from "../scripts/validate-deploy-source.ts";
+import {
+  assertBetaDeployIngress,
+  assertExpectedRepository,
+  parseDeployRequest,
+} from "../scripts/validate-deploy-source.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
@@ -97,7 +101,7 @@ test("a deploy request may name a product, an environment and a trigger, and not
   }
 });
 
-test("Beta deploy requests must explicitly bind dev, beta and manual trigger", () => {
+test("Beta deploy requests bind dev, beta and the authorized ingress", () => {
   const request = {
     schema_version: "1",
     request_id: "deploy-beta-1",
@@ -108,13 +112,19 @@ test("Beta deploy requests must explicitly bind dev, beta and manual trigger", (
     trigger: "manual",
   };
   assert.deepEqual(parseDeployRequest(request), request);
+  assert.doesNotThrow(() =>
+    assertBetaDeployIngress(parseDeployRequest(request), "workflow_dispatch")
+  );
+  assert.throws(() => assertBetaDeployIngress(parseDeployRequest(request), "repository_dispatch"));
+  const scheduled = parseDeployRequest({ ...request, trigger: "schedule" });
+  assert.doesNotThrow(() => assertBetaDeployIngress(scheduled, "repository_dispatch"));
+  assert.throws(() => assertBetaDeployIngress(scheduled, "workflow_dispatch"));
   for (const change of [
     { source_branch: "main" },
     { source_branch: undefined },
     { environment: "production" },
     { environment: undefined },
     { trigger: "push" },
-    { trigger: "schedule" },
     { trigger: undefined },
   ]) {
     assert.throws(() => parseDeployRequest({ ...request, ...change }));

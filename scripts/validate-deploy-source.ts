@@ -1,4 +1,5 @@
 import {
+  assertBetaDeployTrigger,
   readBetaDeployPolicy,
   resolveBetaDeployTarget,
   verifyBetaDeploySource,
@@ -87,13 +88,25 @@ export function parseDeployRequest(value: unknown): DeployRequest {
     throw new CliError("::error::Deploy request is invalid.", 64);
   }
   if (value.source_branch === "dev") {
-    if (value.environment !== "beta" || value.trigger !== "manual") {
-      throw new CliError("Dev deployment requires an explicit manual Beta request.", 65);
+    if (value.environment !== "beta" || !["manual", "schedule"].includes(String(value.trigger))) {
+      throw new CliError("Dev deployment requires an explicit Beta request and trigger.", 65);
     }
   } else if (value.environment === "beta") {
     throw new CliError("Beta deployment cannot use the main branch.", 65);
   }
   return value as DeployRequest;
+}
+
+/** Scheduled Beta ingress cannot masquerade as a manual request. */
+export function assertBetaDeployIngress(request: DeployRequest, event: string): void {
+  if (request.source_branch !== "dev") return;
+  if (
+    (event === "workflow_dispatch" && request.trigger === "manual") ||
+    (event === "repository_dispatch" && request.trigger === "schedule")
+  ) {
+    return;
+  }
+  throw new CliError("Beta deployment ingress does not match the authorized trigger.", 75);
 }
 
 export function assertExpectedRepository(request: DeployRequest, expectedRepository: string): void {
@@ -172,15 +185,15 @@ async function main(): Promise<void> {
   assertMainPublicationBranch(defaultBranch);
   const branch = request.source_branch ?? "main";
   if (request.environment) assertBranchDeployEnvironment(branch, request.environment);
+  assertBetaDeployIngress(request, process.env.GITHUB_EVENT_NAME ?? "");
   if (
     branch === "dev" &&
-    (process.env.GITHUB_EVENT_NAME !== "workflow_dispatch" ||
-      process.env.GITHUB_REPOSITORY !== defaultControlRepository ||
+    (process.env.GITHUB_REPOSITORY !== defaultControlRepository ||
       process.env.GITHUB_REF !== "refs/heads/main" ||
       !isJsonRecord(repository) ||
       repository.private !== false)
   ) {
-    throw new CliError("Beta deployment requires trusted manual control and a public source.", 75);
+    throw new CliError("Beta deployment requires trusted central control and a public source.", 75);
   }
   const defaultCommit = await reader.get(`repos/${request.source_repository}/commits/${branch}`);
   const defaultSha = getJsonString(defaultCommit, "sha");
@@ -211,9 +224,10 @@ async function main(): Promise<void> {
       65
     );
   }
-  if (branch === "dev") {
-    resolveBetaDeployTarget(readBetaDeployPolicy(), request.source_repository, product.name);
-  }
+  const betaTarget =
+    branch === "dev"
+      ? resolveBetaDeployTarget(readBetaDeployPolicy(), request.source_repository, product.name)
+      : undefined;
   const environmentPolicy =
     branch === "dev"
       ? {
@@ -241,13 +255,13 @@ async function main(): Promise<void> {
 
   let writePr: number;
   if (branch === "dev") {
+    if (!betaTarget) throw new CliError("Beta deployment target is unavailable.", 77);
+    assertBetaDeployTrigger(betaTarget, trigger, manifest);
     if (
-      manifest.automatic ||
-      manifest.schedule.length > 0 ||
       manifest.runner_backend !== "github-hosted" ||
       manifest.runner_labels_json !== '["ubuntu-24.04"]'
     ) {
-      throw new CliError("Beta deployment requires a manual-only isolated hosted runner.", 75);
+      throw new CliError("Beta deployment requires an isolated hosted runner.", 75);
     }
     writePr = await verifyBetaDeploySource(
       reader,

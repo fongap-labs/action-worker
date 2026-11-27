@@ -1,16 +1,30 @@
 import { createHash } from "node:crypto";
+import {
+  type BetaDeployTarget,
+  parseBetaDeployTargets,
+  readBetaDeployPolicy,
+  resolveBetaDeployTarget,
+  verifyBetaDeploySource,
+} from "./beta-deploy-authorization.ts";
 import { assertMainPublicationBranch } from "./branch-publication-policy.ts";
 import { hasVerifiedCiEvidence, type JsonReader, latestCiStatus } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import { latestCronSlot, minuteFloor, parseCronSchedule, slotKey } from "./cron-schedule.ts";
 import { parseDeployPlan } from "./deploy-manifest.ts";
+import { productPolicyKey } from "./deploy-policy-key.ts";
 import {
   assertAutomaticCredentialEnvironment,
   assertNoRequiredReviewers,
   deployEventType,
   parseDeployPolicy,
 } from "./dispatch-central-deploy.ts";
-import { getJsonString, githubEnvironment, statusAwareReader } from "./github-api.ts";
+import {
+  getGithubJsonIfExists,
+  getJsonString,
+  githubEnvironment,
+  isJsonRecord,
+  statusAwareReader,
+} from "./github-api.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { type ContentReader, discoverProducts } from "./product-discovery.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
@@ -28,12 +42,14 @@ import {
   hasScheduledDispatchForSlot,
   writeScheduledDispatchStatus,
 } from "./scheduled-dispatch-statuses.ts";
+import { assertExistingCredentialEnvironment } from "./verify-deploy-credential-environment.ts";
 
 export type ScheduledDeployTarget = {
   repository: string;
   // The product directory name, or the empty string for the root layout.
   product: string;
   environment: string;
+  source_branch?: "dev";
   // The cron expressions of the environment's schedule.
   schedule: readonly string[];
 };
@@ -107,7 +123,8 @@ export async function scheduledDeployTargets(
   reader: ContentReader,
   repository: string,
   sha: string,
-  controlRepository: string
+  controlRepository: string,
+  betaTargets?: ReadonlyMap<string, BetaDeployTarget>
 ): Promise<ScheduledDeployTarget[]> {
   const discovery = await discoverProducts(reader, repository, sha);
   const targets: ScheduledDeployTarget[] = [];
@@ -118,8 +135,19 @@ export async function scheduledDeployTargets(
     }
     const plan = parseDeployPlan(text, repository);
     for (const environment of plan.environments) {
-      if (environment.environment === "beta") continue;
-      if (environment.declares_triggers) {
+      if (betaTargets) {
+        const grant = betaTargets.get(productPolicyKey(repository, product.name));
+        if (
+          environment.environment !== "beta" ||
+          grant?.allow_schedule !== true ||
+          environment.push_paths !== null
+        ) {
+          continue;
+        }
+      } else if (environment.environment === "beta") {
+        continue;
+      }
+      if (!betaTargets && environment.declares_triggers) {
         await assertNoRequiredReviewers(reader, controlRepository, environment.environment);
       }
       if (environment.schedule.length > 0) {
@@ -127,6 +155,7 @@ export async function scheduledDeployTargets(
           repository,
           product: product.name,
           environment: environment.environment,
+          ...(betaTargets ? { source_branch: "dev" as const } : {}),
           schedule: [...environment.schedule],
         });
       }
@@ -147,19 +176,24 @@ async function defaultHead(reader: ContentReader, repository: string): Promise<s
   return sha;
 }
 
-// Only the default branch is scheduled: a deploy names the head of the moment, never an older one.
+// Each authorized channel schedules its current head, never the other branch or an older head.
 export async function resolveScheduledDeploys(
   policyValue: unknown,
   now: Date,
   lookbackMinutes: number,
   controlRepository: string,
   reader: ContentReader,
-  onlyRepository = ""
+  onlyRepository = "",
+  betaPolicy?: unknown
 ): Promise<ScheduledDeploy[]> {
   const repositories = repositoriesForCapability(policyValue, "deploy").filter(
     (repository) =>
       repository !== controlRepository && (!onlyRepository || repository === onlyRepository)
   );
+  const betaTargets =
+    betaPolicy === undefined
+      ? new Map<string, BetaDeployTarget>()
+      : parseBetaDeployTargets(betaPolicy);
   const deploys: ScheduledDeploy[] = [];
   for (const repository of repositories) {
     const headSha = await defaultHead(reader, repository);
@@ -174,6 +208,39 @@ export async function resolveScheduledDeploys(
         continue;
       }
       deploys.push({ ...target, head_sha: headSha, slot: slotKey(slot), slot_time: slot });
+    }
+    if (
+      ![...betaTargets].some(
+        ([key, grant]) =>
+          (key === repository || key.startsWith(repository + "/")) && grant.allow_schedule === true
+      )
+    ) {
+      continue;
+    }
+    const metadata = await reader.get(`repos/${repository}`);
+    if (
+      !isJsonRecord(metadata) ||
+      metadata.private !== false ||
+      metadata.full_name !== repository ||
+      metadata.default_branch !== "main"
+    ) {
+      continue;
+    }
+    const dev = await getGithubJsonIfExists(`repos/${repository}/commits/dev`, (path) =>
+      reader.get(path)
+    );
+    if (dev === undefined) continue;
+    const devSha = getJsonString(dev, "sha");
+    if (!shaPattern.test(devSha)) throw new CliError("Beta deploy source HEAD is invalid.", 65);
+    for (const target of await scheduledDeployTargets(
+      reader,
+      repository,
+      devSha,
+      controlRepository,
+      betaTargets
+    )) {
+      const slot = latestScheduledSlot(target.schedule, now, lookbackMinutes);
+      if (slot) deploys.push({ ...target, head_sha: devSha, slot: slotKey(slot), slot_time: slot });
     }
   }
   return deploys.sort(
@@ -251,6 +318,7 @@ export function scheduledDeployRequestBody(deploy: ScheduledDeploy, eventType: s
       request_id: `deploy-schedule-${identity}`,
       source_repository: deploy.repository,
       source_sha: deploy.head_sha,
+      ...(deploy.source_branch === "dev" ? { source_branch: "dev" } : {}),
       product: deploy.product,
       environment: deploy.environment,
       trigger: "schedule",
@@ -352,6 +420,7 @@ async function main(): Promise<void> {
   );
   const credentialRoutes = await readJson("policies/deploy-credential-environments.json");
   const environmentGrants = await readJson("policies/deploy-environments.json");
+  const betaPolicy = readBetaDeployPolicy();
 
   const deploys = await resolveScheduledDeploys(
     policy,
@@ -359,7 +428,8 @@ async function main(): Promise<void> {
     lookbackMinutes,
     controlRepository,
     reader,
-    target
+    target,
+    betaPolicy
   );
   const results: DeployResult[] = [];
   let dispatched = 0;
@@ -376,12 +446,18 @@ async function main(): Promise<void> {
       results.push({ ...label, result: "skipped (already dispatched)" });
       continue;
     }
-    const verdict = await mainCiVerdict(
-      reader,
-      deploy.repository,
-      deploy.head_sha,
-      controlRepository
-    );
+    let verdict: { passed: boolean; reason: string };
+    if (deploy.source_branch === "dev") {
+      try {
+        await verifyBetaDeploySource(reader, deploy.repository, deploy.head_sha, controlRepository);
+        verdict = { passed: true, reason: "Dev CI and write evidence verified" };
+      } catch (error) {
+        if (!(error instanceof CliError)) throw error;
+        verdict = { passed: false, reason: "Dev source proof is not verified" };
+      }
+    } else {
+      verdict = await mainCiVerdict(reader, deploy.repository, deploy.head_sha, controlRepository);
+    }
     if (!verdict.passed) {
       results.push({
         ...label,
@@ -389,16 +465,25 @@ async function main(): Promise<void> {
       });
       continue;
     }
-    // A scheduled deployment must not enter a reviewer-blocked ops credential Job.
-    await assertAutomaticCredentialEnvironment(
-      reader,
-      controlRepository,
-      deploy.repository,
-      deploy.product,
-      deploy.environment,
-      credentialRoutes,
-      environmentGrants
-    );
+    if (deploy.source_branch === "dev") {
+      // Beta schedules submit a deployment request, not an approval. Existing reviewers stay.
+      const grant = resolveBetaDeployTarget(betaPolicy, deploy.repository, deploy.product);
+      await assertExistingCredentialEnvironment(
+        reader,
+        controlRepository,
+        grant.credential_environment
+      );
+    } else {
+      await assertAutomaticCredentialEnvironment(
+        reader,
+        controlRepository,
+        deploy.repository,
+        deploy.product,
+        deploy.environment,
+        credentialRoutes,
+        environmentGrants
+      );
+    }
     await dispatchWithReservation(
       () => reserveDispatch(deploy, statusToken),
       () =>
