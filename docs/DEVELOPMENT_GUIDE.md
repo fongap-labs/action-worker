@@ -95,7 +95,34 @@ node scripts/resolve-runtime-versions.mjs ../plugins
 两条均使用同一中央工具链版本，第二条额外判断项目是否需要 pnpm。
 从当前受信任分支检出项目后再生成计划；所有智能体共享同一份输出，不各自维护版本。
 该入口只需已安装的 Node.js，不安装工具、不修改 PATH、不升级依赖。
-中央调度、私有仓库持续集成及发布构建的 Node.js 安装同样读取该目录；发布清单的版本文件仅用于判断是否需要 Node.js，不覆盖实际安装版本。开发分支的中央自检读取当前可信控制版本，不从另一受管分支复制源码。本机自动安装器后续接入。
+中央调度、私有仓库持续集成及发布构建的 Node.js 安装同样读取该目录；发布清单的版本文件仅用于判断是否需要 Node.js，不覆盖实际安装版本。开发分支的中央自检读取当前可信控制版本，不从另一受管分支复制源码。Windows 11 本机安装与启用见下节。
+
+### Windows 11 统一工具链安装
+
+在可信 Action Worker 检出目录中打开 PowerShell（普通用户，无需提升权限），默认先生成计划，不下载或修改环境：
+
+```powershell
+.\scripts\install-windows-toolchain.ps1
+.\scripts\install-windows-toolchain.ps1 -Mode Install -Root 'D:\FongapLabs\toolchain'
+.\scripts\install-windows-toolchain.ps1 -Mode Activate -Root 'D:\FongapLabs\toolchain'
+```
+
+不指定目录时使用当前用户的本地应用数据目录下的 `FongapLabs\toolchain`。
+安装和启用模式支持 Windows x64、ARM64；Python 安装包是否存在由 Windows Package Manager 决定。
+Node.js 使用中央精确版本的官方便携包并检查官方 SHA-256 清单；
+pnpm 使用中央精确版本的独立目录，禁止安装生命周期脚本。
+Python 优先复用符合中央版本系列且具备 pip、venv 的现有解释器，否则使用 WinGet 的 Python 用户级安装包，
+保留标准库和开发头文件，关闭 IDLE、Tk、文档、测试、调试组件、快捷方式、文件关联及启动器。
+中央尚未固定 Python 补丁版本，因此复用或安装的是相应系列，不承诺最新安全补丁或特定补丁版本。
+
+安装通过实际版本验证后，才为当前 PowerShell 会话设置共用 PATH。
+用此会话启动各 Agent，避免其独立配置不同的工具路径；新会话可直接使用启用模式。
+显式增加 `-PersistPath` 才更新当前用户 PATH 和 pnpm 版本不匹配策略，不修改系统 PATH 或 PowerShell 配置文件。
+若机器级 PATH、Agent 自带工具或项目配置覆盖该环境，仍需调整 Agent 启动方式或项目声明；
+用户级 PATH 不保证优先于机器级 PATH。pnpm 版本不匹配应报告问题而非自动下载，存量项目声明仍待整改。
+没有中央版本基准的 Git、Rust、uv 等不会自动安装。各项目的依赖、虚拟环境、锁文件继续独立管理。
+已存在的管理目录不会自动覆盖或删除，版本不符时明确失败；安装失败可能留下已成功安装的工具，修复后可重试。
+此脚本不运行目标仓库安装命令，不获取 GitHub 凭据，也不修改任何远端仓库。
 
 ### 业务仓库通用本地预检（无复制脚本）
 
