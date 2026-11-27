@@ -7,7 +7,7 @@ import {
   verifyTransferCommit,
 } from "./branch-transfer-write.ts";
 import { type JsonReader, latestCiStatus } from "./ci-evidence.ts";
-import { requiredCiJobsPassed } from "./ci-isRevocationRequired-jobs.ts";
+import { requiredCiJobsPassed } from "./ci-required-jobs.ts";
 import {
   type PrCiScope,
   prCiScopeDescription,
