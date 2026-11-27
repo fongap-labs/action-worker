@@ -8,8 +8,8 @@ import {
   revokeTransferHeadGate,
 } from "../scripts/branch-transfer-execution.ts";
 import { verifyTransferCommit } from "../scripts/branch-transfer-write.ts";
-import { signedStatusDescription } from "../scripts/status-attestation.ts";
 import { type PrCiScope, prCiScopeDescription } from "../scripts/ci-scope-receipt.ts";
+import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const repository = "fongap-labs/product";
 const scope: PrCiScope = {
@@ -132,7 +132,10 @@ test("regenerated synthetic merge SHA is accepted only for the exact ordered par
   replacement = { ...replacement, tree: { sha: "f".repeat(40) } };
   await assert.rejects(requireEquivalentTransferSnapshot(reader, scope, refreshed), /tree changed/);
   replacement = { ...original, sha: refreshed.mergeSha, parents: [...original.parents].reverse() };
-  await assert.rejects(requireEquivalentTransferSnapshot(reader, scope, refreshed), /invalid parents/);
+  await assert.rejects(
+    requireEquivalentTransferSnapshot(reader, scope, refreshed),
+    /invalid parents/
+  );
 });
 
 test("temporary target gate refuses a competing PR sharing the protected source SHA", async () => {

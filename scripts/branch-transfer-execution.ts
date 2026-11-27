@@ -7,7 +7,7 @@ import {
   verifyTransferCommit,
 } from "./branch-transfer-write.ts";
 import { type JsonReader, latestCiStatus } from "./ci-evidence.ts";
-import { requiredCiJobsPassed } from "./ci-required-jobs.ts";
+import { requiredCiJobsPassed } from "./ci-isRevocationRequired-jobs.ts";
 import {
   type PrCiScope,
   prCiScopeDescription,
@@ -130,13 +130,12 @@ export async function revokeTransferHeadGate(
   snapshot: string,
   runUrl: string,
   publish: TransferPublisher,
-  required = false,
-  wait: (ms: number) => Promise<void> = (ms) =>
-    new Promise((resolve) => setTimeout(resolve, ms))
+  isRevocationRequired = false,
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 ): Promise<void> {
   const context = transferGateContext(targetBranch);
   const path = `repos/${repository}/commits/${headSha}/status`;
-  let revoked = false;
+  let hasRevokedGate = false;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const latest = latestCiStatus(await reader.get(path), context);
     if (latest && getJsonString(latest, "target_url") === runUrl) {
@@ -151,12 +150,12 @@ export async function revokeTransferHeadGate(
       if (latest.state !== "success") {
         throw new CliError("Unexpected transfer head gate state.", 75);
       }
-      if (!revoked) {
+      if (!hasRevokedGate) {
         await publish(headSha, context, "failure", snapshot);
-        revoked = true;
+        hasRevokedGate = true;
       }
     } else {
-      if (!required && !revoked) return;
+      if (!isRevocationRequired && !hasRevokedGate) return;
       if (latest?.state === "success") {
         throw new CliError("A different publisher owns the active target gate.", 75);
       }
@@ -384,7 +383,7 @@ async function main(): Promise<void> {
   }
   const mergeToken = process.env.AW_MERGE_WRITE_TOKEN ?? "";
   if (!mergeToken) throw new CliError("Missing scoped transfer merge token.", 77);
-  let headGrantAttempted = false;
+  let hasAttemptedHeadGrant = false;
   const closeHeadGate = () =>
     revokeTransferHeadGate(
       reader,
@@ -394,7 +393,7 @@ async function main(): Promise<void> {
       snapshot,
       runUrl,
       publish,
-      headGrantAttempted
+      hasAttemptedHeadGrant
     );
   const requireCurrent = async (): Promise<PrCiScope> => {
     const current = await readCurrentTransferScope(reader, repository, prNumber, headSha);
@@ -409,7 +408,7 @@ async function main(): Promise<void> {
   const current = await requireCurrent();
   const signedSnapshots = new Set([scope.mergeSha, current.mergeSha]);
   let writeSha = "";
-  let receiptIssued = false;
+  let hasIssuedReceipt = false;
   try {
     // Preserve the tested snapshot proof. A refreshed test merge commit has the same
     // parents and tree, but GitHub may generate a new SHA during the merge API call.
@@ -421,7 +420,7 @@ async function main(): Promise<void> {
     if (latestCiStatus(latestHeadStatuses, gateContext)?.state === "success") {
       throw new CliError("Another target gate became active before transfer execution.", 75);
     }
-    headGrantAttempted = true;
+    hasAttemptedHeadGrant = true;
     await publish(headSha, gateContext, "success", snapshot);
     const latest = await requireCurrent();
     if (!signedSnapshots.has(latest.mergeSha)) {
@@ -457,13 +456,13 @@ async function main(): Promise<void> {
       "success",
       `transfer-v1=${scope.mergeSha}`
     );
-    receiptIssued = true;
+    hasIssuedReceipt = true;
   } finally {
     try {
       await closeHeadGate();
     } finally {
       for (const sha of signedSnapshots) {
-        if (!receiptIssued || sha !== scope.mergeSha) {
+        if (!hasIssuedReceipt || sha !== scope.mergeSha) {
           await publish(sha, gateContext, "failure", snapshot);
         }
       }
