@@ -97,7 +97,7 @@ node scripts/resolve-runtime-versions.mjs ../plugins
 该入口只需已安装的 Node.js，不安装工具、不修改 PATH、不升级依赖。
 中央调度、私有仓库持续集成及发布构建的 Node.js 安装同样读取该目录；发布清单的版本文件仅用于判断是否需要 Node.js，不覆盖实际安装版本。开发分支的中央自检读取当前可信控制版本，不从另一受管分支复制源码。Windows 11 本机安装与启用见下节。
 
-### Windows 11 统一工具链安装
+### 本地统一工具链安装
 
 在可信 Action Worker 检出目录中打开 PowerShell（普通用户，无需提升权限），默认先生成计划，不下载或修改环境：
 
