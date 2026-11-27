@@ -61,12 +61,6 @@ jobs:
         with:
           node-version: 24
 
-      - name: Apply managed settings
-        env:
-          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
-          TARGET_REPOSITORY: ${{ github.repository }}
-        run: node scripts/apply-repository-settings.ts "$TARGET_REPOSITORY" false
-
       - name: Apply AI Review model
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}

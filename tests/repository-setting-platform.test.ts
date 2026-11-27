@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  applyRulesets,
   isUnsupportedPrivateRuleset,
   settingMatchesPlatform,
 } from "../scripts/apply-repository-settings.ts";
@@ -38,4 +39,50 @@ test("private ruleset exclusion requires a real plan restriction, never visibili
   ]) {
     assert.equal(isUnsupportedPrivateRuleset(error, true), false);
   }
+});
+
+test("ruleset writes are verified by an independent read before reporting success", async () => {
+  const repository = "fongap-labs/example";
+  const desired = {
+    name: "Protect Dev Branch",
+    target: "branch",
+    enforcement: "active",
+    bypass_actors: [],
+    conditions: { ref_name: { include: ["refs/heads/dev"], exclude: [] } },
+    rules: [{ type: "creation" }],
+  };
+  for (const isExisting of [true, false]) {
+    for (const isDrifted of [true, false]) {
+      const methods: string[] = [];
+      let hasWritten = false;
+      const request = async (method: string, endpoint: string): Promise<unknown> => {
+        methods.push(method);
+        if (endpoint.includes("per_page=100")) {
+          return isExisting ? [{ id: 42, name: desired.name }] : [];
+        }
+        if (method === "GET") {
+          return hasWritten && !isDrifted ? desired : { ...desired, enforcement: "disabled" };
+        }
+        hasWritten = true;
+        return { id: 42 };
+      };
+      const pending = applyRulesets(repository, "test-token", false, [desired], request);
+      if (isDrifted) {
+        await assert.rejects(pending, /read-back does not match/);
+      } else {
+        assert.equal((await pending).protectionApplied, true);
+      }
+      assert.deepEqual(methods, isExisting ? ["GET", "GET", "PUT", "GET"] : ["GET", "POST", "GET"]);
+    }
+  }
+});
+
+test("ambiguous managed rulesets never permit reconciliation", async () => {
+  await assert.rejects(
+    applyRulesets("fongap-labs/example", "test-token", false, [], async () => [
+      { id: 42, name: "Protect Main Branch" },
+      { id: 43, name: "Protect Main Branch" },
+    ]),
+    /duplicate names/
+  );
 });

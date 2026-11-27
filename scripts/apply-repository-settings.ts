@@ -250,15 +250,16 @@ export function isUnsupportedPrivateRuleset(error: unknown, isPrivate: boolean):
   );
 }
 
-async function applyRulesets(
+export async function applyRulesets(
   repository: string,
   token: string,
   isPrivate: boolean,
-  rulesets: readonly RulesetPayload[]
+  rulesets: readonly RulesetPayload[],
+  request: typeof ghJson = ghJson
 ): Promise<{ hasDevChanged: boolean; protectionApplied: boolean }> {
   let existingValue: unknown;
   try {
-    existingValue = await ghJson(
+    existingValue = await request(
       "GET",
       `repos/${repository}/rulesets?includes_parents=false&per_page=100`,
       token
@@ -270,7 +271,7 @@ async function applyRulesets(
     );
     return { hasDevChanged: false, protectionApplied: false };
   }
-  if (!Array.isArray(existingValue)) {
+  if (!Array.isArray(existingValue) || existingValue.length >= 100) {
     throw new CliError("repository ruleset list response is invalid");
   }
 
@@ -284,30 +285,47 @@ async function applyRulesets(
     ) {
       continue;
     }
+    if (existingByName.has(item.name)) {
+      throw new CliError("repository ruleset list contains duplicate names");
+    }
     existingByName.set(item.name, item.id);
   }
 
   let hasDevChanged = false;
   for (const desired of rulesets) {
     const opensDev = desired.name === "Protect Dev Branch" && !isClosedDevProtection(desired);
-    const id = existingByName.get(desired.name);
+    let id = existingByName.get(desired.name);
     if (id === undefined) {
-      await ghJson("POST", `repos/${repository}/rulesets`, token, desired);
+      const created = await request("POST", `repos/${repository}/rulesets`, token, desired);
+      if (
+        !isJsonRecord(created) ||
+        typeof created.id !== "number" ||
+        !Number.isSafeInteger(created.id) ||
+        created.id <= 0
+      ) {
+        throw new CliError("repository ruleset creation returned an invalid identity");
+      }
+      id = created.id;
       console.log(`repository ruleset created: ${repository} / ${desired.name}`);
-      if (opensDev) hasDevChanged = true;
-      continue;
+    } else {
+      const current = rulesetSnapshot(
+        await request("GET", `repos/${repository}/rulesets/${id}?includes_parents=false`, token)
+      );
+      if (isDeepStrictEqual(current, desired)) {
+        console.log(`repository ruleset already current: ${repository} / ${desired.name}`);
+        continue;
+      }
+
+      await request("PUT", `repos/${repository}/rulesets/${id}`, token, desired);
+      console.log(`repository ruleset updated: ${repository} / ${desired.name}`);
     }
 
-    const current = rulesetSnapshot(
-      await ghJson("GET", `repos/${repository}/rulesets/${id}?includes_parents=false`, token)
+    const verified = rulesetSnapshot(
+      await request("GET", `repos/${repository}/rulesets/${id}?includes_parents=false`, token)
     );
-    if (isDeepStrictEqual(current, desired)) {
-      console.log(`repository ruleset already current: ${repository} / ${desired.name}`);
-      continue;
+    if (!isDeepStrictEqual(verified, desired)) {
+      throw new CliError("repository ruleset read-back does not match the managed policy", 75);
     }
-
-    await ghJson("PUT", `repos/${repository}/rulesets/${id}`, token, desired);
-    console.log(`repository ruleset updated: ${repository} / ${desired.name}`);
     if (opensDev) hasDevChanged = true;
   }
   return { hasDevChanged, protectionApplied: true };
