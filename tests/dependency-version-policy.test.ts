@@ -59,7 +59,10 @@ test("exact declarations and minor series are compared without claiming range co
 test("exceptions are exact, branch scoped and expire without automatic extension", () => {
   const policy = parseDependencyPolicy(source, "example");
   assert.equal(evaluateDeclaration(policy, repo, "dev", "tool:node", "26.13.1", date), "excepted");
-  assert.equal(evaluateDeclaration(policy, repo, "main", "tool:node", "26.13.1", date), "different");
+  assert.equal(
+    evaluateDeclaration(policy, repo, "main", "tool:node", "26.13.1", date),
+    "different"
+  );
   assert.equal(
     evaluateDeclaration(policy, repo, "dev", "tool:node", "26.13.1", "2026-11-28"),
     "different"

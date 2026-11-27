@@ -28,7 +28,9 @@ const declarationPattern = /^(?=.*\d)[\dA-Za-z.*^~<>=!|,+ -]{1,120}$/;
 const classes = new Set<string>(["toolchain", "engineering", "framework", "project"]);
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  return Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+  return (
+    Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key))
+  );
 }
 
 function validDate(value: unknown): value is string {
@@ -66,7 +68,7 @@ export function parseDependencyPolicy(value: unknown, organization: string): Dep
       (entry.version !== null &&
         (typeof entry.version !== "string" || !versionPattern.test(entry.version))) ||
       (entry.class !== "toolchain" && entry.class !== "engineering" && entry.version !== null) ||
-      (key.startsWith("tool:") !== (entry.class === "toolchain"))
+      key.startsWith("tool:") !== (entry.class === "toolchain")
     ) {
       invalid();
     }
