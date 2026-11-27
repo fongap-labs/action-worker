@@ -109,5 +109,8 @@ test("Node repair adapters reuse central versions and cannot publish arbitrary f
   assert.ok(
     steps.indexOf(find("Confine generated outputs")) > steps.indexOf(find("Run pnpm lock adapter"))
   );
-  assert.equal(find("Run pnpm lock adapter").env?.PNPM_VERSION, "${{ steps.runtime.outputs.pnpm }}");
+  assert.equal(
+    find("Run pnpm lock adapter").env?.PNPM_VERSION,
+    "${{ steps.runtime.outputs.pnpm }}"
+  );
 });
