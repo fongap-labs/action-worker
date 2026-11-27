@@ -39,7 +39,32 @@ test("central version catalog validates and enforces the ratchet mode", () => {
   assert.equal(policy.catalog.get("tool:node")?.version, "26.13.1");
   assert.equal(policy.catalog.get("tool:pnpm")?.version, "11.28.5");
   assert.equal(policy.catalog.get("npm:react")?.version, null);
-  assert.equal(policy.exceptions.length, 0);
+  assert.equal(policy.catalog.get("npm:typescript")?.version, "7.0.2");
+  for (const branch of ["main", "dev"] as const) {
+    assert.equal(
+      evaluateDeclaration(policy, "fongap-labs/delta", branch, "npm:typescript", "^6.0.3", date),
+      "excepted"
+    );
+    assert.equal(
+      evaluateDeclaration(
+        policy,
+        "fongap-labs/delta",
+        branch,
+        "npm:typescript",
+        "^6.0.3",
+        "2027-01-01"
+      ),
+      "range-review"
+    );
+    assert.equal(
+      evaluateDeclaration(policy, "fongap-labs/delta", branch, "npm:typescript", "^6.0.4", date),
+      "range-review"
+    );
+  }
+  assert.equal(
+    evaluateDeclaration(policy, "fongap-labs/plugins", "main", "npm:typescript", "^6.0.3", date),
+    "range-review"
+  );
 });
 
 test("exact declarations and minor series are compared without claiming range compatibility", () => {
