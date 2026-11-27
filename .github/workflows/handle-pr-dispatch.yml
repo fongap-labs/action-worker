@@ -109,7 +109,6 @@ jobs:
       target_branch: ${{ steps.payload.outputs.target_branch }}
       approved: ${{ steps.payload.outputs.target_branch == 'main' && steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
       dev_approved: ${{ steps.dev_admission.outputs.admitted == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
-      dev_base: ${{ steps.resolved.outputs.base_sha }}
     env:
       AW_AI_AGENT_CONFIG: ${{ vars.AW_AI_AGENT_CONFIG }}
 
@@ -606,7 +605,7 @@ jobs:
   auto-merge:
     name: Automatic squash merge (operational)
     needs: govern
-    if: ${{ needs.govern.result == 'success' && needs.govern.outputs.approved == 'true' }}
+    if: ${{ !cancelled() && needs.govern.result == 'success' && needs.govern.outputs.approved == 'true' }}
     continue-on-error: true
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -706,7 +705,7 @@ jobs:
       name: admin-ops
       deployment: false
     needs: govern
-    if: ${{ needs.govern.result == 'success' && needs.govern.outputs.dev_approved == 'true' && needs.govern.outputs.target_branch == 'dev' }}
+    if: ${{ !cancelled() && needs.govern.result == 'success' && needs.govern.outputs.dev_approved == 'true' && github.event.client_payload.target_branch == 'dev' }}
     continue-on-error: true
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -766,8 +765,17 @@ jobs:
           permission-statuses: read
           permission-issues: read
 
+      - name: Fetch current development PR identity
+        id: dev_facts
+        env:
+          GH_TOKEN: ${{ steps.app_read.outputs.token }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          AW_CI_TARGET_BRANCH: dev
+        run: node scripts/resolve-pr-facts.ts fetch
+
       - name: Verify protected dev execution boundary
-        if: needs.govern.outputs.target_branch == 'dev'
+        if: github.event.client_payload.target_branch == 'dev'
         id: dev_execution
         env:
           AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
@@ -777,7 +785,7 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           HEAD_SHA: ${{ github.event.client_payload.head_sha }}
-          BASE_SHA: ${{ needs.govern.outputs.dev_base }}
+          BASE_SHA: ${{ steps.dev_facts.outputs.base_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/dev-merge-execution.ts authorize
 
@@ -815,7 +823,7 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           HEAD_SHA: ${{ github.event.client_payload.head_sha }}
-          BASE_SHA: ${{ needs.govern.outputs.dev_base }}
+          BASE_SHA: ${{ steps.dev_facts.outputs.base_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/dev-merge-execution.ts execute
 
