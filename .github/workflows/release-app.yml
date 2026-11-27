@@ -51,6 +51,8 @@ jobs:
       target_repository: ${{ steps.request.outputs.target_repository }}
       matrix: ${{ steps.request.outputs.matrix }}
       node_version_file: ${{ steps.request.outputs.node_version_file }}
+      node_version: ${{ steps.runtime.outputs.node }}
+      python_version: ${{ steps.runtime.outputs.python }}
       python_version_file: ${{ steps.request.outputs.python_version_file }}
       sbom_asset: ${{ steps.request.outputs.sbom_asset }}
       manifest_path: ${{ steps.request.outputs.manifest_path }}
@@ -63,10 +65,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
           cache: npm
 
       - name: Install dependencies
@@ -262,22 +268,16 @@ jobs:
           python-version-file: source/${{ needs.prepare.outputs.product_root && format('{0}/', needs.prepare.outputs.product_root) || '' }}${{ needs.prepare.outputs.python_version_file }}
 
       - name: Setup Node
-        if: ${{ needs.prepare.outputs.node_version_file != '' }}
+        if: ${{ needs.prepare.outputs.node_version_file != '' || matrix.runner_profile == 'windows-chromium-build' }}
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: source/${{ needs.prepare.outputs.product_root && format('{0}/', needs.prepare.outputs.product_root) || '' }}${{ needs.prepare.outputs.node_version_file }}
+          node-version: ${{ needs.prepare.outputs.node_version }}
 
       - name: Setup Python for Brave source build
         if: ${{ matrix.runner_profile == 'windows-chromium-build' }}
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
-
-      - name: Setup Node for Brave source build
-        if: ${{ matrix.runner_profile == 'windows-chromium-build' }}
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "26.13.1"
+          python-version: ${{ needs.prepare.outputs.python_version }}
 
       - name: Install pinned pnpm for Brave source build
         if: ${{ matrix.runner_profile == 'windows-chromium-build' }}
@@ -409,7 +409,7 @@ jobs:
       - name: Setup release privacy scanner Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version: ${{ needs.prepare.outputs.python_version }}
 
       - name: Enforce build asset privacy before first upload
         shell: bash
@@ -505,10 +505,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
           cache: npm
 
       - name: Install dependencies

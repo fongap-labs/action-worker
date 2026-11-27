@@ -69,7 +69,7 @@ Action Worker 负责：
 
 ### 本地预检（不替代中央门禁）
 
-在 Action Worker 仓库中执行一次 `npm ci`（Node.js 24 或更新版本），然后：
+在 Action Worker 仓库中使用中央版本目录指定的 Node.js，执行一次 `npm ci`，然后：
 
 - `npm run preflight`：快速执行 TypeScript 类型检查、Biome 和关键环境/发布契约测试。
 - `npm run preflight -- full`：执行完整本地单测、格式检查与 Python 源码命名回归。
@@ -95,7 +95,7 @@ node scripts/resolve-runtime-versions.mjs ../plugins
 两条均使用同一中央工具链版本，第二条额外判断项目是否需要 pnpm。
 从当前受信任分支检出项目后再生成计划；所有智能体共享同一份输出，不各自维护版本。
 该入口只需已安装的 Node.js，不安装工具、不修改 PATH、不升级依赖。
-本机安装器、其他中央工作流以及发布工具链后续分阶段接入。
+中央调度、私有仓库持续集成及发布构建的 Node.js 安装同样读取该目录；发布清单的版本文件仅用于判断是否需要 Node.js，不覆盖实际安装版本。开发分支的中央自检读取当前可信控制版本，不从另一受管分支复制源码。本机自动安装器后续接入。
 
 ### 业务仓库通用本地预检（无复制脚本）
 

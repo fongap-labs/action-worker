@@ -61,10 +61,14 @@ jobs:
           ref: ${{ inputs.action_worker_sha }}
           path: aw
           persist-credentials: false
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node aw/scripts/resolve-runtime-versions.mjs --github-output aw
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
       - name: Verify trusted revisions
         shell: bash
         env:
@@ -131,14 +135,18 @@ jobs:
           ref: ${{ inputs.action_worker_sha }}
           path: aw
           persist-credentials: false
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node aw/scripts/resolve-runtime-versions.mjs --github-output aw
+
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version: ${{ steps.runtime.outputs.python }}
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: ${{ steps.runtime.outputs.node }}
       - name: Execute trusted private Linux CI
         shell: bash
         env:
@@ -187,10 +195,14 @@ jobs:
           ref: main
           path: policy
           persist-credentials: false
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node policy/scripts/resolve-runtime-versions.mjs --github-output policy
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
       - name: Verify immutable security inputs
         shell: bash
         env:
@@ -242,14 +254,18 @@ jobs:
           ref: ${{ inputs.action_worker_sha }}
           path: aw
           persist-credentials: false
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node aw/scripts/resolve-runtime-versions.mjs --github-output aw
+
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version: ${{ steps.runtime.outputs.python }}
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: ${{ steps.runtime.outputs.node }}
       - name: Execute trusted private Windows CI
         shell: pwsh
         env:

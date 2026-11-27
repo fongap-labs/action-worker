@@ -30,10 +30,14 @@ jobs:
           ref: main
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Mint metrics maintenance token
         id: control_write_app
@@ -66,10 +70,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Resolve central runtime versions
+        id: runtime
+        run: node scripts/resolve-runtime-versions.mjs --github-output .
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ steps.runtime.outputs.node }}
 
       - name: Resolve managed repositories
         id: repositories
