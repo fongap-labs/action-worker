@@ -121,7 +121,10 @@ export function buildNodeProposal(
       /^v?\d+\.\d+\.\d+(?:\r?\n)?$/.test(original) &&
       needsNode(policy, repository, path, original, today)
     ) {
-      add(path, target + (original.endsWith("\r\n") ? "\r\n" : original.endsWith("\n") ? "\n" : ""));
+      add(
+        path,
+        target + (original.endsWith("\r\n") ? "\r\n" : original.endsWith("\n") ? "\n" : "")
+      );
     }
   }
   const manifest = files.get("package.json");
@@ -170,7 +173,8 @@ export function buildNodeProposal(
   }
   if (!changes.length) return [];
   const changelog = files.get("CHANGELOG.md");
-  if (!changelog || !/^# 更新日志\r?\n/.test(changelog)) {
+  const changelogTitle = "# 更新日志";
+  if (!changelog || changelog.split(/\r?\n/, 1)[0] !== changelogTitle) {
     throw new CliError("Required project change record is unavailable.", 65);
   }
   const heading = /^## \[Unreleased\]\r?$/gm;

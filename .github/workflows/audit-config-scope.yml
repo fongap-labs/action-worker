@@ -154,7 +154,7 @@ jobs:
   propose-dependencies:
     name: Plan dependency proposal / ${{ matrix.repository }}
     needs: discover-proposals
-    if: needs.discover-proposals.outputs.count != '0'
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main' && needs.discover-proposals.outputs.count != '0'
     strategy:
       fail-fast: false
       max-parallel: 3

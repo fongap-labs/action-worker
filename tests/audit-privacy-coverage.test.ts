@@ -71,5 +71,16 @@ test("organization audit workflow uses a scoped installation token and does not 
   assert.match(source, /- name: Mint organization inventory read token/);
   assert.match(source, /permission-contents: read/);
   assert.match(source, /node scripts\/audit-privacy-coverage\.ts/);
-  assert.doesNotMatch(source, /permission-contents: write/);
+  const audit = source.slice(source.indexOf("  audit:"), source.indexOf("  discover-proposals:"));
+  const discovery = source.slice(
+    source.indexOf("  discover-proposals:"),
+    source.indexOf("  propose-dependencies:")
+  );
+  assert.ok(audit.length > 0 && discovery.length > 0);
+  for (const lane of [audit, discovery]) {
+    assert.doesNotMatch(lane, /permission-contents: write|permission-pull-requests: write/);
+    assert.doesNotMatch(lane, /propose-dependency-update\.ts publish/);
+  }
+  assert.equal(source.match(/permission-contents: write/g)?.length, 1);
+  assert.equal(source.match(/permission-pull-requests: write/g)?.length, 1);
 });

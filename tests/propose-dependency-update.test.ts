@@ -74,11 +74,18 @@ test("Node proposals update npm root metadata without altering resolved dependen
     updatedLock.packages["node_modules/react"],
     JSON.parse(lock).packages["node_modules/react"]
   );
-  assert.match(output.get("CHANGELOG.md") ?? "", /- 维护:/);
+  const entryPrefix = "- 维护:";
+  assert.ok(output.get("CHANGELOG.md")?.includes(entryPrefix));
 });
 
 test("ambiguous lock managers and missing locks do not receive engine metadata edits", () => {
-  for (const extra of [[], [["package-lock.json", lock], ["pnpm-lock.yaml", "lock"]]]) {
+  for (const extra of [
+    [],
+    [
+      ["package-lock.json", lock],
+      ["pnpm-lock.yaml", "lock"],
+    ],
+  ]) {
     const files = new Map<string, string>([
       ["package.json", manifest],
       ["CHANGELOG.md", record],

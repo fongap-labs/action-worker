@@ -9,20 +9,21 @@ test("organization configuration scope audit is automatic and bound to protected
     permissions: Record<string, string>;
     jobs: Record<string, Record<string, unknown>>;
   };
-  assert.deepEqual(Object.keys(workflow.on).sort(), ["push", "schedule"]);
+  assert.deepEqual(Object.keys(workflow.on).sort(), ["push", "schedule", "workflow_dispatch"]);
   assert.deepEqual(workflow.on.push.branches, ["main"]);
   assert.ok(workflow.on.push.paths.includes("policies/repository-access.json"));
   assert.ok(workflow.on.push.paths.includes("policies/task-secrets.json"));
   assert.ok(workflow.on.push.paths.includes("policies/deploy-secrets.json"));
   assert.equal(workflow.on.schedule.length, 1);
   assert.deepEqual(workflow.permissions, { contents: "read" });
-  assert.deepEqual(Object.keys(workflow.jobs), ["audit"]);
+  assert.deepEqual(Object.keys(workflow.jobs), ["audit", "discover-proposals", "propose-dependencies"]);
 
   const job = workflow.jobs.audit;
   assert.ok(job);
   assert.deepEqual(job.environment, { name: "admin-ops", deployment: false });
   assert.deepEqual(job.permissions, { contents: "read" });
   assert.match(String(job.if), /github.repository == 'fongap-labs\/action-worker'/);
+  assert.match(String(job.if), /github.event_name != 'workflow_dispatch'/);
   const steps = job.steps as Array<{
     name: string;
     env?: Record<string, string>;
