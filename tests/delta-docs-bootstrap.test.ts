@@ -148,7 +148,13 @@ test("private docs bootstrap verifies both trees and never accepts source or bri
   assert.throws(() => verifyPrivateDocsTrees(base, head, [], trusted, false));
   assert.throws(() => verifyPrivateDocsTrees(base, head, ["M\tLICENSE"], trusted, false));
   assert.throws(() =>
-    verifyPrivateDocsTrees(base, head, ["M\t.github/workflows/notify-action-worker.yml"], trusted, false)
+    verifyPrivateDocsTrees(
+      base,
+      head,
+      ["M\t.github/workflows/notify-action-worker.yml"],
+      trusted,
+      false
+    )
   );
   assert.throws(() => verifyPrivateDocsTrees(base, head, changes, "c".repeat(40), false));
 });
