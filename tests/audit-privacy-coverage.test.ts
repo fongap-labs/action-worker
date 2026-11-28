@@ -84,7 +84,9 @@ test("organization audit workflow uses a scoped installation token and does not 
   const privateLane = source.slice(source.indexOf("  private-proposals:"));
   assert.ok(privateLane.length > 0);
   assert.doesNotMatch(privateLane, /upload-artifact|download-artifact|matrix\.|\$\{\{ matrix/);
-  assert.match(privateLane, /propose-dependency-update\.ts private/);
+  assert.match(privateLane, /propose-dependency-update\.ts "\$PROPOSAL_MODE"/);
+  assert.match(privateLane, /inputs\.sync_agent_guides && 'guides' \|\| 'private'/);
+  assert.match(privateLane, /inputs\.confirm && secrets\.AW_APP_PRIVATE_KEY/);
   assert.equal(source.match(/permission-contents: write/g)?.length, 1);
   assert.equal(source.match(/permission-pull-requests: write/g)?.length, 1);
 });

@@ -159,7 +159,15 @@ test("only approved entry, diagnostics and private operations expose manual disp
       const manual = triggers.workflow_dispatch as {
         inputs: Record<string, { type: string; default: boolean; required: boolean }>;
       };
-      assert.deepEqual(Object.keys(manual.inputs), ["confirm"]);
+      assert.deepEqual(Object.keys(manual.inputs), ["confirm", "sync_agent_guides"]);
+      assert.deepEqual(
+        {
+          type: manual.inputs.sync_agent_guides?.type,
+          default: manual.inputs.sync_agent_guides?.default,
+          required: manual.inputs.sync_agent_guides?.required,
+        },
+        { type: "boolean", default: false, required: true }
+      );
       assert.equal(manual.inputs.confirm?.type, "boolean");
       assert.equal(manual.inputs.confirm?.default, false);
       assert.equal(manual.inputs.confirm?.required, true);

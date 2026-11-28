@@ -227,8 +227,7 @@ export function buildAgentGuideProposal(
   const changelog = files.get("CHANGELOG.md");
   const heading = /^## \[Unreleased\]\r?$/gm;
   if (
-    !changelog ||
-    changelog.split(/\r?\n/, 1)[0] !== "# 更新日志" ||
+    changelog?.split(/\r?\n/, 1)[0] !== "# 更新日志" ||
     [...changelog.matchAll(heading)].length !== 1
   ) {
     return undefined;
@@ -300,7 +299,8 @@ async function readSnapshot(
   }
   const files = new Map<string, string>();
   for (const item of tree.tree) {
-    if (!isJsonRecord(item) || typeof item.path !== "string" || !allowedFiles.has(item.path)) continue;
+    if (!isJsonRecord(item) || typeof item.path !== "string" || !allowedFiles.has(item.path))
+      continue;
     const sha = getJsonString(item, "sha");
     if (
       files.has(item.path) ||
@@ -371,7 +371,10 @@ export async function publishNodeProposal(
   }
   const repo = "repos/" + repository;
   const branch =
-    proposalPrefix + targetBranch + "-" + proposalIdentity(snapshot, changes, targetBranch).slice(0, 24);
+    proposalPrefix +
+    targetBranch +
+    "-" +
+    proposalIdentity(snapshot, changes, targetBranch).slice(0, 24);
   // Do not generate a second proposal while the repository already has an open baseline PR.
   for (let page = 1; page <= 10; page++) {
     const pulls = getJsonArray(

@@ -240,9 +240,15 @@ test("agent guide proposals preserve project rules and change only drifted gener
     rules,
     branchPolicy
   );
-  const files = new Map([["AGENTS.md", previous], ["CHANGELOG.md", record]]);
+  const files = new Map([
+    ["AGENTS.md", previous],
+    ["CHANGELOG.md", record],
+  ]);
   const changes = buildAgentGuideProposal(central, repo, files, branchPolicy);
-  assert.deepEqual(changes?.map((change) => change.path), ["AGENTS.md", "CHANGELOG.md"]);
+  assert.deepEqual(
+    changes?.map((change) => change.path),
+    ["AGENTS.md", "CHANGELOG.md"]
+  );
   assert.equal(changes?.[0]?.content, renderAgentGuide(central, repo, rules, branchPolicy));
   for (const change of changes ?? []) files.set(change.path, change.content);
   assert.deepEqual(buildAgentGuideProposal(central, repo, files, branchPolicy), []);
