@@ -8,7 +8,14 @@ import {
   isJsonRecord,
 } from "./github-api.ts";
 import { hasRepositoryCapability, readRepositoryPolicyText } from "./repository-policy.ts";
-import { appendLines, CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
+import {
+  appendLines,
+  CliError,
+  handleError,
+  isMain,
+  runCommand,
+  runText,
+} from "./runtime-command.ts";
 import { type InventoryRepo, readInstallationInventory } from "./security-coverage-audit.ts";
 
 const commonHeading = "## Common rules\n";
