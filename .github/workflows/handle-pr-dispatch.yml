@@ -474,8 +474,16 @@ jobs:
       - name: Mark deterministic gate passed
         id: gate
         if: steps.trust.outputs.trusted == 'true' && steps.ci_dispatch.outputs.deferred != 'true'
+        env:
+          GH_TOKEN: ${{ steps.app_read.outputs.token }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          AW_CI_TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
         shell: bash
-        run: echo "passed=true" >> "$GITHUB_OUTPUT"
+        run: |
+          set -Eeuo pipefail
+          node scripts/resolve-pr-facts.ts check-target
+          echo "passed=true" >> "$GITHUB_OUTPUT"
 
       # CI may run longer than one App token lifetime. Re-mint for the final ownership
       # and advisory publication reads rather than reusing the early governance token.

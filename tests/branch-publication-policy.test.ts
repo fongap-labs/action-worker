@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   assertBranchDeployEnvironment,
+  assertOrdinaryDevelopmentTarget,
   assertBranchReleaseTag,
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
@@ -26,6 +27,16 @@ test("ordinary development selects the live dev branch and never falls back on e
   assert.equal(
     (await resolveOrdinaryDevelopmentBranch(reader(snapshot("dev")), repository, policy)).branch,
     "dev"
+  );
+  await assert.doesNotReject(
+    assertOrdinaryDevelopmentTarget(reader(snapshot("dev")), repository, "dev", policy)
+  );
+  await assert.rejects(
+    assertOrdinaryDevelopmentTarget(reader(snapshot("dev")), repository, "main", policy),
+    /Ordinary PR must target dev/
+  );
+  await assert.doesNotReject(
+    assertOrdinaryDevelopmentTarget(reader(new GithubHttpError(404)), repository, "main", policy)
   );
   assert.equal(
     (await resolveOrdinaryDevelopmentBranch(reader(new GithubHttpError(404)), repository, policy))
