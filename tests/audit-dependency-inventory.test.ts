@@ -28,6 +28,30 @@ test("inventory reads npm declarations without leaking remote specifications", (
   assert.doesNotMatch(JSON.stringify(result), /secret/);
 });
 
+test("published child packages declare runtime compatibility separately from toolchain pins", () => {
+  const engines = { node: ">=20" };
+  for (const metadata of [{ private: false }, { publishConfig: { access: "public" } }]) {
+    const content = JSON.stringify({ ...metadata, engines });
+    assert.deepEqual(inspectManifest("packages/example/package.json", content).declarations, [
+      { key: "runtime:node", version: ">=20" },
+    ]);
+    assert.deepEqual(inspectManifest("package.json", content).declarations, [
+      { key: "tool:node", version: ">=20" },
+    ]);
+  }
+  const privateManifest = JSON.stringify({
+    private: true,
+    publishConfig: { access: "public" },
+    engines,
+  });
+  assert.deepEqual(inspectManifest("apps/private/package.json", privateManifest).declarations, [
+    { key: "tool:node", version: ">=20" },
+  ]);
+  assert.deepEqual(inspectManifest("packages/.nvmrc", "24").declarations, [
+    { key: "tool:node", version: "24" },
+  ]);
+});
+
 test("npm aliases retain their real package identity and do not leak URL specifications", () => {
   const result = inspectManifest(
     "package.json",

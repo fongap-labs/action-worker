@@ -4,6 +4,7 @@
   "default_class": "project",
   "catalog": {
     "tool:node": { "class": "toolchain", "version": "26.13.1" },
+    "runtime:node": { "class": "project", "version": null },
     "tool:python": { "class": "toolchain", "version": "3.12" },
     "tool:pnpm": { "class": "toolchain", "version": "11.28.5" },
     "tool:npm": { "class": "toolchain", "version": null },
