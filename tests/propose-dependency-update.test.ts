@@ -213,7 +213,14 @@ test("known compatibility declarations require review after expiry rather than a
   };
   for (const branch of ["main", "dev"] as const) {
     for (const day of [date, "2027-01-01"]) {
-      const result = buildEngineeringProposal(policy, "fongap-labs/delta", branch, snapshot, day, true);
+      const result = buildEngineeringProposal(
+        policy,
+        "fongap-labs/delta",
+        branch,
+        snapshot,
+        day,
+        true
+      );
       assert.deepEqual(result.changes, []);
       assert.equal(result.lockPath, null);
     }

@@ -131,9 +131,7 @@ export function parseDependencyPolicy(value: unknown, organization: string): Dep
 
 export function parseNpmAlias(specifier: string): { key: string; version: string } | null {
   if (specifier.length > 120) return null;
-  const match = /^npm:((?:@[\w.-]+\/)?[\w.-]+)@((?=.*\d)[\dA-Za-z.*^~<>=!|,+ -]+)$/.exec(
-    specifier
-  );
+  const match = /^npm:((?:@[\w.-]+\/)?[\w.-]+)@((?=.*\d)[\dA-Za-z.*^~<>=!|,+ -]+)$/.exec(specifier);
   if (!match?.[1] || !match[2]) return null;
   return { key: "npm:" + match[1], version: match[2] };
 }
