@@ -1,7 +1,5 @@
-import { getGithubJson, isJsonRecord } from "./github-api.ts";
+import { getGithubJson, githubCoreReserve, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
-
-const defaultReserve = 300;
 
 export type GithubCoreBudgetDecision = {
   run: boolean;
@@ -24,9 +22,12 @@ export function parseGithubApiReserve(value: string): number {
  */
 export function evaluateGithubCoreBudget(
   value: unknown,
-  reserve = defaultReserve
+  reserve?: number
 ): GithubCoreBudgetDecision {
-  if (!Number.isSafeInteger(reserve) || reserve < 1 || reserve > 99999) {
+  if (
+    reserve !== undefined &&
+    (!Number.isSafeInteger(reserve) || reserve < 1 || reserve > 99999)
+  ) {
     throw new CliError("GitHub API reserve must be an integer from 1 to 99999.", 64);
   }
   const resources = isJsonRecord(value) ? value.resources : undefined;
@@ -46,7 +47,8 @@ export function evaluateGithubCoreBudget(
   const remaining = core.remaining as number;
   const limit = core.limit as number;
   const reset_at = new Date((core.reset as number) * 1000).toISOString();
-  return { run: remaining > reserve, remaining, limit, reserve, reset_at };
+  const protectedReserve = reserve ?? githubCoreReserve(limit);
+  return { run: remaining > protectedReserve, remaining, limit, reserve: protectedReserve, reset_at };
 }
 
 async function main(): Promise<void> {
@@ -54,7 +56,8 @@ async function main(): Promise<void> {
   if (!token) {
     throw new CliError("AW_CONTROL_TOKEN is required for the API quota preflight.", 77);
   }
-  const reserve = parseGithubApiReserve(process.env.AW_API_QUOTA_RESERVE ?? String(defaultReserve));
+  const rawReserve = process.env.AW_API_QUOTA_RESERVE;
+  const reserve = rawReserve === undefined ? undefined : parseGithubApiReserve(rawReserve);
   // GitHub's rate_limit endpoint does not consume the primary REST core quota.
   const decision = evaluateGithubCoreBudget(await getGithubJson("rate_limit", token), reserve);
   await appendLines(process.env.GITHUB_OUTPUT, [`run=${decision.run}`]);

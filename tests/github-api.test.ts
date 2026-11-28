@@ -275,6 +275,35 @@ test("secondary limits remain retryable when GitHub returns a retry-after header
   assert.equal(classifyGithubFailure(403, new Headers(), "Forbidden"), "permission");
 });
 
+test("rate-limited readers do not retry before GitHub allows it", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const headers of [
+      new Headers({ "retry-after": "120" }),
+      new Headers(),
+      new Headers({ "x-ratelimit-remaining": "0", "x-ratelimit-reset": "4102444800" }),
+    ]) {
+      let calls = 0;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return Response.json(
+          { message: "You have exceeded a secondary rate limit." },
+          { status: 403, headers }
+        );
+      };
+      const reader = new GithubReader("https://api.github.test", "test-placeholder");
+      await assert.rejects(() => reader.get("repos/example/project"), /secondary API rate limit/);
+      await assert.rejects(
+        () => reader.get("repos/example/project/pulls"),
+        /secondary API rate limit/
+      );
+      assert.equal(calls, 1);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("status-aware reader uses the dedicated status App token for full owner/repo paths", async () => {
   const originalFetch = globalThis.fetch;
   const calls: Array<{ path: string; auth: string }> = [];
