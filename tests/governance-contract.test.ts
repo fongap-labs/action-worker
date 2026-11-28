@@ -1356,14 +1356,15 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
 
 test("main write guard is the post-merge provenance authority", async () => {
   const workflow = await text(".github/workflows/main-write-guard.yml");
-  // The workflow guards Action Worker's own main with the workflow token; managed repositories are
-  // attested by audit-main-writes.ts, so nothing here needs the control token.
+  // Local provenance reads and signed status publication use separate credentials.
   requireText(workflow, [
     "push:",
     "branches: [main]",
     "Main Write Guard",
     'MAIN_WRITE_REQUIRE_CENTRAL_STATUSES: "false"',
-    "MAIN_WRITE_TOKEN: ${{ steps.status_app.outputs.token }}",
+    "MAIN_WRITE_TOKEN: ${{ steps.guard_read_app.outputs.token }}",
+    "AW_NATIVE_TOKEN: ${{ github.token }}",
+    "AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}",
     "node scripts/main-write-guard.ts",
   ]);
   assert.doesNotMatch(workflow, /repository_dispatch/);
