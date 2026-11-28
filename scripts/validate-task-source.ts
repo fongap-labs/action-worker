@@ -1,23 +1,24 @@
 import { assertOrdinaryDevelopmentTarget, readBranchPolicy } from "./branch-publication-policy.ts";
-import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
-import { GithubReader, getJsonString } from "./github-api.ts";
+import {
+  centralCiWait,
+  defaultControlRepository,
+  requireVerifiedCiEvidence,
+} from "./ci-evidence.ts";
+import { assertTrustedDevWrite } from "./dev-write-guard.ts";
+import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { assertTrustedMainWrite, type MainWriteProvenance } from "./main-write-guard.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 
-export type TaskSourceCheck = {
-  default_branch: string;
-  target_branch: "main";
-  main_write: MainWriteProvenance;
-};
+export type TaskSourceCheck =
+  | { default_branch: string; target_branch: "main"; main_write: MainWriteProvenance }
+  | { default_branch: string; target_branch: "dev" };
 
 /**
- * The dispatch payload is only a claim. The task executor runs whatever the target commit
- * declares, including which secrets it may keep, so the commit must be the current default-branch
- * HEAD, carry verified central CI Evidence and be a trusted main write — the same rules the deploy
- * path already enforces.
+ * Main tasks require current CI and trusted main writes. Development tasks require current
+ * protected dev provenance and must enter the separate credential-free execution path.
  */
 export async function validateTaskSource(
   reader: GithubReader,
@@ -32,12 +33,16 @@ export async function validateTaskSource(
     throw new CliError("::error::Task source request is invalid.", 64);
   }
 
-  if (targetBranch !== "main") {
+  if (targetBranch !== "main" && (targetBranch !== "dev" || !isOrdinaryDevelopment)) {
     throw new CliError("::error::Task target branch is not admitted by the current control.", 77);
   }
-  const defaultBranch = getJsonString(await reader.get(`repos/${repository}`), "default_branch");
-  if (defaultBranch !== targetBranch) {
+  const metadata = await reader.get(`repos/${repository}`);
+  const defaultBranch = getJsonString(metadata, "default_branch");
+  if (defaultBranch !== "main") {
     throw new CliError("::error::Task source default branch does not match the locked target.", 65);
+  }
+  if (targetBranch === "dev" && (!isJsonRecord(metadata) || metadata.private !== false)) {
+    throw new CliError("Development task requires public isolated execution.", 77);
   }
   if (isOrdinaryDevelopment) {
     await assertOrdinaryDevelopmentTarget(
@@ -59,6 +64,11 @@ export async function validateTaskSource(
       `::error::Task source is stale; default HEAD moved: expected=${headSha} actual=${ref}. Waiting for the next dispatch.`,
       75
     );
+  }
+
+  if (targetBranch === "dev") {
+    await assertTrustedDevWrite(reader, repository, ref, defaultControlRepository);
+    return { default_branch: defaultBranch, target_branch: targetBranch };
   }
 
   // A push-triggered task can arrive before central CI has finished on the new main commit, and the
@@ -88,7 +98,7 @@ async function main(): Promise<void> {
   const isOrdinaryDevelopment =
     process.env.AGENT_DOMAIN === "coding" &&
     (process.env.OPERATION === "task" || process.env.OPERATION === "scheduled");
-  await validateTaskSource(
+  const check = await validateTaskSource(
     reader,
     repository,
     bootstrapRef,
@@ -101,9 +111,10 @@ async function main(): Promise<void> {
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
     "## Task source gate",
     "",
-    "- Source: current locked main HEAD",
-    "- CI Evidence: verified Action Worker success",
-    "- Main Write Guard: success",
+    `- Source: current locked ${check.target_branch} HEAD`,
+    ...(check.target_branch === "dev"
+      ? ["- Dev Write Guard: verified"]
+      : ["- CI Evidence: verified Action Worker success", "- Main Write Guard: success"]),
   ]);
 }
 

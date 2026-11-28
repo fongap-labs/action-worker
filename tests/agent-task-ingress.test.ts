@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   agentDispatchPayload,
   parseAgentAuthorization,
-  resolveTrustedSourceSha,
+  resolveTrustedTaskSource,
   validateAgentRequest,
 } from "../scripts/agent-task-ingress.ts";
 import { GithubHttpError } from "../scripts/github-api.ts";
@@ -131,7 +131,7 @@ test("policy disabled and unauthorized callers always fail closed", () => {
   );
 });
 
-test("task target SHA must be obtained from an active main branch, never from caller input", async () => {
+test("task target SHA must be obtained from the active development branch, never from caller input", async () => {
   const received: string[] = [];
   const fakeFetch = async (_token: string, path: string) => {
     received.push(path);
@@ -140,9 +140,9 @@ test("task target SHA must be obtained from an active main branch, never from ca
       ? { name: "main", commit: { sha, commit: { tree: { sha } } } }
       : { default_branch: "main" };
   };
-  assert.equal(
-    await resolveTrustedSourceSha("fongap-labs/ai-gateway", "read-only", fakeFetch),
-    sha
+  assert.deepEqual(
+    await resolveTrustedTaskSource("fongap-labs/ai-gateway", "read-only", fakeFetch),
+    { branch: "main", sha }
   );
   assert.deepEqual(received, [
     "repos/fongap-labs/ai-gateway",
@@ -150,17 +150,25 @@ test("task target SHA must be obtained from an active main branch, never from ca
     "repos/fongap-labs/ai-gateway/branches/dev",
   ]);
   await assert.rejects(() =>
-    resolveTrustedSourceSha("fongap-labs/ai-gateway", "read-only", async () => ({
+    resolveTrustedTaskSource("fongap-labs/ai-gateway", "read-only", async () => ({
       default_branch: "release",
     }))
   );
+  const devFetch = async (token: string, path: string) =>
+    path.endsWith("/branches/dev")
+      ? { name: "dev", commit: { sha, commit: { tree: { sha } } } }
+      : path.endsWith("/example")
+        ? { default_branch: "main", private: false }
+        : fakeFetch(token, path);
+  assert.deepEqual(await resolveTrustedTaskSource("fongap-labs/example", "read-only", devFetch), {
+    branch: "dev",
+    sha,
+  });
   await assert.rejects(
-    resolveTrustedSourceSha("fongap-labs/example", "read-only", async (token, path) =>
-      path.endsWith("/branches/dev")
-        ? { name: "dev", commit: { sha, commit: { tree: { sha } } } }
-        : fakeFetch(token, path)
+    resolveTrustedTaskSource("fongap-labs/example", "read-only", async (token, path) =>
+      path.endsWith("/example") ? { default_branch: "main", private: true } : devFetch(token, path)
     ),
-    /requires dev execution/
+    /Private dev task execution/
   );
   assert.throws(() =>
     agentDispatchPayload(
@@ -170,7 +178,7 @@ test("task target SHA must be obtained from an active main branch, never from ca
         project: "repair",
         request_id: "agent-1234567-1",
       },
-      "untrusted"
+      { branch: "main", sha: "untrusted" }
     )
   );
 });
@@ -184,7 +192,7 @@ test("dispatch payload contains only existing trusted task contract fields", () 
         project: "repair",
         request_id: "agent-1234567-1",
       },
-      sha
+      { branch: "main", sha }
     ),
     {
       event_type: "run-task",

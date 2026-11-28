@@ -151,8 +151,8 @@ async function main(): Promise<void> {
     operation,
     target_branch: targetBranch,
   } = validateDispatch(value);
-  if (targetBranch !== "main") {
-    throw new CliError("::error::Dev task execution is not admitted by the current control.", 77);
+  if (targetBranch === "dev" && (agentDomain !== "coding" || operation !== "task")) {
+    throw new CliError("::error::Dev execution only admits isolated coding tasks.", 77);
   }
   const payload = value as Record<string, unknown>;
   const repositoryPolicy = readRepositoryPolicyText();
@@ -174,7 +174,7 @@ async function main(): Promise<void> {
   assertTaskExecutionAllowed(modes, String(payload.repository), String(payload.project));
   await appendLines(process.env.GITHUB_OUTPUT, [
     `schema_version=${String(payload.schema_version)}`,
-    `task_group=${taskConcurrencyGroup(String(payload.repository), String(payload.project))}`,
+    `task_group=${taskConcurrencyGroup(String(payload.repository), String(payload.project), targetBranch)}`,
     `request_id=${String(payload.request_id)}`,
     `project=${String(payload.project)}`,
     `bootstrap_ref=${String(payload.bootstrap_ref)}`,

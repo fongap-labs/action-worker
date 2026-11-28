@@ -151,11 +151,11 @@ async function githubGet(token: string, path: string): Promise<ApiResponse> {
   return (await response.json()) as ApiResponse;
 }
 
-export async function resolveTrustedSourceSha(
+export async function resolveTrustedTaskSource(
   repository: string,
   token: string,
   fetcher: typeof githubGet = githubGet
-): Promise<string> {
+): Promise<{ branch: "main" | "dev"; sha: string }> {
   if (!REPO.test(repository)) throw new CliError("Invalid repository.", 64);
   const metadata = await fetcher(token, `repos/${repository}`);
   if (
@@ -170,14 +170,19 @@ export async function resolveTrustedSourceSha(
     repository,
     readBranchPolicy()
   );
-  if (target.branch !== "main") {
-    throw new CliError("Coding task requires dev execution, which is not yet admitted.", 77);
+  if (target.branch === "dev" && metadata.private !== false) {
+    throw new CliError("Private dev task execution is not yet admitted.", 77);
   }
-  return target.sha;
+  return { branch: target.branch, sha: target.sha };
 }
 
-export function agentDispatchPayload(request: AgentRequest, sha: string): Record<string, unknown> {
-  if (!SHA.test(sha)) throw new CliError("Invalid trusted source SHA.", 64);
+export function agentDispatchPayload(
+  request: AgentRequest,
+  source: { branch: "main" | "dev"; sha: string }
+): Record<string, unknown> {
+  if (!SHA.test(source.sha) || (source.branch !== "main" && source.branch !== "dev")) {
+    throw new CliError("Invalid trusted source identity.", 64);
+  }
   return {
     event_type: "run-task",
     client_payload: {
@@ -185,8 +190,8 @@ export function agentDispatchPayload(request: AgentRequest, sha: string): Record
       repository: request.repository,
       project: request.project,
       request_id: request.request_id,
-      bootstrap_ref: sha,
-      target_branch: "main",
+      bootstrap_ref: source.sha,
+      target_branch: source.branch,
       agent_domain: "coding",
       operation: "task",
     },
@@ -263,14 +268,14 @@ async function main(): Promise<void> {
   const sourceToken = process.env.AW_AGENT_SOURCE_READ_TOKEN ?? "";
   const dispatchToken = process.env.AW_AGENT_DISPATCH_WRITE_TOKEN ?? "";
   if (!sourceToken || !dispatchToken) throw new CliError("Scoped App tokens are missing.", 77);
-  const sha = await resolveTrustedSourceSha(request.repository, sourceToken);
-  await dispatchAgentTask(agentDispatchPayload(request, sha), dispatchToken);
+  const source = await resolveTrustedTaskSource(request.repository, sourceToken);
+  await dispatchAgentTask(agentDispatchPayload(request, source), dispatchToken);
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
     "## Private Agent task accepted",
     "",
     `- Repository: \`${request.repository}\``,
     `- Project: \`${request.project}\``,
-    `- Trusted main SHA: \`${sha}\``,
+    `- Selected ${source.branch} SHA: \`${source.sha}\``,
     `- Request: \`${request.request_id}\``,
     "- Result: GitHub dispatch acknowledged; execution still requires central task validation.",
     "",
