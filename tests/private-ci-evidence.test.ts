@@ -322,28 +322,54 @@ test("private dev caller initialization admits only the exact metadata snapshot"
   const caller = ".github/workflows/private-source-ci.yml";
   const template = await readFile("templates/bridge/private-source-ci.yml", "utf8");
   const oldLog = "# 更新日志\n\n## [Unreleased]\n\n";
-  const newLog = oldLog.replace("## [Unreleased]\n", "## [Unreleased]\n\n- 维护: 初始化中央批准的私有源码持续集成调用入口。\n");
+  const newLog = oldLog.replace(
+    "## [Unreleased]\n",
+    "## [Unreleased]\n\n- 维护: 初始化中央批准的私有源码持续集成调用入口。\n"
+  );
   const mergeSha = "d".repeat(40);
   const treeSha = "e".repeat(40);
   const file = (path: string, content: string) => ({
-    path, type: "file", encoding: "base64", content: Buffer.from(content).toString("base64")
+    path,
+    type: "file",
+    encoding: "base64",
+    content: Buffer.from(content).toString("base64"),
   });
   const pull = {
-    number: prNumber, state: "open", author_association: "OWNER",
+    number: prNumber,
+    state: "open",
+    author_association: "OWNER",
     base: { ref: "dev", sha: baseSha, repo: { private: true, full_name: repository } },
     head: { ref: "chore/private-ci", sha: headSha, repo: { full_name: repository } },
   };
   const compare = {
-    status: "ahead", ahead_by: 1, behind_by: 0, merge_base_commit: { sha: baseSha },
-    files: [{ filename: caller, status: "added" }, { filename: "CHANGELOG.md", status: "modified" }],
+    status: "ahead",
+    ahead_by: 1,
+    behind_by: 0,
+    merge_base_commit: { sha: baseSha },
+    files: [
+      { filename: caller, status: "added" },
+      { filename: "CHANGELOG.md", status: "modified" },
+    ],
   };
   const values = new Map<string, unknown>([
     [root, { private: true, full_name: repository }],
     [`${root}/pulls/${prNumber}`, pull],
     [`${root}/compare/${baseSha}...${headSha}`, compare],
-    [`${root}/git/commits/${headSha}`, { sha: headSha, tree: { sha: treeSha }, parents: [{ sha: baseSha }] }],
-    [`${root}/git/commits/${mergeSha}`, { sha: mergeSha, tree: { sha: treeSha }, parents: [{ sha: baseSha }, { sha: headSha }] }],
-    [`${root}/git/trees/${headSha}?recursive=1`, { truncated: false, tree: [caller, "CHANGELOG.md"].map(path => ({ path, type: "blob", mode: "100644" })) }],
+    [
+      `${root}/git/commits/${headSha}`,
+      { sha: headSha, tree: { sha: treeSha }, parents: [{ sha: baseSha }] },
+    ],
+    [
+      `${root}/git/commits/${mergeSha}`,
+      { sha: mergeSha, tree: { sha: treeSha }, parents: [{ sha: baseSha }, { sha: headSha }] },
+    ],
+    [
+      `${root}/git/trees/${headSha}?recursive=1`,
+      {
+        truncated: false,
+        tree: [caller, "CHANGELOG.md"].map((path) => ({ path, type: "blob", mode: "100644" })),
+      },
+    ],
     [`${root}/contents/${caller}?ref=${headSha}`, file(caller, template)],
     [`${root}/contents/CHANGELOG.md?ref=${baseSha}`, file("CHANGELOG.md", oldLog)],
     [`${root}/contents/CHANGELOG.md?ref=${headSha}`, file("CHANGELOG.md", newLog)],
@@ -354,7 +380,10 @@ test("private dev caller initialization admits only the exact metadata snapshot"
   assert.equal(await verify(), true);
   assert.deepEqual(await fetchAndVerifyPrivateCiForPull(reader, request), { bootstrap: true });
   for (const [path, invalid] of [
-    [`${root}/compare/${baseSha}...${headSha}`, { ...compare, files: [...compare.files, { filename: "src/index.ts", status: "modified" }] }],
+    [
+      `${root}/compare/${baseSha}...${headSha}`,
+      { ...compare, files: [...compare.files, { filename: "src/index.ts", status: "modified" }] },
+    ],
     [`${root}/contents/${caller}?ref=${headSha}`, file(caller, template + "# modified")],
     [`${root}/contents/CHANGELOG.md?ref=${headSha}`, file("CHANGELOG.md", newLog + "extra")],
     [`${root}/contents/${caller}?ref=${baseSha}`, file(caller, "unapproved")],
@@ -367,6 +396,10 @@ test("private dev caller initialization admits only the exact metadata snapshot"
     if (original === undefined) values.delete(path);
     else values.set(path, original);
   }
-  values.set(`${root}/git/commits/${mergeSha}`, { sha: mergeSha, tree: { sha: "f".repeat(40) }, parents: [{ sha: baseSha }, { sha: headSha }] });
+  values.set(`${root}/git/commits/${mergeSha}`, {
+    sha: mergeSha,
+    tree: { sha: "f".repeat(40) },
+    parents: [{ sha: baseSha }, { sha: headSha }],
+  });
   await assert.rejects(fetchAndVerifyPrivateCiForPull(reader, request));
 });

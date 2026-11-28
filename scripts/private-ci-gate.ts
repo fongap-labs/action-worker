@@ -94,7 +94,9 @@ async function main(): Promise<void> {
   }
   if ("bootstrap" in result) {
     await appendLines(process.env.GITHUB_OUTPUT, ["private_ci_bootstrap_verified=true"]);
-    console.log("Exact approved private CI caller initialization verified; no source code changed or executed.");
+    console.log(
+      "Exact approved private CI caller initialization verified; no source code changed or executed."
+    );
     return;
   }
   await appendLines(process.env.GITHUB_OUTPUT, [

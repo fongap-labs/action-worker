@@ -157,7 +157,10 @@ export async function authorizeDevMerge(
   ) {
     throw new CliError("Dev merge requires a managed repository with known visibility.", 75);
   }
-  if (source.private && !(await hasAdmittedPrivateDevCi(reader, repository, prNumber, baseSha, headSha))) {
+  if (
+    source.private &&
+    !(await hasAdmittedPrivateDevCi(reader, repository, prNumber, baseSha, headSha))
+  ) {
     throw new CliError("Private dev merge requires an approved source-owned CI caller.", 75);
   }
   await requireLiveProtection(reader, repository, controlRepository, source.private);
