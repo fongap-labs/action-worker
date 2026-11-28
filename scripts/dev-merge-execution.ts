@@ -6,9 +6,9 @@ import { requireToken } from "./control-token.ts";
 import { verifyDevMergeAdmission, verifyDevSquashCommit } from "./dev-merge-admission.ts";
 import { assertTrustedDevWrite, devMergeReceiptContext } from "./dev-write-guard.ts";
 import {
+  GithubHttpError,
   getJsonArray,
   getJsonString,
-  GithubHttpError,
   isJsonRecord,
   statusAwareReader,
 } from "./github-api.ts";
