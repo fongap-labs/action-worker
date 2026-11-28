@@ -197,3 +197,114 @@ export function verifyDeltaDocsBootstrap(
     "Delta docs-only bootstrap verified: tracked files, ancestry, modes and UTF-8; no app code exists."
   );
 }
+
+export function verifyPrivateDocsTrees(
+  baseEntries: GitEntry[],
+  headEntries: GitEntry[],
+  changes: string[],
+  trustedBridgeBlobSha: string,
+  isRefCheck: boolean
+): void {
+  for (const entries of [baseEntries, headEntries]) {
+    const paths = new Set<string>();
+    for (const entry of entries) {
+      if (
+        (!allowedFiles.has(entry.path) &&
+          !(entry.path === bridgePath && entry.sha === trustedBridgeBlobSha)) ||
+        paths.has(entry.path) ||
+        entry.mode !== "100644" ||
+        entry.type !== "blob" ||
+        !shaPattern.test(entry.sha)
+      ) {
+        throw new CliError("Private docs baseline contains an unapproved tracked file.", 65);
+      }
+      paths.add(entry.path);
+    }
+    if (["README.md", "CHANGELOG.md", bridgePath].some((path) => !paths.has(path))) {
+      throw new CliError("Private docs baseline is missing required trusted files.", 65);
+    }
+  }
+  const headPaths = new Set(headEntries.map((entry) => entry.path));
+  if (requiredFiles.some((path) => !headPaths.has(path))) {
+    throw new CliError("Private docs candidate is missing required documents.", 65);
+  }
+  if (
+    (!isRefCheck && changes.length === 0) ||
+    changes.some((line) => {
+      const fields = line.split("\t");
+      return (
+        fields.length !== 2 ||
+        !(
+          (["A", "M"].includes(fields[0] ?? "") && editableDocs.has(fields[1] ?? "")) ||
+          (fields[0] === "A" && fields[1] === "LICENSE")
+        )
+      );
+    })
+  ) {
+    throw new CliError("Private docs baseline changed files outside the document allowlist.", 65);
+  }
+}
+
+export function verifyPrivateDocsBootstrap(
+  targetRoot: string,
+  controlRoot: string,
+  base: string,
+  head: string,
+  shard = "all"
+): void {
+  const prNumber = process.env.CENTRAL_CI_PR_NUMBER ?? "";
+  const isRefCheck = prNumber === "0";
+  if (
+    process.env.TARGET_PRIVATE !== "true" ||
+    !/^fongap-labs\/[a-zA-Z0-9_.-]+$/.test(process.env.TARGET_REPOSITORY ?? "") ||
+    !shaPattern.test(base) ||
+    !shaPattern.test(head) ||
+    !/^(0|[1-9][0-9]*)$/.test(prNumber) ||
+    (!isRefCheck && base === head) ||
+    shard !== "all"
+  ) {
+    throw new CliError("Private docs bootstrap requires a verified unsharded target.", 65);
+  }
+  const controlSha = git(controlRoot, ["rev-parse", "HEAD"]).toString("utf8").trim();
+  if (controlSha !== (isRefCheck ? head : base)) {
+    throw new CliError("Private docs control checkout is not pinned.", 65);
+  }
+  git(targetRoot, ["merge-base", "--is-ancestor", base, head]);
+  const readTree = (sha: string): GitEntry[] =>
+    parseDocsTree(git(targetRoot, ["ls-tree", "-rz", "--full-tree", sha]).toString("utf8"));
+  const diff = git(targetRoot, [
+    "diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--name-status", "-z",
+    base, head, "--",
+  ]).toString("utf8");
+  if (diff && !diff.endsWith("\0")) {
+    throw new CliError("Private docs Git diff is incomplete.", 65);
+  }
+  const items = diff ? diff.slice(0, -1).split("\0") : [];
+  if (items.length % 2 !== 0) throw new CliError("Private docs Git diff is malformed.", 65);
+  const changes: string[] = [];
+  for (let i = 0; i < items.length; i += 2) changes.push(`${items[i]}\t${items[i + 1]}`);
+  const template = readFileSync(
+    join(resolve(dirname(fileURLToPath(import.meta.url)), ".."), "templates/bridge/notify-action-worker.yml")
+  );
+  const bridgeSha = createHash("sha1")
+    .update(`blob ${template.length}\0`)
+    .update(template)
+    .digest("hex");
+  verifyPrivateDocsTrees(readTree(base), readTree(head), changes, bridgeSha, isRefCheck);
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  for (const file of requiredFiles) {
+    const contents = git(targetRoot, ["show", `${head}:${file}`]);
+    if (contents.length === 0 || contents.length > 64 * 1024) {
+      throw new CliError("Private docs content size is invalid.", 65);
+    }
+    const value = decoder.decode(contents);
+    if (
+      (file.endsWith(".md") && !value.startsWith("# ")) ||
+      !value.endsWith("\n") ||
+      value.includes("\0")
+    ) {
+      throw new CliError("Private docs content is invalid.", 65);
+    }
+  }
+  console.log("Private docs-only baseline verified; no product code or tests exist.");
+}

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { verifyDeltaDocsBootstrap } from "./delta-docs-bootstrap.ts";
+import { verifyDeltaDocsBootstrap, verifyPrivateDocsBootstrap } from "./delta-docs-bootstrap.ts";
 import { parseExecutionManifest } from "./execution-contract.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { verifyBridgeBootstrap } from "./verify-bridge-bootstrap.ts";
@@ -174,6 +174,10 @@ export async function executeManifestLinuxCi(
       } else {
         verifyDeltaDocsBootstrap(targetRoot, controlRoot, base, head, shard);
       }
+      return;
+    }
+    if (!existsSync(manifestPath) && process.env.TARGET_PRIVATE === "true") {
+      verifyPrivateDocsBootstrap(targetRoot, controlRoot, base, head, shard);
       return;
     }
     throw new CliError("Trusted Linux CI manifest is missing or invalid.", 65);
