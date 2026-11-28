@@ -28,7 +28,7 @@
       "branch": "main",
       "dependency": "npm:typescript",
       "declaration": "^6.0.3",
-      "reason": "Windows release build fails with TypeScript 7.0.2: getParsedCommandLineOfConfigFile is unavailable; Typert and document verification require migration of the JavaScript compiler API. Delta #104/#105.",
+      "reason": "Delta #112/#115 validated native TypeScript 7.0.2 via @typescript/native; TypeScript 6 remains necessary for Typert, repository semantic tools and bundler peers. Review when the supported programmatic API is available; do not auto-extend.",
       "expires_on": "2026-12-31"
     },
     {
@@ -36,7 +36,7 @@
       "branch": "dev",
       "dependency": "npm:typescript",
       "declaration": "^6.0.3",
-      "reason": "Windows release build fails with TypeScript 7.0.2: getParsedCommandLineOfConfigFile is unavailable; Typert and document verification require migration of the JavaScript compiler API. Delta #104/#105.",
+      "reason": "Delta #112/#115 validated native TypeScript 7.0.2 via @typescript/native; TypeScript 6 remains necessary for Typert, repository semantic tools and bundler peers. Review when the supported programmatic API is available; do not auto-extend.",
       "expires_on": "2026-12-31"
     }
   ]

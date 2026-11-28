@@ -466,7 +466,13 @@ export function buildEngineeringProposal(
         !/^\d+\.\d+\.\d+$/.test(entry.version) ||
         typeof version !== "string" ||
         !/^[~^]?\d+\.\d+\.\d+$/.test(version) ||
-        evaluateDeclaration(policy, repository, branch, key, version, today) === "excepted" ||
+        policy.exceptions.some(
+          (item) =>
+            item.repository === repository &&
+            item.branch === branch &&
+            item.dependency === key &&
+            item.declaration === version
+        ) ||
         version === entry.version
       ) {
         continue;

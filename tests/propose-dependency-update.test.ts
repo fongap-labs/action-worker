@@ -190,3 +190,32 @@ test("only changed public plans require administrator authorization and publish 
   assert.equal(requiresProposalAuthorization("publish", 0), true);
   assert.equal(requiresProposalAuthorization("publish", 1), true);
 });
+
+test("known compatibility declarations require review after expiry rather than automatic upgrade", () => {
+  const snapshot = {
+    sha: "a".repeat(40),
+    tree: "b".repeat(40),
+    files: new Map([
+      [
+        "package.json",
+        JSON.stringify({
+          engines: { node: target },
+          packageManager: "pnpm@11.28.5",
+          devDependencies: {
+            typescript: "^6.0.3",
+            "@typescript/native": "npm:typescript@7.0.2",
+          },
+        }),
+      ],
+      ["pnpm-lock.yaml", "lockfileVersion: '9.0'\nimporters:\n  .:\n    devDependencies: {}\n"],
+      ["CHANGELOG.md", record],
+    ]),
+  };
+  for (const branch of ["main", "dev"] as const) {
+    for (const day of [date, "2027-01-01"]) {
+      const result = buildEngineeringProposal(policy, "fongap-labs/delta", branch, snapshot, day, true);
+      assert.deepEqual(result.changes, []);
+      assert.equal(result.lockPath, null);
+    }
+  }
+});
