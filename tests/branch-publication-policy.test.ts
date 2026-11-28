@@ -32,7 +32,12 @@ test("ordinary development selects the live dev branch and never falls back on e
       .branch,
     "main"
   );
-  for (const value of [new GithubHttpError(403), new GithubHttpError(429), snapshot("wrong"), null]) {
+  for (const value of [
+    new GithubHttpError(403),
+    new GithubHttpError(429),
+    snapshot("wrong"),
+    null,
+  ]) {
     await assert.rejects(resolveOrdinaryDevelopmentBranch(reader(value), repository, policy));
   }
   await assert.rejects(

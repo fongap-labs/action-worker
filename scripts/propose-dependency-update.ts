@@ -279,7 +279,10 @@ async function readHead(
     readBranchPolicy()
   );
   if (target.branch !== branch) {
-    throw new CliError("Proposal target changed; ordinary changes must use the selected branch.", 77);
+    throw new CliError(
+      "Proposal target changed; ordinary changes must use the selected branch.",
+      77
+    );
   }
   return { sha: target.sha, tree: target.tree };
 }
