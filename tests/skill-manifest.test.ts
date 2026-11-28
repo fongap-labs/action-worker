@@ -463,7 +463,7 @@ test("task dispatch workflow resolves skills without a manifest path argument", 
   assert.ok(workflow.includes("node scripts/build-agent-prompt.ts"));
   assert.ok(workflow.includes("AGENT_SYSTEM_PROMPT_PATH"));
   for (const job of ["run_private_isolated", "run_isolated"]) {
-    const section = workflow.split(`\n  ${job}:\n`)[1]?.split(/\n  [a-z_]+:\n/)[0] ?? "";
+    const section = workflow.split(`\n  ${job}:\n`)[1]?.split(/\n {2}[a-z_]+:\n/)[0] ?? "";
     assert.match(section, /node scripts\/resolve-agent-skills\.ts/);
     assert.match(section, /node scripts\/build-agent-prompt\.ts/);
     assert.match(section, /AGENT_SYSTEM_PROMPT_PATH/);

@@ -49,7 +49,9 @@ test("private task container has an immutable image and explicit nonprivileged i
     args.includes("type=bind,source=/tmp/secure-pilot/source,target=/task-source,readonly")
   );
   assert.ok(args.includes("type=bind,source=/tmp/secure-pilot/state,target=/task-state"));
-  assert.ok(args.includes("type=bind,source=/tmp/agent-prompt.md,target=/agent-prompt.md,readonly"));
+  assert.ok(
+    args.includes("type=bind,source=/tmp/agent-prompt.md,target=/agent-prompt.md,readonly")
+  );
   assert.ok(args.includes("AGENT_SYSTEM_PROMPT_PATH=/agent-prompt.md"));
   assert.ok(args.includes("/bin/bash"));
   assert.ok(args.includes("/task-source/bootstrap.sh"));
