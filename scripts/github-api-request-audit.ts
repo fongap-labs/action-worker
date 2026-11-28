@@ -61,7 +61,13 @@ function emptyEndpointCounts(): Record<GithubApiEndpointCategory, number> {
   };
 }
 
+export type GithubApiCredential = "native" | "app" | "unclassified";
+
+type CredentialCounts = Record<GithubApiCredential, { fetch: number; core_min: number | null }>;
+
 export type GithubApiAuditSnapshot = {
+  credential_counts: CredentialCounts;
+  native_fallbacks: number;
   fetch: number;
   cli: number;
   cli_failed: number;
@@ -84,7 +90,13 @@ export type GithubApiAuditSnapshot = {
 /** Per-process aggregation only; never stores API URLs, tokens or response bodies. */
 export class GithubApiRequestAudit {
   private readonly endpointCounts = emptyEndpointCounts();
-  private readonly counts: Omit<GithubApiAuditSnapshot, "endpoint_counts"> = {
+  private readonly credentials: CredentialCounts = {
+    native: { fetch: 0, core_min: null },
+    app: { fetch: 0, core_min: null },
+    unclassified: { fetch: 0, core_min: null },
+  };
+  private readonly counts: Omit<GithubApiAuditSnapshot, "endpoint_counts" | "credential_counts"> = {
+    native_fallbacks: 0,
     fetch: 0,
     cli: 0,
     cli_failed: 0,
@@ -103,13 +115,22 @@ export class GithubApiRequestAudit {
     core_min: null,
   };
 
-  fetchStart(conditional: boolean, requestPath = ""): void {
+  fetchStart(
+    conditional: boolean,
+    requestPath = "",
+    credential: GithubApiCredential = "unclassified"
+  ): void {
+    this.credentials[credential].fetch += 1;
     this.endpointCounts[classifyGithubApiEndpoint(requestPath)] += 1;
     this.counts.fetch += 1;
     if (conditional) this.counts.conditional += 1;
   }
 
-  fetchResponse(status: number, headers: Headers): void {
+  fetchResponse(
+    status: number,
+    headers: Headers,
+    credential: GithubApiCredential = "unclassified"
+  ): void {
     if (status === 304) this.counts.not_modified += 1;
     else if (status >= 200 && status < 300) this.counts.ok += 1;
     else if (status === 403) this.counts.forbidden += 1;
@@ -123,9 +144,16 @@ export class GithubApiRequestAudit {
         if (Number.isSafeInteger(remaining)) {
           const old = this.counts.core_min;
           this.counts.core_min = old === null ? remaining : Math.min(old, remaining);
+          const counts = this.credentials[credential];
+          counts.core_min =
+            counts.core_min === null ? remaining : Math.min(counts.core_min, remaining);
         }
       }
     }
+  }
+
+  nativeFallback(): void {
+    this.counts.native_fallbacks += 1;
   }
 
   fetchTransportError(): void {
@@ -166,7 +194,15 @@ export class GithubApiRequestAudit {
   }
 
   snapshot(): GithubApiAuditSnapshot {
-    return { ...this.counts, endpoint_counts: { ...this.endpointCounts } };
+    return {
+      ...this.counts,
+      endpoint_counts: { ...this.endpointCounts },
+      credential_counts: {
+        native: { ...this.credentials.native },
+        app: { ...this.credentials.app },
+        unclassified: { ...this.credentials.unclassified },
+      },
+    };
   }
 
   summary(job: string, script: string): string {
@@ -202,7 +238,20 @@ export class GithubApiRequestAudit {
         c.secondary_limit +
         " |",
       "| gh api 失败 | " + c.cli_failed + " |",
-      "| 响应头 core 最低剩余额度 | " + remaining + " |",
+      "| 混合响应头 core 最低剩余额度（非共享额度） | " + remaining + " |",
+      "| 原生 / App / 未分类 HTTP 请求 | " +
+        c.credential_counts.native.fetch +
+        " / " +
+        c.credential_counts.app.fetch +
+        " / " +
+        c.credential_counts.unclassified.fetch +
+        " |",
+      "| 原生 / App core 最低剩余额度 | " +
+        (c.credential_counts.native.core_min ?? "未提供") +
+        " / " +
+        (c.credential_counts.app.core_min ?? "未提供") +
+        " |",
+      "| 原生主额度耗尽回退 | " + c.native_fallbacks + " |",
       "",
       "#### GitHub API 端点分类",
       "| 固定类别 | 请求次数 |",
@@ -240,6 +289,9 @@ if (process.env.AW_GITHUB_API_METRICS === "1") {
         stats.retries +
         " limits=" +
         (stats.primary_limit + stats.secondary_limit)
+    );
+    console.log(
+      `GitHub API credentials: native=${stats.credential_counts.native.fetch} app=${stats.credential_counts.app.fetch} unclassified=${stats.credential_counts.unclassified.fetch} fallbacks=${stats.native_fallbacks}`
     );
     console.log(
       "GitHub API endpoint categories: " +

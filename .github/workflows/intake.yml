@@ -281,6 +281,8 @@ jobs:
       - name: Observe managed branch differences
         if: ${{ always() && !cancelled() && github.event_name == 'schedule' && steps.control_read_app.outputs.token != '' }}
         env:
+          AW_NATIVE_TOKEN: ${{ github.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
         run: node scripts/audit-branch-drift.ts
 
@@ -295,6 +297,11 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+      statuses: read
+      issues: read
 
     steps:
       - name: Checkout control plane
@@ -355,6 +362,8 @@ jobs:
       - name: Audit managed dev branches
         if: ${{ always() && steps.control_read_app.outputs.token != '' && steps.status_app.outputs.token != '' && steps.issue_app.outputs.token != '' }}
         env:
+          AW_NATIVE_TOKEN: ${{ github.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_PROTECTION_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
@@ -444,6 +453,7 @@ jobs:
         id: audit
         if: ${{ always() && steps.control_read_app.outputs.token != '' && steps.status_app.outputs.token != '' && steps.issue_app.outputs.token != '' }}
         env:
+          AW_GITHUB_API_METRICS: "1"
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_NATIVE_TOKEN: ${{ github.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
@@ -813,6 +823,7 @@ jobs:
         if: steps.scope.outputs.scan == 'true'
         id: inspect
         env:
+          AW_GITHUB_API_METRICS: "1"
           AW_CONTROL_TOKEN: ${{ steps.evidence.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -856,6 +867,7 @@ jobs:
       - name: Recheck signed evidence and submit one separate catalog PR
         if: steps.inspect.outputs.eligible == 'true'
         env:
+          AW_GITHUB_API_METRICS: "1"
           AW_CONTROL_TOKEN: ${{ steps.evidence.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
