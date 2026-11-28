@@ -384,3 +384,59 @@ test("plan capability rejection is distinct from permission and rate limits", ()
   );
   assert.equal(classifyGithubFailure(403, new Headers(), "Forbidden"), "permission");
 });
+
+test("native repository reads preserve credential boundaries and switch only on primary exhaustion", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  let responseKind = "success";
+  globalThis.fetch = async (_url, init) => {
+    const auth = new Headers(init?.headers).get("authorization") ?? "";
+    calls.push(auth);
+    if (auth === "Bearer native" && responseKind === "quota") {
+      return Response.json(
+        { message: "API rate limit exceeded" },
+        {
+          status: 403,
+          headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "4102444800" },
+        }
+      );
+    }
+    if (auth === "Bearer native" && responseKind === "permission") {
+      return Response.json({ message: "Resource not accessible" }, { status: 403 });
+    }
+    return Response.json({});
+  };
+  try {
+    const reader = statusAwareReader("https://api.github.test", "control", "status", {
+      repository: "example/control",
+      token: "native",
+    });
+    await reader.get("repos/example/control/actions/runs/12");
+    await reader.get("repos/example/control/commits/abc/status");
+    await reader.get("repos/example/other/commits/abc/status");
+    await reader.get("repos/example/other/pulls");
+    await reader.get("repos/example/control/rules/branches/main");
+    await reader.get("repos/example/control/../other/pulls");
+    await reader.get("repos/example/control/%2e%2e/other/pulls");
+    responseKind = "permission";
+    await assert.rejects(() => reader.get("repos/example/control/pulls"), /access forbidden/);
+    responseKind = "quota";
+    await reader.get("repos/example/control/pulls");
+    await reader.get("repos/example/control/commits/abc/status");
+    assert.deepEqual(calls, [
+      "Bearer native",
+      "Bearer native",
+      "Bearer status",
+      "Bearer control",
+      "Bearer control",
+      "Bearer control",
+      "Bearer control",
+      "Bearer native",
+      "Bearer native",
+      "Bearer control",
+      "Bearer status",
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

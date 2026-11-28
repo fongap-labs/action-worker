@@ -157,7 +157,9 @@ Main Write Guard 的安全性不得取决于业务仓库的 Actions 是否能运
 
 已合并的 Pull Request 不取消其 PR Governance 运行。Main Write Guard 依据合并 head 上的 PR Governance 状态证明 main 来源；若在合并时取消该运行，状态永远不会发布，该仓库的 `main` 将持续处于不可信状态，后续每次 Intake 都会报告来源无法证明。只有被放弃的 Pull Request 才取消其治理工作。
 
-`main-write-guard.yml` 只证明 Action Worker 自身 `main` 的每次 push，使用工作流令牌与本地 `validate-merge` 检查。
+`main-write-guard.yml` 只证明 Action Worker 自身 `main` 的每次 push，使用工作流原生令牌读取本仓库事实并核验本地 `validate-merge` 检查；签名状态仍由专用 App 令牌发布。
+
+中央调度的 PR、Main CI、main/dev 写入审计复用相同的本仓库只读路由。仅在明确识别原生令牌主额度耗尽时改用已有的专用 App 读取凭据；权限错误、次级限流不切换，跨仓库读取、状态写入及调度权限不变。
 
 调用方不得提交：
 - “这是合法合并”的布尔结论
