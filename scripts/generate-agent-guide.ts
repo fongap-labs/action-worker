@@ -68,8 +68,8 @@ export function renderAgentGuide(
     throw new CliError("Repository identity and explicit project rules are required.", 65);
   }
   const branchRules = isDevEnabled(policy, repository)
-    ? "main is stable/production; dev is Beta only. Use independent task branches and PRs."
-    : "Use main only. Dev is disabled; do not initialize, target, publish or deploy from dev.";
+    ? "main is stable/production; dev is Beta only. When dev exists, use dev task branches and PRs only; promote to main solely by authorized dev-to-main PR transfer."
+    : "Dev is disabled; use main PRs only when dev is absent. If dev exists, stop for maintainer resolution; do not initialize, target, publish or deploy from dev.";
   return (
     [
       "# AGENTS",
