@@ -7,7 +7,7 @@ import {
 import { requireToken } from "./control-token.ts";
 import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
-import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
+import { hasAdmittedPrivateDevCi } from "./private-ci-evidence.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 export async function verifyDevGovernance(
@@ -35,7 +35,7 @@ export async function verifyDevGovernance(
   }
   if (
     pull.base.repo.private === true &&
-    !(await hasApprovedPrivateCiCaller(reader, repository, baseSha))
+    !(await hasAdmittedPrivateDevCi(reader, repository, prNumber, baseSha, headSha))
   ) {
     throw new CliError("Private dev governance requires an approved source-owned CI caller.", 75);
   }

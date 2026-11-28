@@ -92,6 +92,13 @@ async function main(): Promise<void> {
       pollMs: 90_000,
     });
   }
+  if ("bootstrap" in result) {
+    await appendLines(process.env.GITHUB_OUTPUT, ["private_ci_bootstrap_verified=true"]);
+    console.log(
+      "Exact approved private CI caller initialization verified; no source code changed or executed."
+    );
+    return;
+  }
   await appendLines(process.env.GITHUB_OUTPUT, [
     `native_private_ci_verified=true`,
     `native_private_ci_run_id=${result.runId}`,

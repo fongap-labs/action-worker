@@ -4,7 +4,7 @@ import {
   readBranchPolicy,
 } from "./branch-publication-policy.ts";
 import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
-import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
+import { hasAdmittedPrivateDevCi } from "./private-ci-evidence.ts";
 import { appendLines, CliError, handleError, isMain, runText } from "./runtime-command.ts";
 
 type PullFacts = {
@@ -154,14 +154,16 @@ export async function fetchPullFacts(
     targetBranch === "dev" &&
     isJsonRecord(base.repo) &&
     base.repo.private === true &&
-    !(await hasApprovedPrivateCiCaller(
+    !(await hasAdmittedPrivateDevCi(
       { get: (path) => getGithubJson(path, token) },
       repository,
-      baseSha
+      Number(prNumber),
+      baseSha,
+      getJsonString(head, "sha")
     ))
   ) {
     throw new CliError(
-      "Private dev PR requires an approved source-owned CI caller on its base.",
+      "Private dev PR requires an approved source-owned CI caller or exact caller initialization.",
       77
     );
   }

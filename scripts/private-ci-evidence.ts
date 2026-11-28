@@ -8,6 +8,7 @@ import {
   getJsonString,
   isJsonRecord,
 } from "./github-api.ts";
+import { evaluatePrTrust } from "./pr-trust.ts";
 import { CliError } from "./runtime-command.ts";
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -180,6 +181,129 @@ export async function hasApprovedPrivateCiCaller(
   return actualHash === trustedHash;
 }
 
+export async function isApprovedPrivateCiBootstrap(
+  reader: { get(path: string): Promise<unknown> },
+  repository: string,
+  prNumber: number,
+  baseSha: string,
+  headSha: string
+): Promise<boolean> {
+  if (
+    !repositoryPattern.test(repository) ||
+    !Number.isSafeInteger(prNumber) ||
+    prNumber < 1 ||
+    !shaPattern.test(baseSha) ||
+    !shaPattern.test(headSha)
+  )
+    return false;
+  const root = `repos/${repository}`;
+  const baseCaller = await getGithubJsonIfExists(
+    `${root}/contents/${workflowPath}?ref=${baseSha}`,
+    (path) => reader.get(path)
+  );
+  // An altered existing caller is not a missing caller.
+  if (baseCaller !== undefined) return false;
+  const pull = await reader.get(`${root}/pulls/${prNumber}`);
+  if (
+    !isJsonRecord(pull) ||
+    pull.state !== "open" ||
+    pull.number !== prNumber ||
+    !isJsonRecord(pull.base) ||
+    !isJsonRecord(pull.head) ||
+    !isJsonRecord(pull.base.repo) ||
+    pull.base.repo.private !== true ||
+    getJsonString(pull.base.repo, "full_name") !== repository ||
+    getJsonString(pull.head.repo, "full_name") !== repository ||
+    getJsonString(pull.base, "ref") !== "dev" ||
+    getJsonString(pull.base, "sha") !== baseSha ||
+    getJsonString(pull.head, "sha") !== headSha ||
+    !getJsonString(pull.head, "ref") ||
+    /^(?:main|dev|aw-transfer(?:\/.*)?)$/.test(getJsonString(pull.head, "ref")) ||
+    !evaluatePrTrust(pull, [], headSha).trusted
+  )
+    return false;
+  const [comparison, commit] = await Promise.all([
+    reader.get(`${root}/compare/${baseSha}...${headSha}`),
+    reader.get(`${root}/git/commits/${headSha}`),
+  ]);
+  if (
+    !isJsonRecord(comparison) ||
+    comparison.status !== "ahead" ||
+    comparison.ahead_by !== 1 ||
+    comparison.behind_by !== 0 ||
+    getJsonString(comparison.merge_base_commit, "sha") !== baseSha ||
+    !isJsonRecord(commit) ||
+    commit.sha !== headSha ||
+    !Array.isArray(commit.parents) ||
+    commit.parents.length !== 1 ||
+    getJsonString(commit.parents[0], "sha") !== baseSha ||
+    !Array.isArray(comparison.files) ||
+    comparison.files.length !== 2
+  )
+    return false;
+  const files = comparison.files;
+  if (
+    !files.some(
+      (file) => isJsonRecord(file) && file.filename === workflowPath && file.status === "added"
+    ) ||
+    !files.some(
+      (file) => isJsonRecord(file) && file.filename === "CHANGELOG.md" && file.status === "modified"
+    )
+  )
+    return false;
+  const [tree, caller, before, after, template] = await Promise.all([
+    reader.get(`${root}/git/trees/${headSha}?recursive=1`),
+    reader.get(`${root}/contents/${workflowPath}?ref=${headSha}`),
+    reader.get(`${root}/contents/CHANGELOG.md?ref=${baseSha}`),
+    reader.get(`${root}/contents/CHANGELOG.md?ref=${headSha}`),
+    readFile("templates/bridge/private-source-ci.yml", "utf8"),
+  ]);
+  if (!isJsonRecord(tree) || tree.truncated !== false || !Array.isArray(tree.tree)) return false;
+  for (const path of [workflowPath, "CHANGELOG.md"]) {
+    if (
+      !tree.tree.some(
+        (entry) =>
+          isJsonRecord(entry) &&
+          entry.path === path &&
+          entry.type === "blob" &&
+          entry.mode === "100644"
+      )
+    )
+      return false;
+  }
+  if (
+    !isJsonRecord(caller) ||
+    caller.type !== "file" ||
+    !isJsonRecord(before) ||
+    before.type !== "file" ||
+    !isJsonRecord(after) ||
+    after.type !== "file"
+  )
+    return false;
+  const oldLog = decodeGithubContent(before);
+  const anchor = "## [Unreleased]\n";
+  return (
+    decodeGithubContent(caller) === template &&
+    (await hasApprovedPrivateCiCaller(reader, repository, headSha)) &&
+    oldLog.split(anchor).length === 2 &&
+    decodeGithubContent(after) ===
+      oldLog.replace(anchor, anchor + "\n- 维护: 初始化中央批准的私有源码持续集成调用入口。\n")
+  );
+}
+
+export async function hasAdmittedPrivateDevCi(
+  reader: { get(path: string): Promise<unknown> },
+  repository: string,
+  prNumber: number,
+  baseSha: string,
+  headSha: string
+): Promise<boolean> {
+  return (
+    (await hasApprovedPrivateCiCaller(reader, repository, baseSha)) ||
+    (await isApprovedPrivateCiBootstrap(reader, repository, prNumber, baseSha, headSha))
+  );
+}
+
 export async function fetchAndVerifyPrivateCiEvidence(
   reader: { get(path: string): Promise<unknown> },
   identity: PrivateCiIdentity
@@ -220,7 +344,7 @@ export type NativePrivateCiRequest = {
 export async function fetchAndVerifyPrivateCiForPull(
   reader: { get(path: string): Promise<unknown> },
   request: NativePrivateCiRequest
-): Promise<VerifiedPrivateCi> {
+): Promise<VerifiedPrivateCi | { bootstrap: true }> {
   if (
     (request.targetBranch !== undefined &&
       request.targetBranch !== "main" &&
@@ -268,6 +392,26 @@ export async function fetchAndVerifyPrivateCiForPull(
     getJsonString(parents[1], "sha") !== request.headSha
   ) {
     fail();
+  }
+  if (
+    request.targetBranch === "dev" &&
+    !(await hasApprovedPrivateCiCaller(reader, repo, request.baseSha)) &&
+    (await isApprovedPrivateCiBootstrap(
+      reader,
+      repo,
+      request.prNumber,
+      request.baseSha,
+      request.headSha
+    ))
+  ) {
+    const head = await reader.get(`repos/${repo}/git/commits/${request.headSha}`);
+    if (
+      !isJsonRecord(head) ||
+      getJsonString(head.tree, "sha") !== getJsonString(merge.tree, "sha") ||
+      !shaPattern.test(getJsonString(merge.tree, "sha"))
+    )
+      fail();
+    return { bootstrap: true };
   }
   const identity: PrivateCiIdentity = {
     repository: repo,

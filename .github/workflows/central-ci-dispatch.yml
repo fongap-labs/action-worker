@@ -498,7 +498,7 @@ jobs:
           # conservative interval, and respects GitHub primary quota reset.
           # Incomplete, stale or rate-limited verification never returns success.
           node scripts/private-ci-gate.ts "$REPOSITORY" "$PR_NUMBER" "$BASE_SHA" "$HEAD_SHA" "$MERGE_SHA" "$LINUX_SHARDS" "$HAS_WINDOWS" "$TARGET_BRANCH"
-          echo "Native private CI evidence verified for this immutable PR snapshot."
+          echo "Private CI or exact approved caller initialization verified for this immutable PR snapshot."
 
   native-private-ref:
     name: Verify native private main CI evidence
