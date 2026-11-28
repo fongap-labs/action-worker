@@ -81,7 +81,7 @@ A potential future need is not a current requirement. Make such changes only whe
 
 ### Prevent comment, test, and document growth
 
-- Comments explain non-obvious rationale, invariants, protocol constraints, or risks. Do not narrate obvious statements, repeat identifiers, keep commented-out code, or add decorative separators. Retain required license notices, public API documentation, and necessary directives.
+- Default to no explanatory comments. Add or retain a comment only when omitting it would cause a concrete, foreseeable mistake that the code cannot communicate clearly by itself. State the specific trap or invariant concisely; delete optional explanations, obvious descriptions, decorative separators, redundant API prose, and commented-out code. Preserve legally required notices, machine directives, and required external interface contracts; these are not optional explanatory comments.
 - Test observable behavior and meaningful failure modes. Reuse or extend an existing test before creating a new file; consolidate equivalent cases where useful. Add regression coverage for changed behavior or a reproduced bug when existing tests do not cover it. Do not add trivial implementation-detail tests, redundant mocks, or source-text assertions unless the text itself is a machine contract.
 - Keep documentation in its existing authoritative location. Do not create task summaries, duplicate guides, or speculative plans as repository artifacts.
 - Review the final diff for unnecessary additions; remove them before submission. For deletion, verify references, dynamic entry points, contracts, and affected behavior. Never delete required safety, regression, or integration coverage to satisfy a count or ratio.
