@@ -116,7 +116,16 @@ export function inspectManifest(
     ]) {
       table("npm", value[section]);
     }
-    if (isJsonRecord(value.engines)) table("tool", value.engines);
+    if (isJsonRecord(value.engines)) {
+      const isPublishedPackage =
+        path !== "package.json" &&
+        value.private !== true &&
+        (value.private === false ||
+          (isJsonRecord(value.publishConfig) && value.publishConfig.access === "public"));
+      for (const [name, spec] of Object.entries(value.engines)) {
+        add(isPublishedPackage && name === "node" ? "runtime" : "tool", name, spec);
+      }
+    }
     if (typeof value.packageManager === "string") {
       const match = /^(npm|pnpm|yarn|bun)@([^+]+)(?:\+.*)?$/.exec(value.packageManager);
       if (match?.[1] && match[2]) add("tool", match[1], match[2]);

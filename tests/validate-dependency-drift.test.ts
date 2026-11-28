@@ -64,6 +64,15 @@ test("new engineering ranges and duplicate drifting declarations are blocked", a
   await assert.rejects(check({}, { [path]: "{invalid" }));
 });
 
+test("published child runtime contracts do not bypass actual Node toolchain pins", async () => {
+  const path = "packages/library/package.json";
+  const manifest = JSON.stringify({ private: false, engines: { node: ">=20" } });
+  assert.equal((await check({}, { [path]: manifest })).introduced, 0);
+  assert.equal((await check({}, { "package.json": manifest })).introduced, 1);
+  assert.equal((await check({}, { "packages/.nvmrc": "24" })).introduced, 1);
+  assert.equal((await check({}, { "packages/.nvmrc": "26.13.1" })).introduced, 0);
+});
+
 test("native compiler aliases obey the same central version gate", async () => {
   const path = "package.json";
   const manifest = (version: string) =>

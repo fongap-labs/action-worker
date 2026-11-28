@@ -265,6 +265,10 @@ GitHub 只读比较 API 与 `base/head` 不可变提交运行
 ### 依赖版本目录
 
 中央建议基准及分类的唯一来源为 `policies/dependency-versions.json`。
+根项目的 Node.js 声明以及各层 `.nvmrc`、`.node-version` 是工具链配置，继续执行中央基准。
+明确公开发布的子软件包（`private: false` 或 `publishConfig.access: public`，且非私有）
+的 `engines.node` 是用户运行兼容契约，作为 `runtime:node` 独立观察，不自动改写为构建版本；
+未明确公开发布的子项目仍按工具链声明检查。
 工具链和通用工程依赖可以定义候选版本；框架及项目专用依赖按兼容性独立管理，
 未列出的依赖默认为项目专用，版本为空表示尚未设定统一基准。两段版本表示次版本系列，
 三段版本表示精确候选版本；它们不是已验证的运行时或已解析锁定版本。
