@@ -95,7 +95,7 @@ test("rejects a Co-Authored-By trailer that names an AI agent", async (context) 
   const { root, base, human } = await fixture(context);
   const head = await commit(
     root,
-    "chore: clarify setup\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
+    "chore: clarify setup\n\n澄清安装步骤。\n\nCo-Authored-By: Claude",
     human
   );
   await assert.rejects(
@@ -206,7 +206,7 @@ test("blocks widened model names in trailers and identities, but allows them in 
   await assertAttributionFree("chore: clarify setup", base, prose, root, policyDir);
   const trailer = await commit(
     root,
-    "chore: clarify setup\n\nAssisted-by: Qwen <qwen@example.com>",
+    "chore: clarify setup\n\n澄清安装步骤。\n\nAssisted-by: Qwen",
     human
   );
   await assert.rejects(
@@ -244,7 +244,9 @@ test("fails closed when the attribution policy is missing", async (context) => {
   const head = await commit(root, "chore: clarify setup", human);
   const emptyPolicy = await mkdtemp(join(tmpdir(), "attribution-policy-"));
   context.after(() => rm(emptyPolicy, { recursive: true, force: true }));
-  await assert.rejects(assertAttributionFree("chore: clarify setup", base, head, root, emptyPolicy));
+  await assert.rejects(
+    assertAttributionFree("chore: clarify setup", base, head, root, emptyPolicy)
+  );
 });
 
 test("ordinary PR commit history enforces the same message rules as preflight", async (context) => {

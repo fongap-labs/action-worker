@@ -204,7 +204,7 @@ test("release PRs can change only CHANGELOG.md", async (context) => {
   const baseSha = await commit(root, "base");
   const title = releasePullRequestTitle("example-v0.2.0");
   await writeFile(join(root, "CHANGELOG.md"), releaseOf(base), "utf8");
-  const releaseSha = await commit(root, "release");
+  const releaseSha = await commit(root, "chore: prepare release\n\n生成版本记录。");
   const record = await validateChange(title, baseSha, releaseSha, root, policyDir);
   assert.equal(record.type, "chore");
   assert.equal(record.changelog_changed, true);
@@ -212,7 +212,7 @@ test("release PRs can change only CHANGELOG.md", async (context) => {
   await runText("git", ["reset", "--hard", "-q", baseSha], { cwd: root });
   await writeFile(join(root, "CHANGELOG.md"), releaseOf(base), "utf8");
   await writeFile(join(root, "README.md"), "# Changed\n", "utf8");
-  const illegalSha = await commit(root, "release with extra file");
+  const illegalSha = await commit(root, "chore: prepare release\n\n增加额外文件。");
   await assert.rejects(validateChange(title, baseSha, illegalSha, root, policyDir));
 });
 
