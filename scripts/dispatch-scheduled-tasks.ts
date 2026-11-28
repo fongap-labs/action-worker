@@ -10,8 +10,8 @@ import {
 } from "./cron-schedule.ts";
 import {
   decodeGithubContent,
-  getGithubJsonIfExists,
   GithubReader,
+  getGithubJsonIfExists,
   githubEnvironment,
   isJsonRecord,
   statusAwareReader,

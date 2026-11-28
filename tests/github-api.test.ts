@@ -465,8 +465,7 @@ test("scoped App reads share primary cooldown and native reads share secondary c
         repository: "example/control",
         token: "native",
       });
-      const path =
-        kind === "primary" ? "repos/example/other/pulls" : "repos/example/control/pulls";
+      const path = kind === "primary" ? "repos/example/other/pulls" : "repos/example/control/pulls";
       await assert.rejects(() => reader.get(path), /API rate limit/);
       await assert.rejects(
         () => reader.get("repos/example/other/commits/abc/status"),
