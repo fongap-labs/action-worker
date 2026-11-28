@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { composeAgentPrompt } from "../scripts/build-agent-prompt.ts";
+import { renderAgentGuide, repositoryAgentRules } from "../scripts/generate-agent-guide.ts";
 import {
   discoverSkills,
   parseFrontmatter,
@@ -371,6 +372,52 @@ test("composeAgentPrompt concatenates AGENTS.md and skill files", async () => {
     assert.ok(!prompt.includes("Redirect only."));
     assert.ok(prompt.includes("--- Skill: skills/agent-execution/SKILL.md ---"));
     assert.ok(prompt.includes("--- Skill: skills/bug-fix/SKILL.md ---"));
+  } finally {
+    await rm(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("generated guides preserve project rules and derive branch instructions from policy", () => {
+  const central =
+    "# AGENTS\n\n## Common rules\n\nUse direct rules.\n\n## Repository rules\n\nControl only.";
+  const policy = {
+    dev_merge_mode: "automatic",
+    dev_disabled_repositories: ["fongap-labs/closed"],
+  };
+  const rules = "- Preserve product behavior.\n\n### Specific boundary\n\nNo private patch.";
+  const open = renderAgentGuide(central, "fongap-labs/open", rules, policy);
+  assert.match(open, /Use direct rules/);
+  assert.match(open, /dev is Beta only/);
+  assert.equal(repositoryAgentRules(open), rules);
+  assert.ok(!open.includes("Control only."));
+  assert.equal(renderAgentGuide(central, "fongap-labs/open", rules, policy), open);
+  const closed = renderAgentGuide(central, "fongap-labs/closed", rules, policy);
+  assert.match(closed, /Dev is disabled/);
+  assert.equal(repositoryAgentRules(closed), rules);
+  assert.equal(repositoryAgentRules("# AGENTS\nLegacy product constraints."), undefined);
+});
+
+test("task prompt loads target rules with current common rules and no control-only instructions", async () => {
+  const tmpRoot = await mkdtemp(join(tmpdir(), "prompt-target-"));
+  const target = join(tmpRoot, "target");
+  const central =
+    "# AGENTS\n\n## Common rules\n\nCurrent common.\n\n## Repository rules\n\nControl only.";
+  const policy = { dev_merge_mode: "automatic", dev_disabled_repositories: [] };
+  try {
+    await mkdir(target);
+    await writeFile(join(tmpRoot, "AGENTS.md"), central);
+    const previous = central.replace("Current common.", "Obsolete common.");
+    await writeFile(
+      join(target, "AGENTS.md"),
+      renderAgentGuide(previous, "fongap-labs/example", "Product rules.", policy)
+    );
+    const context = { root: target, repository: "fongap-labs/example", policy };
+    const prompt = await composeAgentPrompt(tmpRoot, [], context);
+    assert.match(prompt, /Current common/);
+    assert.match(prompt, /Product rules/);
+    assert.doesNotMatch(prompt, /Obsolete common|Control only/);
+    await writeFile(join(target, "AGENTS.md"), "# AGENTS\nLegacy product constraints.");
+    assert.match(await composeAgentPrompt(tmpRoot, [], context), /Legacy product constraints/);
   } finally {
     await rm(tmpRoot, { recursive: true, force: true });
   }

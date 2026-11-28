@@ -6,6 +6,9 @@ on:
   push:
     branches: [main]
     paths:
+      - AGENTS.md
+      - policies/rulesets.json
+      - scripts/generate-agent-guide.ts
       - policies/config-audit-targets.json
       - policies/repository-access.json
       - policies/task-secrets.json
@@ -92,6 +95,11 @@ jobs:
         env:
           AW_INVENTORY_TOKEN: ${{ steps.privacy_inventory.outputs.token }}
         run: node scripts/audit-dependency-inventory.ts
+
+      - name: Audit generated agent guides
+        env:
+          AW_INVENTORY_TOKEN: ${{ steps.privacy_inventory.outputs.token }}
+        run: node scripts/generate-agent-guide.ts audit
 
       - name: Record no-mutation audit result
         if: success()

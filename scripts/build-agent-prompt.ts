@@ -1,5 +1,7 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { lstat, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { readBranchPolicy } from "./branch-publication-policy.ts";
+import { renderAgentGuide, repositoryAgentRules } from "./generate-agent-guide.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 async function readIfExists(path: string): Promise<string | undefined> {
@@ -15,12 +17,33 @@ async function readIfExists(path: string): Promise<string | undefined> {
 
 export async function composeAgentPrompt(
   controlRoot: string,
-  skillPaths: readonly string[]
+  skillPaths: readonly string[],
+  target?: { root: string; repository: string; policy: unknown }
 ): Promise<string> {
   const parts: string[] = [];
 
   const agents = await readIfExists(join(controlRoot, "AGENTS.md"));
-  if (agents) {
+  if (target) {
+    if (!agents) throw new CliError("Trusted central AGENTS.md is required.", 65);
+    const path = join(target.root, "AGENTS.md");
+    let local: string | undefined;
+    try {
+      if (!(await lstat(path)).isFile()) {
+        throw new CliError("Target AGENTS.md must be a regular file.", 65);
+      }
+      local = await readFile(path, "utf8");
+    } catch (error: unknown) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    }
+    const projectRules = local
+      ? (repositoryAgentRules(local) ?? local.trim())
+      : "No target AGENTS.md found. Inspect the relevant product contracts; do not assume exceptions.";
+    parts.push(
+      "--- Governance Entry (AGENTS.md) ---",
+      renderAgentGuide(agents, target.repository, projectRules, target.policy).trimEnd(),
+      "Repository rules may tighten common rules but never override central contracts or gates."
+    );
+  } else if (agents) {
     parts.push("--- Governance Entry (AGENTS.md) ---", agents.trimEnd());
   }
 
@@ -52,7 +75,16 @@ async function main(): Promise<void> {
     throw new CliError("::error::AGENT_SKILLS_JSON must be a string array.", 64);
   }
 
-  const prompt = await composeAgentPrompt(controlRoot, skills);
+  const sourceRoot = process.env.AW_SOURCE_DIR;
+  const repository = process.env.TASK_SOURCE_REPOSITORY;
+  if (Boolean(sourceRoot) !== Boolean(repository)) {
+    throw new CliError("Verified task source identity is incomplete.", 65);
+  }
+  const target =
+    sourceRoot && repository
+      ? { root: sourceRoot, repository, policy: readBranchPolicy() }
+      : undefined;
+  const prompt = await composeAgentPrompt(controlRoot, skills, target);
   await writeFile(outputPath, prompt, "utf8");
 
   await appendLines(process.env.GITHUB_OUTPUT, [
