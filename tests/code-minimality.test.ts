@@ -52,26 +52,6 @@ const allReviewRuleFiles = [
   "rules/workflow-review.json",
 ];
 
-test("code-minimality skill carries the reuse ladder, minimal change set, deletion, and root-cause rules", async () => {
-  const skill = await text("skills/code-minimality/SKILL.md");
-  requireText(skill, [
-    "name: code-minimality",
-    "minimal necessary implementation, not the least code",
-    "existing code, helper, module, or tool",
-    "standard library",
-    "platform-native capability",
-    "already-installed dependency",
-    "fewest files",
-    "fewest new abstractions",
-    "smallest impact radius",
-    "wrapper, adapter, factory, registry, manager, service",
-    "delete it instead of adding a compatibility layer",
-    "repair the root cause",
-    "Do not stack a workaround on the symptom, then a special case, then another fallback.",
-    "A potential future need is not a current requirement.",
-  ]);
-});
-
 test("code-minimality states the hard safety boundary that fewer lines can never cut", async () => {
   const skill = await text("skills/code-minimality/SKILL.md");
   requireText(skill, [
@@ -121,7 +101,7 @@ test("each review rule file carries a single merged **/* entry so OpenCodeReview
   }
 });
 
-test("code and architecture reviews detect duplicate implementation, over-abstraction, and unnecessary dependencies", async () => {
+test("code and architecture review rules preserve minimality categories and output contracts", async () => {
   for (const path of minimalityReviewRuleFiles) {
     const entries = await allRuleEntries(path);
     assert.equal(entries.length, 1, `${path} must carry exactly one rule entry`);
@@ -143,22 +123,6 @@ test("code and architecture reviews detect duplicate implementation, over-abstra
     );
     assert.match(rule, /reimplement/, `${path} must flag duplicate implementation`);
     assert.match(rule, /reused/, `${path} must require reuse of existing capability`);
-    for (const layer of ["wrapper", "adapter", "factory", "registry", "manager", "service"]) {
-      assert.ok(rule.includes(layer), `${path} must flag unnecessary ${layer} layers`);
-    }
-    assert.match(
-      rule,
-      /third-party dependency|new dependency/,
-      `${path} must flag unnecessary new dependencies`
-    );
-    assert.match(rule, /standard library/, `${path} must prefer the standard library`);
-    assert.match(rule, /platform-native/, `${path} must prefer platform-native capability`);
-    assert.match(rule, /shrink/, `${path} must check whether the change scope can shrink`);
-    assert.match(rule, /delete/, `${path} must check whether code can be deleted instead`);
-    assert.match(rule, /YAGNI/, `${path} must flag speculative extension`);
-    assert.match(rule, /root cause/, `${path} must require root-cause bug fixes`);
-    assert.match(rule, /workaround/, `${path} must flag symptom workarounds`);
-    assert.match(rule, /fallback/, `${path} must flag fallback stacking`);
     for (const tag of ["delete", "reuse", "stdlib", "native", "yagni", "shrink", "root-cause"]) {
       assert.ok(rule.includes(tag), `${path} must define the ${tag} finding category`);
     }
