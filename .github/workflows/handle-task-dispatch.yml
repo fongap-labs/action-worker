@@ -99,6 +99,8 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           BOOTSTRAP_REF: ${{ steps.payload.outputs.bootstrap_ref }}
           TARGET_BRANCH: ${{ steps.payload.outputs.target_branch }}
+          AGENT_DOMAIN: ${{ steps.payload.outputs.agent_domain }}
+          OPERATION: ${{ steps.payload.outputs.operation }}
         run: node scripts/validate-task-source.ts "$REPOSITORY" "$BOOTSTRAP_REF" "$TARGET_BRANCH"
 
       - name: Preflight task Secret declarations and central ceiling
@@ -1302,6 +1304,7 @@ jobs:
           DEST_DIR: ${{ steps.publication.outputs.dest_dir }}
           DELETE_STALE: ${{ steps.publication.outputs.delete_stale }}
           COMMIT_MESSAGE: ${{ steps.publication.outputs.commit_message }}
+          COMMIT_BODY: ${{ steps.publication.outputs.commit_body }}
           PAYLOAD_DIR: ${{ steps.publication.outputs.payload_dir }}
           SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
           PROJECT: ${{ github.event.client_payload.project }}
@@ -1324,8 +1327,16 @@ jobs:
 
           gh auth setup-git
 
+          selected="$(node scripts/validate-task-publication.ts select-target "$TARGET_REPOSITORY")"
+          target_branch="$(jq -er '.branch' <<< "$selected")"
+          target_sha="$(jq -er '.sha' <<< "$selected")"
+          merge_context="validate-merge"
+          if [ "$target_branch" = "dev" ]; then
+              merge_context="validate-merge-dev"
+          fi
           rm -rf "$WORK_DIR/target"
-          gh repo clone "$TARGET_REPOSITORY" "$WORK_DIR/target" -- --depth 1
+          gh repo clone "$TARGET_REPOSITORY" "$WORK_DIR/target" -- --depth 1 --branch "$target_branch"
+          test "$(git -C "$WORK_DIR/target" rev-parse HEAD)" = "$target_sha"
           git -C "$WORK_DIR/target" switch -c "$branch"
 
           # Never follow a symlink from an output path into the runner or Git metadata.
@@ -1409,8 +1420,11 @@ jobs:
               rm -f "$changelog_next"
               git -C "$WORK_DIR/target" add -- CHANGELOG.md
           fi
-          git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE"
-          git -C "$WORK_DIR/target" push --force origin "HEAD:refs/heads/$branch"
+          test -n "$COMMIT_BODY"
+          git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE" -m "$COMMIT_BODY"
+          test "$(node scripts/validate-task-publication.ts select-target "$TARGET_REPOSITORY")" = "$selected"
+          git -C "$WORK_DIR/target" push origin "HEAD:refs/heads/$branch"
+          test "$(node scripts/validate-task-publication.ts select-target "$TARGET_REPOSITORY")" = "$selected"
 
           pr_number="$(gh pr list --repo "$TARGET_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
           if [ -z "$pr_number" ]; then
@@ -1420,8 +1434,9 @@ jobs:
               else
                   pr_body="Automated task publication from an approved private source. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
               fi
-              pr_number="$(basename "$(gh pr create --repo "$TARGET_REPOSITORY" --base main --head "$branch" --title "$pr_title" --body "$pr_body")")"
+              pr_number="$(basename "$(gh pr create --repo "$TARGET_REPOSITORY" --base "$target_branch" --head "$branch" --title "$pr_title" --body "$pr_body")")"
           fi
+          test "$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json baseRefName --jq .baseRefName)" = "$target_branch"
           echo "Publication pull request: ${pr_number}"
 
           # Start the governance of the publication pull request now instead of on the next heartbeat.
@@ -1432,7 +1447,9 @@ jobs:
 
           deadline=$((SECONDS + 1800))
           while [ "$SECONDS" -lt "$deadline" ]; do
-              state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json state --jq .state)"
+              pr_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json state,baseRefName,mergeStateStatus,statusCheckRollup)"
+              test "$(jq -er '.baseRefName' <<< "$pr_state")" = "$target_branch"
+              state="$(jq -er '.state' <<< "$pr_state")"
               if [ "$state" = "MERGED" ]; then
                   echo "Published task artifact to $TARGET_REPOSITORY/$DEST_DIR via pull request #${pr_number}."
                   exit 0
@@ -1442,22 +1459,20 @@ jobs:
                   exit 1
               fi
 
-              merge_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json mergeStateStatus --jq .mergeStateStatus)"
+              merge_state="$(jq -er '.mergeStateStatus' <<< "$pr_state")"
               if [ "$merge_state" = "DIRTY" ]; then
-                  echo "::error::Publication pull request #${pr_number} conflicts with $TARGET_REPOSITORY/main; a concurrent change touched $DEST_DIR." >&2
+                  echo "::error::Publication pull request #${pr_number} conflicts with $TARGET_REPOSITORY/$target_branch; a concurrent change touched $DEST_DIR." >&2
                   exit 1
               fi
-              if [ "$merge_state" = "BEHIND" ]; then
-                  gh pr update-branch "$pr_number" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1 || true
-                  sleep 10
-                  continue
+              if [ "$merge_state" = "BEHIND" ] && [ "$target_branch" = "dev" ]; then
+                  echo "::error::Development publication branch needs refresh; inspect the open PR." >&2
+                  exit 75
               fi
 
-              check_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json statusCheckRollup --jq '[.statusCheckRollup[] | select((.name // .context) == "validate-merge")] | if length == 0 then "missing" elif any(.conclusion? == "FAILURE" or .state? == "FAILURE") then "failure" elif any(.conclusion? == "SUCCESS" or .state? == "SUCCESS") then "success" else "pending" end')"
+              check_state="$(jq -r --arg context "$merge_context" '[.statusCheckRollup[] | select((.name // .context) == $context)] | if length == 0 then "missing" elif any(.conclusion? == "FAILURE" or .state? == "FAILURE") then "failure" elif any(.conclusion? == "SUCCESS" or .state? == "SUCCESS") then "success" else "pending" end' <<< "$pr_state")"
               case "$check_state" in
                   success)
-                      head_oid="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json headRefOid --jq .headRefOid)"
-                      gh pr merge "$pr_number" --repo "$TARGET_REPOSITORY" --squash --match-head-commit "$head_oid" && continue
+                      failure_reads=0
                       sleep 10
                       ;;
                   failure)
@@ -1465,7 +1480,7 @@ jobs:
                       # Keep the PR open; never bypass the signed governance verdict.
                       failure_reads=$(( ${failure_reads:-0} + 1 ))
                       if [ "$failure_reads" -ge 3 ]; then
-                          echo "::error::Publication pull request #${pr_number} failed the validate-merge check." >&2
+                          echo "::error::Publication pull request #${pr_number} failed the $merge_context check." >&2
                           exit 1
                       fi
                       sleep 20

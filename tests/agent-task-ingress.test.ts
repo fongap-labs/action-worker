@@ -6,6 +6,7 @@ import {
   resolveTrustedSourceSha,
   validateAgentRequest,
 } from "../scripts/agent-task-ingress.ts";
+import { GithubHttpError } from "../scripts/github-api.ts";
 
 const actor = { login: "fongap", id: 26006683, type: "User" };
 const authorization = {
@@ -134,7 +135,10 @@ test("task target SHA must be obtained from an active main branch, never from ca
   const received: string[] = [];
   const fakeFetch = async (_token: string, path: string) => {
     received.push(path);
-    return path.endsWith("/commits/main") ? { sha } : { default_branch: "main" };
+    if (path.endsWith("/branches/dev")) throw new GithubHttpError(404);
+    return path.endsWith("/branches/main")
+      ? { name: "main", commit: { sha, commit: { tree: { sha } } } }
+      : { default_branch: "main" };
   };
   assert.equal(
     await resolveTrustedSourceSha("fongap-labs/ai-gateway", "read-only", fakeFetch),
@@ -142,12 +146,21 @@ test("task target SHA must be obtained from an active main branch, never from ca
   );
   assert.deepEqual(received, [
     "repos/fongap-labs/ai-gateway",
-    "repos/fongap-labs/ai-gateway/commits/main",
+    "repos/fongap-labs/ai-gateway/branches/main",
+    "repos/fongap-labs/ai-gateway/branches/dev",
   ]);
   await assert.rejects(() =>
     resolveTrustedSourceSha("fongap-labs/ai-gateway", "read-only", async () => ({
       default_branch: "release",
     }))
+  );
+  await assert.rejects(
+    resolveTrustedSourceSha("fongap-labs/example", "read-only", async (token, path) =>
+      path.endsWith("/branches/dev")
+        ? { name: "dev", commit: { sha, commit: { tree: { sha } } } }
+        : fakeFetch(token, path)
+    ),
+    /requires dev execution/
   );
   assert.throws(() =>
     agentDispatchPayload(
