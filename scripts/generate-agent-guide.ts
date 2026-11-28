@@ -8,7 +8,7 @@ import {
   isJsonRecord,
 } from "./github-api.ts";
 import { hasRepositoryCapability, readRepositoryPolicyText } from "./repository-policy.ts";
-import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
 import { type InventoryRepo, readInstallationInventory } from "./security-coverage-audit.ts";
 
 const commonHeading = "## Common rules\n";
@@ -74,6 +74,60 @@ export function renderAgentGuide(
       .join("\n\n")
       .trimEnd() + "\n"
   );
+}
+
+export function assertGeneratedAgentGuide(
+  guide: string,
+  centralGuide: string,
+  repository: string,
+  policy: unknown
+): void {
+  const rules = repositoryAgentRules(guide);
+  if (
+    rules === undefined ||
+    /^## (Common|Branch|Repository) rules\s*$/m.test(rules) ||
+    guide !== renderAgentGuide(centralGuide, repository, rules, policy)
+  ) {
+    throw new CliError("AGENTS.md must preserve generated central and branch rules.", 65);
+  }
+}
+
+export async function validateAgentGuideChange(
+  repository: string,
+  base: string,
+  head: string,
+  root: string,
+  centralGuide: string,
+  policy: unknown
+): Promise<void> {
+  if (!repositoryPattern.test(repository) || !shaPattern.test(base) || !shaPattern.test(head)) {
+    throw new CliError("Invalid agent guide change identity.", 65);
+  }
+  if (repository === "fongap-labs/action-worker") return;
+  const changed = await runText(
+    "git",
+    [
+      "diff",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--no-renames",
+      "--name-only",
+      base,
+      head,
+      "--",
+      "AGENTS.md",
+    ],
+    { cwd: root }
+  );
+  if (!changed) return;
+  const entry = await runText("git", ["ls-tree", head, "--", "AGENTS.md"], { cwd: root });
+  if (!/^100644 blob [a-f0-9]{40}\tAGENTS\.md$/.test(entry)) {
+    throw new CliError("AGENTS.md must remain a regular tracked file.", 65);
+  }
+  const guide = (await runCommand("git", ["show", head + ":AGENTS.md"], { cwd: root })).toString(
+    "utf8"
+  );
+  assertGeneratedAgentGuide(guide, centralGuide, repository, policy);
 }
 
 type AuditState = "current" | "drifted" | "migration" | "missing" | "absent" | "incomplete";
