@@ -159,7 +159,9 @@ export async function hasApprovedPrivateCiCaller(
   if (!repositoryPattern.test(repository) || !shaPattern.test(baseSha)) return false;
   // A run title is trusted only when its caller is the audited workflow on the exact PR base.
   const [caller, policyText] = await Promise.all([
-    getGithubJsonIfExists(`repos/${repository}/contents/${workflowPath}?ref=${baseSha}`, (path) => reader.get(path)),
+    getGithubJsonIfExists(`repos/${repository}/contents/${workflowPath}?ref=${baseSha}`, (path) =>
+      reader.get(path)
+    ),
     readFile("policies/security.json", "utf8"),
   ]);
   const policy: unknown = JSON.parse(policyText);
@@ -176,7 +178,6 @@ export async function hasApprovedPrivateCiCaller(
   const content = decodeGithubContent(caller);
   const actualHash = createHash("sha256").update(content.replace(/\r\n/g, "\n")).digest("hex");
   return actualHash === trustedHash;
-
 }
 
 export async function fetchAndVerifyPrivateCiEvidence(

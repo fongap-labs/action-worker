@@ -20,9 +20,9 @@ import { gateContextsForBranch, loadGateContract } from "./governance-gate-contr
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { findActiveIncidents } from "./main-write-incidents.ts";
-import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { evaluatePrTrust } from "./pr-trust.ts";
+import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { isReservedMergeSourceRef } from "./resolve-pr-facts.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
@@ -481,7 +481,11 @@ export async function scanOpenPullRequests(
       ) {
         if (
           baseRepo.private === true &&
-          !(await hasApprovedPrivateCiCaller(reader, repository, getJsonString(pull.pull.base, "sha")))
+          !(await hasApprovedPrivateCiCaller(
+            reader,
+            repository,
+            getJsonString(pull.pull.base, "sha")
+          ))
         ) {
           result.blocked_unauthorized += 1;
           continue;

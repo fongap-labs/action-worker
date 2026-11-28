@@ -714,9 +714,19 @@ test("intake routes trusted dev PRs only when a private base has its approved ca
           ];
         }
         if (path === `repos/${repository}/contents/${callerPath}?ref=${shaB}`) {
-          return { path: callerPath, type: "file", encoding: "base64", content: Buffer.from(callerContent).toString("base64") };
+          return {
+            path: callerPath,
+            type: "file",
+            encoding: "base64",
+            content: Buffer.from(callerContent).toString("base64"),
+          };
         }
-        assert.ok([`repos/${repository}/commits/${shaA}/status`, `repos/${repository}/commits/${shaC}/status`].includes(path));
+        assert.ok(
+          [
+            `repos/${repository}/commits/${shaA}/status`,
+            `repos/${repository}/commits/${shaC}/status`,
+          ].includes(path)
+        );
         return attestFixtureResponseForPath(path, {
           statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
             context,
@@ -735,7 +745,10 @@ test("intake routes trusted dev PRs only when a private base has its approved ca
       reserved.push(context);
     }
   );
-  assert.deepEqual(dispatched, [[repository, 1, shaA, "dev"], [repository, 4, shaC, "dev"]]);
+  assert.deepEqual(dispatched, [
+    [repository, 1, shaA, "dev"],
+    [repository, 4, shaC, "dev"],
+  ]);
   assert.deepEqual(reserved, ["Dev PR Governance", "Dev PR Governance"]);
   assert.equal(result.dispatched, 2);
   assert.equal(result.blocked_unauthorized, 2);

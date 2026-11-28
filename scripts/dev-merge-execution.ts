@@ -5,9 +5,15 @@ import { type PrCiScope, prCiScopeDescription } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
 import { verifyDevMergeAdmission, verifyDevSquashCommit } from "./dev-merge-admission.ts";
 import { assertTrustedDevWrite, devMergeReceiptContext } from "./dev-write-guard.ts";
-import { getJsonArray, getJsonString, GithubHttpError, isJsonRecord, statusAwareReader } from "./github-api.ts";
-import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
+import {
+  getJsonArray,
+  getJsonString,
+  GithubHttpError,
+  isJsonRecord,
+  statusAwareReader,
+} from "./github-api.ts";
 import { squashManagedPull } from "./managed-pr-squash.ts";
+import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
 import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
@@ -95,10 +101,14 @@ export async function requireLiveProtection(
     listing = await reader.get(`repos/${repository}/rulesets?includes_parents=false&per_page=100`);
   } catch (error) {
     if (
-      isPrivate && error instanceof GithubHttpError && error.status === 403 &&
+      isPrivate &&
+      error instanceof GithubHttpError &&
+      error.status === 403 &&
       error.kind === "plan-restriction"
     ) {
-      console.warn("Private native protection unavailable; central signed admission and write audit remain required.");
+      console.warn(
+        "Private native protection unavailable; central signed admission and write audit remain required."
+      );
       return;
     }
     throw error;

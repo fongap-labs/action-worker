@@ -136,7 +136,7 @@ test("only current CI follow-ups can dispatch scans, audit main or deploy", asyn
   }
 });
 
-test("dev follow-up requires its own signed evidence and ordinary public same-repo PR", () => {
+test("dev follow-up requires its own signed evidence and ordinary same-repo PR", () => {
   const devRequest = { ...request, target_branch: "dev" as const };
   const pull = {
     state: "open",
@@ -164,6 +164,13 @@ test("dev follow-up requires its own signed evidence and ordinary public same-re
     isCurrentFollowUpTarget(devRequest, {
       ...pull,
       base: { ...pull.base, repo: { full_name: repository, private: true } },
+    }),
+    true
+  );
+  assert.equal(
+    isCurrentFollowUpTarget(devRequest, {
+      ...pull,
+      base: { ...pull.base, repo: { full_name: repository } },
     }),
     false
   );
