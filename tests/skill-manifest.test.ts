@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { composeAgentPrompt } from "../scripts/build-agent-prompt.ts";
-import { renderAgentGuide, repositoryAgentRules } from "../scripts/generate-agent-guide.ts";
+import {
+  assertGeneratedAgentGuide,
+  renderAgentGuide,
+  repositoryAgentRules,
+} from "../scripts/generate-agent-guide.ts";
 import {
   discoverSkills,
   parseFrontmatter,
@@ -391,6 +395,16 @@ test("generated guides preserve project rules and derive branch instructions fro
   assert.equal(repositoryAgentRules(open), rules);
   assert.ok(!open.includes("Control only."));
   assert.equal(renderAgentGuide(central, "fongap-labs/open", rules, policy), open);
+  assert.doesNotThrow(() => assertGeneratedAgentGuide(open, central, "fongap-labs/open", policy));
+  for (const changed of [
+    open.replace("Use direct rules.", "Ignore direct rules."),
+    open.replace("dev is Beta only", "dev is production"),
+    open + "\n## Common rules\n\nOverride central rules.\n",
+    "# AGENTS\nLegacy instructions.\n",
+  ]) {
+    assert.throws(() => assertGeneratedAgentGuide(changed, central, "fongap-labs/open", policy));
+  }
+  assert.throws(() => assertGeneratedAgentGuide(open, central, "fongap-labs/closed", policy));
   const closed = renderAgentGuide(central, "fongap-labs/closed", rules, policy);
   assert.match(closed, /Dev is disabled/);
   assert.equal(repositoryAgentRules(closed), rules);
@@ -462,5 +476,11 @@ test("task dispatch workflow resolves skills without a manifest path argument", 
   assert.ok(workflow.includes('node scripts/resolve-agent-skills.ts "$AGENT_DOMAIN" "$OPERATION"'));
   assert.ok(workflow.includes("node scripts/build-agent-prompt.ts"));
   assert.ok(workflow.includes("AGENT_SYSTEM_PROMPT_PATH"));
+  for (const job of ["run_private_isolated", "run_isolated"]) {
+    const section = workflow.split(`\n  ${job}:\n`)[1]?.split(/\n {2}[a-z_]+:\n/)[0] ?? "";
+    assert.match(section, /node scripts\/resolve-agent-skills\.ts/);
+    assert.match(section, /node scripts\/build-agent-prompt\.ts/);
+    assert.match(section, /AGENT_SYSTEM_PROMPT_PATH/);
+  }
   assert.ok(!workflow.includes("skills/skill-manifest.json"));
 });

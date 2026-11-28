@@ -17,6 +17,7 @@ export type PrivateTaskContainerSettings = {
   sourceDirectory: string;
   stateDirectory: string;
   publicationDirectory?: string;
+  promptFile?: string;
   logFile: string;
   repository: string;
   project: string;
@@ -50,6 +51,8 @@ export function privateTaskDockerArguments(settings: PrivateTaskContainerSetting
     (settings.publicationDirectory !== undefined &&
       (!isAbsolute(settings.publicationDirectory) ||
         /[,\r\n\0]/.test(settings.publicationDirectory))) ||
+    (settings.promptFile !== undefined &&
+      (!isAbsolute(settings.promptFile) || /[,\r\n\0]/.test(settings.promptFile))) ||
     Object.keys(settings.taskCredentials).length !== 0
   )
     reject();
@@ -85,6 +88,14 @@ export function privateTaskDockerArguments(settings: PrivateTaskContainerSetting
       : []),
     "-e",
     "AW_TASK_STATE_DIR=/task-state",
+    ...(settings.promptFile
+      ? [
+          "--mount",
+          `type=bind,source=${settings.promptFile},target=/agent-prompt.md,readonly`,
+          "-e",
+          "AGENT_SYSTEM_PROMPT_PATH=/agent-prompt.md",
+        ]
+      : []),
     "-e",
     `PROJECT=${settings.project}`,
     "-e",
@@ -132,6 +143,16 @@ export async function runPrivateTaskContainer(
     )
   )
     reject();
+  if (settings.promptFile) {
+    const prompt = resolve(settings.promptFile);
+    const stat = await lstat(prompt);
+    if (
+      !stat.isFile() ||
+      (await realpath(prompt)) !== prompt ||
+      roots.some((root) => prompt === root || prompt.startsWith(`${root}/`))
+    )
+      reject();
+  }
   const args = privateTaskDockerArguments({
     ...settings,
     sourceDirectory: source,
@@ -174,16 +195,18 @@ async function main(): Promise<void> {
   const sourceDirectory = process.env.AW_SOURCE_DIR ?? "";
   const stateDirectory = process.env.AW_TASK_STATE_DIR ?? "";
   const publicationDirectory = process.env.AW_TASK_PUBLICATION_ROOT ?? "";
+  const promptFile = process.env.AGENT_SYSTEM_PROMPT_PATH ?? "";
   const logFile = process.env.AW_TASK_PRIVATE_LOG_FILE ?? "";
   const userId = process.getuid?.() ?? 0;
   const groupId = process.getgid?.() ?? 0;
-  if (!logFile || !isAbsolute(logFile)) reject();
+  if (!logFile || !isAbsolute(logFile) || !promptFile) reject();
   await runPrivateTaskContainer({
     image,
     sourceDirectory,
     stateDirectory,
     ...(publicationDirectory ? { publicationDirectory } : {}),
     logFile,
+    promptFile,
     repository: process.env.TASK_SOURCE_REPOSITORY ?? "",
     project: process.env.PROJECT ?? "",
     bootstrapRef: process.env.BOOTSTRAP_REF ?? "",

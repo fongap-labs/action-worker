@@ -25,7 +25,10 @@ const settings = (root: string): PrivateTaskContainerSettings => ({
 });
 
 test("private task container has an immutable image and explicit nonprivileged isolation arguments", () => {
-  const args = privateTaskDockerArguments(settings("/tmp/secure-pilot"));
+  const args = privateTaskDockerArguments({
+    ...settings("/tmp/secure-pilot"),
+    promptFile: "/tmp/agent-prompt.md",
+  });
   const joined = args.join(" ");
   for (const flag of [
     "--rm",
@@ -46,6 +49,10 @@ test("private task container has an immutable image and explicit nonprivileged i
     args.includes("type=bind,source=/tmp/secure-pilot/source,target=/task-source,readonly")
   );
   assert.ok(args.includes("type=bind,source=/tmp/secure-pilot/state,target=/task-state"));
+  assert.ok(
+    args.includes("type=bind,source=/tmp/agent-prompt.md,target=/agent-prompt.md,readonly")
+  );
+  assert.ok(args.includes("AGENT_SYSTEM_PROMPT_PATH=/agent-prompt.md"));
   assert.ok(args.includes("/bin/bash"));
   assert.ok(args.includes("/task-source/bootstrap.sh"));
   assert.doesNotMatch(joined, /docker\.sock|AW_ARTIFACT_KEY|AW_APP_PRIVATE_KEY|AW_ADMIN_TOKEN/);
@@ -64,6 +71,8 @@ test("container arguments refuse mutable images, host root UID, and invalid iden
     { sourceDirectory: "relative" },
     { stateDirectory: "../relative" },
     { stateDirectory: "/tmp/state,readonly" },
+    { promptFile: "relative" },
+    { promptFile: "/tmp/prompt,readonly" },
     { sourceDirectory: "/tmp/source,bind-propagation=shared" },
     { bootstrapRef: "main" },
     { requestId: "../escape" },
@@ -140,6 +149,12 @@ test("private task refuses workspace symlinks and overlap before running Docker"
     await mkdir(join(root, "source"));
     await mkdir(join(root, "state"));
     await symlink(join(root, "source"), join(root, "alias"));
+    const prompt = join(root, "source", "AGENTS.md");
+    await writeFile(prompt, "Source-controlled file.");
+    await assert.rejects(
+      runPrivateTaskContainer({ ...settings(root), promptFile: prompt }),
+      /security contract/
+    );
     await assert.rejects(
       runPrivateTaskContainer({
         ...settings(root),

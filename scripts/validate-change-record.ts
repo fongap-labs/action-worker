@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { readBranchPolicy } from "./branch-publication-policy.ts";
 import {
   assertChineseSummary,
   assertFixedChangelogHeadings,
@@ -7,6 +8,7 @@ import {
   assertScopedReleaseChange,
   parseEntry,
 } from "./changelog-release.ts";
+import { validateAgentGuideChange } from "./generate-agent-guide.ts";
 import { isJsonRecord } from "./github-api.ts";
 import {
   appendLines,
@@ -530,6 +532,17 @@ async function main(): Promise<void> {
   }
   const [title = "", base = "", head = "", root = "", policyDir = ""] = args;
   const record = await validateChange(title, base, head, root, policyDir, isAuthorizedTransfer);
+  const repository = process.env.AW_VALIDATED_REPOSITORY;
+  if (repository && repository !== "fongap-labs/action-worker") {
+    await validateAgentGuideChange(
+      repository,
+      base,
+      head,
+      root,
+      await readFile(new URL("../AGENTS.md", import.meta.url), "utf8"),
+      readBranchPolicy()
+    );
+  }
   const output = JSON.stringify(record);
   if (process.env.GITHUB_OUTPUT) {
     await writeFile("/tmp/change-record.json", `${output}\n`, "utf8");
