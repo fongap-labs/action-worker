@@ -352,7 +352,7 @@ async function openReleasePullRequest(
       "PUT",
       `repos/${repository}/contents/${policy.changelog_file}`,
       "-f",
-      `message=${message}`,
+      `message=${message}\n\n按已验证的发行范围生成对应版本的更新日志。`,
       "-f",
       `content=${encode(`${expected}\n`)}`,
       "-f",

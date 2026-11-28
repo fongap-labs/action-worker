@@ -273,7 +273,8 @@ async function createBridgePullRequest(
     });
   }
   await writeGithub(writeToken, "repos/" + repository + "/contents/" + bridgePath, "PUT", {
-    message: "chore: add approved central CI notification bridge",
+    message:
+      "chore: add approved central CI notification bridge\n\n接入已批准的中央持续集成通知桥接，补齐新仓库门禁。",
     branch: branchName,
     content: Buffer.from(template, "utf8").toString("base64"),
   });

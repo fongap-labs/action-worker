@@ -150,7 +150,8 @@ async function commitOne(
     branch: request.branch,
     expectedHead: head,
     changes,
-    message: "chore(follow): refresh uv.lock for pinned upstream",
+    message:
+      "chore(follow): refresh uv.lock for pinned upstream\n\n根据已固定的上游版本更新依赖锁文件。",
     token,
   });
 }

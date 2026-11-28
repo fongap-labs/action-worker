@@ -106,6 +106,19 @@ function attributionLine(text: string, prefixes: readonly string[]): string | un
   return undefined;
 }
 
+export function validateCommitMessage(message: string): void {
+  const normalized = message.replace(/\r\n/g, "\n").trimEnd();
+  const [title = "", separator, ...bodyLines] = normalized.split("\n");
+  const match = /^(feat|fix|chore)(?:\([A-Za-z0-9._/-]+\))?!?:\s+(.+)$/.exec(title);
+  if (!match || !/^[\x20-\x7E]+$/.test(title) || !/[A-Za-z]/.test(match[2] ?? "")) {
+    throw new CliError("Commit title must use feat/fix/chore and an English summary.", 65);
+  }
+  const prose = bodyLines.filter((line) => !/^[A-Za-z-]+:\s/.test(line.trim())).join("\n");
+  if (separator !== "" || !containsHan(prose)) {
+    throw new CliError("Commit requires a blank line and a Chinese explanatory body.", 65);
+  }
+}
+
 function commitMessageBody(message: string): string {
   const firstLineBreak = message.indexOf("\n");
   if (firstLineBreak < 0) return "";
@@ -492,6 +505,11 @@ export async function validateChange(
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
+  if (args[0] === "--commit-message" && args.length === 2 && args[1]) {
+    validateCommitMessage(await readFile(args[1], "utf8"));
+    console.log("Commit message preflight passed.");
+    return;
+  }
   if (args.length !== 5) {
     throw new CliError(
       "Usage: validate-change-record.ts <pr-title> <base-sha> <head-sha> <repo-root> <policy-dir>",

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { runText } from "../scripts/runtime-command.ts";
-import { assertAttributionFree } from "../scripts/validate-change-record.ts";
+import { assertAttributionFree, validateCommitMessage } from "../scripts/validate-change-record.ts";
 
 const policyDir = resolve("policies");
 
@@ -241,4 +241,24 @@ test("fails closed when the attribution policy is missing", async (context) => {
   const emptyPolicy = await mkdtemp(join(tmpdir(), "attribution-policy-"));
   context.after(() => rm(emptyPolicy, { recursive: true, force: true }));
   await assert.rejects(assertAttributionFree("docs: clarify setup", base, head, root, emptyPolicy));
+});
+
+test("commit preflight requires an English title, blank line and Chinese explanation", () => {
+  for (const message of [
+    "fix(auth): reject invalid token\n\n拒绝无效令牌，避免认证绕过。",
+    "chore: update dependencies\r\n\r\n统一依赖版本。\r\n",
+  ]) {
+    assert.doesNotThrow(() => validateCommitMessage(message));
+  }
+  for (const message of [
+    "fix: reject invalid token",
+    "fix: reject invalid token\n\n   ",
+    "fix: reject invalid token\n拒绝无效令牌。",
+    "fix: reject invalid token\n\nReject invalid token.",
+    "fix: reject invalid token\n\nCo-Authored-By: 张三",
+    "docs: update instructions\n\n更新说明。",
+    "fix: 修复认证\n\n拒绝无效令牌。",
+  ]) {
+    assert.throws(() => validateCommitMessage(message));
+  }
 });

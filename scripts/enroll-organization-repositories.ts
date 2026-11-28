@@ -363,14 +363,15 @@ async function main(): Promise<void> {
   const changelog = await readRepositoryText(readToken, mainHead.object!.sha!, changelogPath);
   const content = formatOnboardingPolicy(next);
   await github(writeToken, `repos/${controlRepo}/contents/${policyPath}`, "PUT", {
-    message: "chore(governance): automatically enroll new repositories for PR checks",
+    message:
+      "chore(governance): automatically enroll new repositories for PR checks\n\n按授权清单补充新仓库的合并请求治理权限。",
     branch: branchName,
     sha: current.sha,
     content: Buffer.from(content, "utf8").toString("base64"),
   });
   const updatedChangelog = addOnboardingChangelog(changelog.content, additions);
   await github(writeToken, `repos/${controlRepo}/contents/${changelogPath}`, "PUT", {
-    message: "docs(changelog): record automatic repository enrollment",
+    message: "chore(changelog): record automatic repository enrollment\n\n记录新增仓库纳管变更。",
     branch: branchName,
     sha: changelog.sha,
     content: Buffer.from(updatedChangelog, "utf8").toString("base64"),
