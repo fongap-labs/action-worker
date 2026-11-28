@@ -28,6 +28,25 @@ test("inventory reads npm declarations without leaking remote specifications", (
   assert.doesNotMatch(JSON.stringify(result), /secret/);
 });
 
+test("npm aliases retain their real package identity and do not leak URL specifications", () => {
+  const result = inspectManifest(
+    "package.json",
+    JSON.stringify({
+      devDependencies: {
+        "@typescript/native": "npm:typescript@7.0.2",
+        other: "npm:@scope/tool@^1.2.3",
+        remote: "npm:typescript@https://example.test/secret",
+      },
+    })
+  );
+  assert.deepEqual(result.declarations, [
+    { key: "npm:typescript", version: "npm:typescript@7.0.2" },
+    { key: "npm:@scope/tool", version: "npm:@scope/tool@^1.2.3" },
+  ]);
+  assert.equal(result.unsupported, 1);
+  assert.doesNotMatch(JSON.stringify(result), /secret/);
+});
+
 test("inventory reads workspace, Python and Rust version declarations", () => {
   assert.deepEqual(
     inspectManifest("pnpm-workspace.yaml", 'catalog:\n  react: "19.0.0"').declarations,

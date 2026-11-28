@@ -95,3 +95,22 @@ test("ambiguous or absent lock files never receive an executable repair strategy
   assert.equal(plan.changes[0]?.strategy, "npm-lock");
   assert.equal(plan.changes[0]?.lock_path, "apps/package-lock.json");
 });
+
+test("alias drift requires manual review rather than rewriting the installed package name", () => {
+  const input = [
+    declaration("package.json", "npm:typescript", "npm:typescript@6.0.3"),
+    declaration("package.json", "npm:typescript", "npm:typescript@7.0.2"),
+  ];
+  const result = planDependencyRemediation(
+    policy,
+    repo,
+    "main",
+    sha,
+    input,
+    ["pnpm-lock.yaml"],
+    date
+  );
+  assert.equal(result.changes.length, 1);
+  assert.equal(result.changes[0]?.strategy, "manual-review");
+  assert.equal(result.changes[0]?.target_version, "7.0.2");
+});

@@ -6,6 +6,7 @@ import {
   type DependencyPolicy,
   evaluateDeclaration,
   parseDependencyPolicy,
+  parseNpmAlias,
 } from "./dependency-version-policy.ts";
 import {
   decodeGithubContent,
@@ -53,6 +54,13 @@ function declare(
   name: string,
   version: unknown
 ): boolean {
+  if (ecosystem === "npm" && typeof version === "string") {
+    const alias = parseNpmAlias(version);
+    if (alias && /^(?:@[\w.-]+\/)?[\w.-]+$/.test(name)) {
+      declarations.push({ key: alias.key, version });
+      return true;
+    }
+  }
   if (
     !/^(?:@[\w.-]+\/)?[\w.-]+$/.test(name) ||
     typeof version !== "string" ||

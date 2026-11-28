@@ -63,3 +63,13 @@ test("new engineering ranges and duplicate drifting declarations are blocked", a
   assert.equal((await check({}, { [path]: '{"dependencies":{"react":"19.0.0"}}' })).introduced, 0);
   await assert.rejects(check({}, { [path]: "{invalid" }));
 });
+
+test("native compiler aliases obey the same central version gate", async () => {
+  const path = "package.json";
+  const manifest = (version: string) =>
+    JSON.stringify({ devDependencies: { "@typescript/native": "npm:typescript@" + version } });
+  const pinned = manifest("7.0.2");
+  assert.equal((await check({}, { [path]: pinned })).introduced, 0);
+  assert.equal((await check({ [path]: pinned }, { [path]: manifest("6.0.3") })).introduced, 1);
+  assert.equal((await check({ [path]: pinned }, { [path]: manifest("^7.0.2") })).introduced, 1);
+});

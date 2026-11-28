@@ -94,7 +94,11 @@ export function planDependencyRemediation(
       strategy: "manual-review",
       lock_path: null,
     };
-    if (isSafePath(declaration.path) && shaPattern.test(declaration.blob_sha)) {
+    if (
+      !declaration.version.startsWith("npm:") &&
+      isSafePath(declaration.path) &&
+      shaPattern.test(declaration.blob_sha)
+    ) {
       const isExactTarget = /^\d+\.\d+\.\d+$/.test(target);
       if (
         isExactTarget &&

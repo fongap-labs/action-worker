@@ -60,6 +60,28 @@ test("central version catalog validates and enforces the ratchet mode", () => {
       evaluateDeclaration(policy, "fongap-labs/delta", branch, "npm:typescript", "^6.0.4", date),
       "range-review"
     );
+    assert.equal(
+      evaluateDeclaration(
+        policy,
+        "fongap-labs/delta",
+        branch,
+        "npm:typescript",
+        "npm:typescript@7.0.2",
+        date
+      ),
+      "matching"
+    );
+    assert.equal(
+      evaluateDeclaration(
+        policy,
+        "fongap-labs/delta",
+        branch,
+        "npm:typescript",
+        "npm:typescript@^6.0.3",
+        date
+      ),
+      "range-review"
+    );
   }
   assert.equal(
     evaluateDeclaration(policy, "fongap-labs/plugins", "main", "npm:typescript", "^6.0.3", date),

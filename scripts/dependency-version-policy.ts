@@ -129,6 +129,13 @@ export function parseDependencyPolicy(value: unknown, organization: string): Dep
   };
 }
 
+export function parseNpmAlias(specifier: string): { key: string; version: string } | null {
+  if (specifier.length > 120) return null;
+  const match = /^npm:((?:@[\w.-]+\/)?[\w.-]+)@((?=.*\d)[\dA-Za-z.*^~<>=!|,+ -]+)$/.exec(specifier);
+  if (!match?.[1] || !match[2]) return null;
+  return { key: "npm:" + match[1], version: match[2] };
+}
+
 export function evaluateDeclaration(
   policy: DependencyPolicy,
   repository: string,
@@ -140,7 +147,10 @@ export function evaluateDeclaration(
   if (!validDate(today)) invalid();
   const target = policy.catalog.get(key)?.version;
   if (target == null) return "observe";
+  const alias = key.startsWith("npm:") ? parseNpmAlias(version) : null;
+  if (alias && alias.key !== key) return "range-review";
   if (
+    alias === null &&
     policy.exceptions.some(
       (item) =>
         item.repository === repository &&
@@ -152,6 +162,7 @@ export function evaluateDeclaration(
   ) {
     return "excepted";
   }
+  version = alias?.version ?? version;
   if (!versionPattern.test(version)) return "range-review";
   if (version === target) return "matching";
   // A two-part baseline describes a minor series, not an exact patch.
