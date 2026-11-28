@@ -159,7 +159,15 @@ test("only approved entry, diagnostics and private operations expose manual disp
       const manual = triggers.workflow_dispatch as {
         inputs: Record<string, { type: string; default: boolean; required: boolean }>;
       };
-      assert.deepEqual(Object.keys(manual.inputs), ["confirm"]);
+      assert.deepEqual(Object.keys(manual.inputs), ["confirm", "sync_agent_guides"]);
+      assert.deepEqual(
+        {
+          type: manual.inputs.sync_agent_guides?.type,
+          default: manual.inputs.sync_agent_guides?.default,
+          required: manual.inputs.sync_agent_guides?.required,
+        },
+        { type: "boolean", default: false, required: true }
+      );
       assert.equal(manual.inputs.confirm?.type, "boolean");
       assert.equal(manual.inputs.confirm?.default, false);
       assert.equal(manual.inputs.confirm?.required, true);
@@ -205,7 +213,10 @@ test("only approved entry, diagnostics and private operations expose manual disp
       );
       const privateLane = JSON.stringify(jobs["private-proposals"]);
       assert.doesNotMatch(privateLane, /upload-artifact|download-artifact|matrix/);
-      assert.match(privateLane, /propose-dependency-update\.ts private/);
+      assert.match(privateLane, /propose-dependency-update\.ts \\"\$PROPOSAL_MODE\\"/);
+      assert.match(privateLane, /inputs\.sync_agent_guides && 'guides' \|\| 'private'/);
+      assert.match(privateLane, /inputs\.confirm && secrets\.AW_APP_PRIVATE_KEY/);
+      assert.match(jobs["discover-proposals"]!.if, /!inputs\.sync_agent_guides/);
       const steps = jobs["propose-dependencies"]?.steps ?? [];
       const writers = steps.filter((step) => step.with?.["permission-contents"] === "write");
       assert.equal(writers.length, 1);

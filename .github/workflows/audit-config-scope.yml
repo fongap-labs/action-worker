@@ -28,7 +28,12 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 确认批量创建版本整改 PR（默认仅检查）
+        description: 确认批量创建选定范围整改 PR（默认仅检查）
+        type: boolean
+        default: false
+        required: true
+      sync_agent_guides:
+        description: 仅检查或同步智能体规范（不执行依赖整改）
         type: boolean
         default: false
         required: true
@@ -116,7 +121,7 @@ jobs:
 
   discover-proposals:
     name: Discover public dependency proposal targets
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && !inputs.sync_agent_guides && github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment:
@@ -298,7 +303,7 @@ jobs:
         run: node scripts/propose-dependency-update.ts publish
 
   private-proposals:
-    name: Process private dependency metadata (aggregate only)
+    name: Process scoped metadata proposals (aggregate only)
     if: github.event_name == 'workflow_dispatch' && github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -334,11 +339,12 @@ jobs:
           permission-contents: read
           permission-pull-requests: read
 
-      - name: Process private metadata proposals
+      - name: Process scoped metadata proposals
         env:
           AW_INVENTORY_TOKEN: ${{ steps.inventory.outputs.token }}
           AW_PROPOSAL_ADMIN_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_PROPOSAL_APP_CLIENT_ID: ${{ vars.AW_APP_CLIENT_ID }}
           AW_PROPOSAL_APP_PRIVATE_KEY: ${{ inputs.confirm && secrets.AW_APP_PRIVATE_KEY || '' }}
           OPERATOR_CONFIRMED: ${{ inputs.confirm }}
-        run: node scripts/propose-dependency-update.ts private
+          PROPOSAL_MODE: ${{ inputs.sync_agent_guides && 'guides' || 'private' }}
+        run: node scripts/propose-dependency-update.ts "$PROPOSAL_MODE"
