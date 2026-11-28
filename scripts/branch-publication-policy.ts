@@ -30,7 +30,6 @@ export function isDevEnabled(policy: unknown, repository: string): boolean {
   );
 }
 
-
 // The three-component build version and legacy four-component artifact version are both supported.
 const stableVersion = /^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$/;
 const betaVersion = /^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?-beta\.[1-9][0-9]*$/;

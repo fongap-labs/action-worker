@@ -19,9 +19,14 @@ test("Beta publication uses existing grants; closed policy denies before source 
   const closed = { schema_version: 1, mode: "closed" };
   const disabled = "fongap-labs/external-vault";
   const disabledGrants = { [disabled]: grants[repository] };
-  assert.equal(betaReleaseEnabled(readBetaReleasePolicy(), disabled, disabledGrants, control), false);
   assert.equal(
-    protectsFormalTags(formalTagProtection(readBetaReleasePolicy(), disabled, disabledGrants, control)),
+    betaReleaseEnabled(readBetaReleasePolicy(), disabled, disabledGrants, control),
+    false
+  );
+  assert.equal(
+    protectsFormalTags(
+      formalTagProtection(readBetaReleasePolicy(), disabled, disabledGrants, control)
+    ),
     true
   );
   await assert.rejects(
