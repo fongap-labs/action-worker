@@ -1,5 +1,9 @@
 import { assertOrdinaryDevelopmentTarget, readBranchPolicy } from "./branch-publication-policy.ts";
-import { centralCiWait, defaultControlRepository, requireVerifiedCiEvidence } from "./ci-evidence.ts";
+import {
+  centralCiWait,
+  defaultControlRepository,
+  requireVerifiedCiEvidence,
+} from "./ci-evidence.ts";
 import { assertTrustedDevWrite } from "./dev-write-guard.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { assertTrustedMainWrite, type MainWriteProvenance } from "./main-write-guard.ts";

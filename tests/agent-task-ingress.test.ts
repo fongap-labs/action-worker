@@ -160,10 +160,10 @@ test("task target SHA must be obtained from the active development branch, never
       : path.endsWith("/example")
         ? { default_branch: "main", private: false }
         : fakeFetch(token, path);
-  assert.deepEqual(
-    await resolveTrustedTaskSource("fongap-labs/example", "read-only", devFetch),
-    { branch: "dev", sha }
-  );
+  assert.deepEqual(await resolveTrustedTaskSource("fongap-labs/example", "read-only", devFetch), {
+    branch: "dev",
+    sha,
+  });
   await assert.rejects(
     resolveTrustedTaskSource("fongap-labs/example", "read-only", async (token, path) =>
       path.endsWith("/example") ? { default_branch: "main", private: true } : devFetch(token, path)

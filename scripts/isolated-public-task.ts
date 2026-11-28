@@ -199,9 +199,23 @@ async function main(): Promise<void> {
       const result = await prepareIsolatedPublicState(reader, repository, project, sha, branch);
       await writeFile(arg, result, { flag: "wx", mode: 0o600 });
     } else if (command === "open-input" && arg && destination) {
-      await finalizeIsolatedPublicState(await readFile(arg), destination, repository, project, sha, branch);
+      await finalizeIsolatedPublicState(
+        await readFile(arg),
+        destination,
+        repository,
+        project,
+        sha,
+        branch
+      );
     } else if (command === "finalize" && arg && destination) {
-      await finalizeIsolatedPublicState(await readFile(arg), destination, repository, project, sha, branch);
+      await finalizeIsolatedPublicState(
+        await readFile(arg),
+        destination,
+        repository,
+        project,
+        sha,
+        branch
+      );
     } else {
       throw new CliError("Isolated public task command is invalid.", 64);
     }

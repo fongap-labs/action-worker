@@ -147,7 +147,13 @@ test("new public pilot state passes bounded codec and strict manifest checks", a
   const root = await mkdtemp(join(tmpdir(), "aw-isolated-state-"));
   try {
     const developmentReader = reader();
-    const dev = await prepareIsolatedPublicState(developmentReader, repository, project, sha, "dev");
+    const dev = await prepareIsolatedPublicState(
+      developmentReader,
+      repository,
+      project,
+      sha,
+      "dev"
+    );
     assert.equal(developmentReader.calls.length, 1);
     assert.match(developmentReader.calls[0] ?? "", /name=task-state-dev-/);
     await finalizeIsolatedPublicState(dev, join(root, "dev"), repository, project, sha, "dev");
