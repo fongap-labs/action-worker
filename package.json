@@ -12,6 +12,7 @@
     "ingress:staging-config": "node scripts/build-direct-ingress-staging-config.ts",
     "preflight": "node scripts/local-preflight.ts",
     "preflight:business": "node scripts/business-preflight.ts",
+    "preflight:commit": "node scripts/validate-change-record.ts --commit-message",
     "test": "node --test \"tests/*.test.ts\" \"tests/kit/*.test.mjs\"",
     "typecheck": "tsc --noEmit",
     "lint": "biome check . --max-diagnostics=1000"

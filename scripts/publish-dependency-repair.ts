@@ -186,7 +186,13 @@ async function main(): Promise<void> {
   });
   await runText(
     "git",
-    ["commit", "-m", `chore(deps): refresh generated dependency files [${repairId}]`],
+    [
+      "commit",
+      "-m",
+      `chore(deps): refresh generated dependency files [${repairId}]`,
+      "-m",
+      "同步声明依赖对应的生成文件，修复已验证的依赖偏离。",
+    ],
     { cwd: targetRoot }
   );
   await runText("git", ["push", "origin", `HEAD:refs/heads/${headRef}`], {

@@ -156,7 +156,7 @@ async function dispatchFollower(args: {
     branch,
     expectedHead: base,
     changes,
-    message,
+    message: message + "\n\n将已声明的上游版本引用同步至当前发行版本。",
     token,
   });
   const pullRequest = await openOrFindPullRequest({
