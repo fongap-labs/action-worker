@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { isJsonRecord } from "./github-api.ts";
+import { getGithubJsonIfExists, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 export function readBranchPolicy(): unknown {
@@ -28,6 +28,34 @@ export function isDevEnabled(policy: unknown, repository: string): boolean {
     /^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) &&
     !disabled.includes(repository)
   );
+}
+
+export async function resolveOrdinaryDevelopmentBranch(
+  get: (path: string) => Promise<unknown>,
+  repository: string,
+  policy: unknown
+): Promise<{ branch: "main" | "dev"; sha: string; tree: string }> {
+  const isEnabled = isDevEnabled(policy, repository);
+  const prefix = "repos/" + repository + "/branches/";
+  const main = await get(prefix + "main");
+  const dev = await getGithubJsonIfExists(prefix + "dev", get);
+  function snapshot(value: unknown, branch: "main" | "dev") {
+    if (!isJsonRecord(value) || value.name !== branch || !isJsonRecord(value.commit)) {
+      throw new CliError("Managed branch snapshot is unavailable.", 75);
+    }
+    const sha = getJsonString(value.commit, "sha");
+    const treeSha = isJsonRecord(value.commit.commit)
+      ? getJsonString(value.commit.commit.tree, "sha")
+      : "";
+    if (!/^[a-f0-9]{40}$/.test(sha) || !/^[a-f0-9]{40}$/.test(treeSha)) {
+      throw new CliError("Managed branch snapshot is invalid.", 75);
+    }
+    return { branch, sha, tree: treeSha };
+  }
+  const stable = snapshot(main, "main");
+  if (dev === undefined) return stable;
+  if (!isEnabled) throw new CliError("Existing dev is disabled; resolve branch policy first.", 77);
+  return snapshot(dev, "dev");
 }
 
 // The three-component build version and legacy four-component artifact version are both supported.
