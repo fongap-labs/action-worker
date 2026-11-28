@@ -77,7 +77,7 @@ test("invalid comparison or unavailable repository does not report a clean branc
   assert.doesNotMatch(summary.lines.join("\n"), /private-example|private identity/);
 });
 
-test("scheduled observation uses only the existing scoped read token", () => {
+test("scheduled observation uses only scoped read credentials and opt-in metrics", () => {
   const workflow = parse(readFileSync(".github/workflows/intake.yml", "utf8")) as {
     jobs: Record<
       string,
@@ -90,6 +90,8 @@ test("scheduled observation uses only the existing scoped read token", () => {
   assert.equal(step?.run, "node scripts/audit-branch-drift.ts");
   assert.match(step?.if ?? "", /github.event_name == 'schedule'/);
   assert.deepEqual(step?.env, {
+    AW_NATIVE_TOKEN: "${{ github.token }}",
+    AW_GITHUB_API_METRICS: "1",
     AW_CONTROL_TOKEN: "${{ steps.control_read_app.outputs.token }}",
   });
 });

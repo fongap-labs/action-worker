@@ -165,8 +165,8 @@ test("all intake scan and preflight steps publish opt-in per-process GitHub API 
   for (const [job, script] of [
     ["main-writes", "audit-branch-drift.ts"],
     ["skill-admissions", "skill-proposal-advance.ts"],
-  ]) {
-    const step = workflow.jobs[job ?? ""]?.steps.find((item) => item.run === "node scripts/" + script);
+  ] as const) {
+    const step = workflow.jobs[job]?.steps.find((item) => item.run === `node scripts/${script}`);
     assert.equal(step?.env?.AW_GITHUB_API_METRICS, "1", job);
   }
   const raw = await readFile(".github/workflows/intake.yml", "utf8");
