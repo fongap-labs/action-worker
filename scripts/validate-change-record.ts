@@ -155,7 +155,8 @@ export async function assertAttributionFree(
   base: string,
   head: string,
   root: string,
-  policyDir: string
+  policyDir: string,
+  isAuthorizedTransfer = false
 ): Promise<void> {
   const policy = await loadAttributionPolicy(policyDir);
   const problems: string[] = [];
@@ -181,8 +182,17 @@ export async function assertAttributionFree(
     const commit = sha.trim();
     if (!commit) continue;
     const messageBody = commitMessageBody(body);
-    if (messageBody && !containsHan(messageBody)) {
-      problems.push(`commit ${commit.slice(0, 7)} body must contain Chinese text`);
+    if (isAuthorizedTransfer) {
+      if (messageBody && !containsHan(messageBody)) {
+        problems.push(`commit ${commit.slice(0, 7)} body must contain Chinese text`);
+      }
+    } else {
+      try {
+        validateCommitMessage(body);
+      } catch (error) {
+        if (!(error instanceof CliError)) throw error;
+        problems.push(`commit ${commit.slice(0, 7)}: ${error.message}`);
+      }
     }
     const identity = [authorName, authorEmail, committerName, committerEmail].join("\n");
     const identityName = termMatch(identity, identityTerms);
@@ -201,7 +211,7 @@ export async function assertAttributionFree(
   }
   if (problems.length > 0) {
     throw new CliError(
-      `::error::Attribution check failed: ${problems.slice(0, 10).join("; ")}. Rewrite the listed commits so that the author and committer are your own GitHub account (git config user.name and user.email, then git rebase <base> --exec 'git commit --amend --no-edit --reset-author') and no trailer or line in the message names an AI agent (git rebase -i <base>, reword), then force-push the branch.`,
+      `::error::Commit hygiene check failed: ${problems.slice(0, 10).join("; ")}. Correct the listed commit messages or identities on the task branch through the authorized workflow; do not rewrite protected history.`,
       65
     );
   }
@@ -335,13 +345,14 @@ export async function validateChange(
   base: string,
   head: string,
   root: string,
-  policyDir: string
+  policyDir: string,
+  isAuthorizedTransfer = false
 ): Promise<ChangeRecord> {
   const value = await readJson(join(policyDir, "release.json"));
   if (!isJsonRecord(value) || typeof value.changelog_file !== "string") {
     throw new CliError("::error::Invalid release policy.", 65);
   }
-  await assertAttributionFree(title, base, head, root, policyDir);
+  await assertAttributionFree(title, base, head, root, policyDir, isAuthorizedTransfer);
   const match = /^([a-z]+)(?:\(([A-Za-z0-9._/-]+)\))?(!)?:\s+(.+)$/.exec(title);
   if (!match) {
     throw new CliError(
@@ -510,14 +521,15 @@ async function main(): Promise<void> {
     console.log("Commit message preflight passed.");
     return;
   }
-  if (args.length !== 5) {
+  const isAuthorizedTransfer = args.length === 6 && args[5] === "--authorized-transfer";
+  if (args.length !== 5 && !isAuthorizedTransfer) {
     throw new CliError(
       "Usage: validate-change-record.ts <pr-title> <base-sha> <head-sha> <repo-root> <policy-dir>",
       64
     );
   }
   const [title = "", base = "", head = "", root = "", policyDir = ""] = args;
-  const record = await validateChange(title, base, head, root, policyDir);
+  const record = await validateChange(title, base, head, root, policyDir, isAuthorizedTransfer);
   const output = JSON.stringify(record);
   if (process.env.GITHUB_OUTPUT) {
     await writeFile("/tmp/change-record.json", `${output}\n`, "utf8");

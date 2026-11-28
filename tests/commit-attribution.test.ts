@@ -57,36 +57,36 @@ const claude: Identity = { name: "Claude", email: "noreply@anthropic.com" };
 
 test("accepts a human commit with a clean title and message", async (context) => {
   const { root, base, human } = await fixture(context);
-  const head = await commit(root, "docs: clarify setup", human);
-  await assertAttributionFree("docs: clarify setup", base, head, root, policyDir);
+  const head = await commit(root, "chore: clarify setup\n\n澄清安装步骤。", human);
+  await assertAttributionFree("chore: clarify setup", base, head, root, policyDir);
 });
 
 test("rejects a commit whose author is an AI agent", async (context) => {
   const { root, base, human } = await fixture(context);
-  const head = await commit(root, "docs: clarify setup", claude, human);
+  const head = await commit(root, "chore: clarify setup", claude, human);
   await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, head, root, policyDir),
+    assertAttributionFree("chore: clarify setup", base, head, root, policyDir),
     /author or committer names an AI agent or model: Claude/
   );
 });
 
 test("rejects a commit whose committer is an AI agent", async (context) => {
   const { root, base, human } = await fixture(context);
-  const head = await commit(root, "docs: clarify setup", human, claude);
+  const head = await commit(root, "chore: clarify setup", human, claude);
   await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, head, root, policyDir),
+    assertAttributionFree("chore: clarify setup", base, head, root, policyDir),
     /author or committer names an AI agent or model: Claude/
   );
 });
 
 test("rejects an AI agent identity that appears only in the email address", async (context) => {
   const { root, base } = await fixture(context);
-  const head = await commit(root, "docs: clarify setup", {
+  const head = await commit(root, "chore: clarify setup", {
     name: "Ada",
     email: "noreply@anthropic.com",
   });
   await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, head, root, policyDir),
+    assertAttributionFree("chore: clarify setup", base, head, root, policyDir),
     /author or committer names an AI agent or model: anthropic/
   );
 });
@@ -95,11 +95,11 @@ test("rejects a Co-Authored-By trailer that names an AI agent", async (context) 
   const { root, base, human } = await fixture(context);
   const head = await commit(
     root,
-    "docs: clarify setup\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
+    "chore: clarify setup\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
     human
   );
   await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, head, root, policyDir),
+    assertAttributionFree("chore: clarify setup", base, head, root, policyDir),
     /trailer Co-Authored-By names an AI agent or model: Claude/
   );
 });
@@ -108,22 +108,22 @@ test("accepts a Co-Authored-By trailer that names a human", async (context) => {
   const { root, base, human } = await fixture(context);
   const head = await commit(
     root,
-    "docs: clarify setup\n\n协作完成文档整理。\n\nCo-Authored-By: Grace Hopper",
+    "chore: clarify setup\n\n协作完成文档整理。\n\nCo-Authored-By: Grace Hopper",
     human
   );
-  await assertAttributionFree("docs: clarify setup", base, head, root, policyDir);
+  await assertAttributionFree("chore: clarify setup", base, head, root, policyDir);
 });
 
 test("rejects generated-with and assisted-by attribution lines", async (context) => {
   const { root, base, human } = await fixture(context);
-  const generated = await commit(root, "docs: clarify setup\n\nGenerated with [Tool]", human);
+  const generated = await commit(root, "chore: clarify setup\n\nGenerated with [Tool]", human);
   await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, generated, root, policyDir),
+    assertAttributionFree("chore: clarify setup", base, generated, root, policyDir),
     /Generated with/
   );
-  const robot = await commit(root, "docs: clarify setup\n\n🤖 drafted", human);
+  const robot = await commit(root, "chore: clarify setup\n\n🤖 drafted", human);
   await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, robot, root, policyDir),
+    assertAttributionFree("chore: clarify setup", base, robot, root, policyDir),
     /🤖/
   );
 });
@@ -132,11 +132,11 @@ test("allows agent names in the PR title and in commit prose", async (context) =
   const { root, base, human } = await fixture(context);
   const head = await commit(
     root,
-    "docs: explain how Claude reads CLAUDE.md\n\nClaude Code 和 Codex 的用法均在智能体指南中说明。",
+    "chore: explain how Claude reads CLAUDE.md\n\nClaude Code 和 Codex 的用法均在智能体指南中说明。",
     human
   );
   await assertAttributionFree(
-    "docs: explain how Claude reads CLAUDE.md",
+    "chore: explain how Claude reads CLAUDE.md",
     base,
     head,
     root,
@@ -146,7 +146,11 @@ test("allows agent names in the PR title and in commit prose", async (context) =
 
 test("identity-only words are checked in identities but not in commit messages", async (context) => {
   const { root, base, human } = await fixture(context);
-  const message = await commit(root, "fix: keep the cursor position in the editor", human);
+  const message = await commit(
+    root,
+    "fix: keep the cursor position in the editor\n\n修复编辑器光标位置。",
+    human
+  );
   await assertAttributionFree(
     "fix: keep the cursor position in the editor",
     base,
@@ -154,19 +158,19 @@ test("identity-only words are checked in identities but not in commit messages",
     root,
     policyDir
   );
-  const identity = await commit(root, "docs: clarify setup", {
+  const identity = await commit(root, "chore: clarify setup", {
     name: "Devin Lee",
     email: "devin@example.com",
   });
   await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, identity, root, policyDir),
+    assertAttributionFree("chore: clarify setup", base, identity, root, policyDir),
     /names an AI agent or model: Devin/
   );
 });
 
 test("allows an AI agent name in the PR title but blocks an attribution line", async (context) => {
   const { root, base, human } = await fixture(context);
-  const head = await commit(root, "feat: add support", human);
+  const head = await commit(root, "feat: add support\n\n增加必要支持。", human);
   await assertAttributionFree("feat: add Claude support", base, head, root, policyDir);
   await assert.rejects(
     assertAttributionFree("🤖 feat: add support", base, head, root, policyDir),
@@ -181,7 +185,7 @@ test("allows an AI agent name in the PR title but blocks an attribution line", a
 test("skips merge commits whose subject names the merged branch", async (context) => {
   const { root, base, human } = await fixture(context);
   await git(root, ["switch", "-q", "-c", "claude/fix-readme"], identityEnv(human));
-  await commit(root, "docs: fix readme wording", human);
+  await commit(root, "chore: fix readme wording\n\n修正文档表述。", human);
   await git(root, ["switch", "-q", "-"], identityEnv(human));
   await git(
     root,
@@ -189,32 +193,32 @@ test("skips merge commits whose subject names the merged branch", async (context
     identityEnv(human)
   );
   const head = await git(root, ["rev-parse", "HEAD"]);
-  await assertAttributionFree("docs: fix readme wording", base, head, root, policyDir);
+  await assertAttributionFree("chore: fix readme wording", base, head, root, policyDir);
 });
 
 test("blocks widened model names in trailers and identities, but allows them in prose", async (context) => {
   const { root, base, human } = await fixture(context);
   const prose = await commit(
     root,
-    "docs: clarify setup\n\n使用 DeepSeek 编写的说明已经维护者复核",
+    "chore: clarify setup\n\n使用 DeepSeek 编写的说明已经维护者复核",
     human
   );
-  await assertAttributionFree("docs: clarify setup", base, prose, root, policyDir);
+  await assertAttributionFree("chore: clarify setup", base, prose, root, policyDir);
   const trailer = await commit(
     root,
-    "docs: clarify setup\n\nAssisted-by: Qwen <qwen@example.com>",
+    "chore: clarify setup\n\nAssisted-by: Qwen <qwen@example.com>",
     human
   );
   await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, trailer, root, policyDir),
+    assertAttributionFree("chore: clarify setup", base, trailer, root, policyDir),
     /trailer Assisted-by names an AI agent or model: Qwen/
   );
-  const grok = await commit(root, "docs: clarify setup", {
+  const grok = await commit(root, "chore: clarify setup", {
     name: "Grok Ng",
     email: "g@example.com",
   });
   await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, grok, root, policyDir),
+    assertAttributionFree("chore: clarify setup", base, grok, root, policyDir),
     /names an AI agent or model: Grok/
   );
 });
@@ -237,10 +241,25 @@ test("keeps the repository's own AI feature names allowed", async (context) => {
 
 test("fails closed when the attribution policy is missing", async (context) => {
   const { root, base, human } = await fixture(context);
-  const head = await commit(root, "docs: clarify setup", human);
+  const head = await commit(root, "chore: clarify setup", human);
   const emptyPolicy = await mkdtemp(join(tmpdir(), "attribution-policy-"));
   context.after(() => rm(emptyPolicy, { recursive: true, force: true }));
-  await assert.rejects(assertAttributionFree("docs: clarify setup", base, head, root, emptyPolicy));
+  await assert.rejects(assertAttributionFree("chore: clarify setup", base, head, root, emptyPolicy));
+});
+
+test("ordinary PR commit history enforces the same message rules as preflight", async (context) => {
+  const { root, base, human } = await fixture(context);
+  const head = await commit(root, "fix: reject invalid token", human);
+  await assert.rejects(
+    assertAttributionFree("fix: reject invalid token", base, head, root, policyDir),
+    /requires a blank line and a Chinese explanatory body/
+  );
+  await assertAttributionFree("fix: reject invalid token", base, head, root, policyDir, true);
+  const next = await commit(root, "fix: reject invalid token\n\nReject invalid token.", human);
+  await assert.rejects(
+    assertAttributionFree("fix: reject invalid token", base, next, root, policyDir, true),
+    /body must contain Chinese text/
+  );
 });
 
 test("commit preflight requires an English title, blank line and Chinese explanation", () => {
