@@ -1,4 +1,34 @@
+import { readFileSync } from "node:fs";
+import { isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
+
+export function readBranchPolicy(): unknown {
+  return JSON.parse(readFileSync(new URL("../policies/rulesets.json", import.meta.url), "utf8"));
+}
+
+export function isDevEnabled(policy: unknown, repository: string): boolean {
+  if (
+    !isJsonRecord(policy) ||
+    (policy.dev_merge_mode !== "automatic" && policy.dev_merge_mode !== "closed")
+  ) {
+    throw new CliError("Invalid development enrollment mode.", 65);
+  }
+  const disabled = policy.dev_disabled_repositories;
+  if (
+    !Array.isArray(disabled) ||
+    !disabled.every(
+      (name) => typeof name === "string" && /^fongap-labs\/[A-Za-z0-9_.-]+$/.test(name)
+    ) ||
+    new Set(disabled).size !== disabled.length
+  ) {
+    throw new CliError("Invalid disabled development repository policy.", 65);
+  }
+  return (
+    policy.dev_merge_mode === "automatic" &&
+    /^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) &&
+    !disabled.includes(repository)
+  );
+}
 
 // The three-component build version and legacy four-component artifact version are both supported.
 const stableVersion = /^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$/;

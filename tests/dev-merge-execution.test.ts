@@ -76,7 +76,7 @@ test("development protection requires strict independent status and no bypass", 
   );
 });
 
-test("automatic policy derives dev rules for every eligible repository without a second list", () => {
+test("automatic policy derives dev rules and honors disabled repositories", () => {
   for (const repository of [identity.repository, "fongap-labs/delta", "fongap-labs/new-repo"]) {
     const selected = managedRepositoryRulesets(policy, repository, identity.controlRepository);
     assert.equal(
@@ -108,12 +108,31 @@ test("automatic policy derives dev rules for every eligible repository without a
   const dev = controller.find((rule) => rule.name === "Protect Dev Branch");
   assert.equal(protectedMergeRuleset(main, "main", true), true);
   assert.equal(protectedMergeRuleset(main, "main"), false);
-  assert.equal(protectedMergeRuleset(dev, "dev", true), true);
-  assert.equal(
-    devMergePolicyEnabled(policy, identity.controlRepository, identity.controlRepository),
-    true
+  assert.equal(isClosedDevProtection(dev), true);
+  for (const repository of [
+    "fongap-labs/action-worker",
+    "fongap-labs/ai-gateway",
+    "fongap-labs/external-vault",
+    "fongap-labs/internal-vault",
+    "fongap-labs/mcp-hub",
+  ]) {
+    assert.equal(devMergePolicyEnabled(policy, repository, identity.controlRepository), false);
+    assert.equal(
+      isClosedDevProtection(
+        managedRepositoryRulesets(policy, repository, identity.controlRepository).find(
+          (rule) => rule.name === "Protect Dev Branch"
+        )
+      ),
+      true
+    );
+  }
+  assert.throws(() =>
+    managedRepositoryRulesets(
+      { ...policy, dev_disabled_repositories: ["outside/example"] },
+      identity.repository,
+      identity.controlRepository
+    )
   );
-  assert.equal(Object.hasOwn(policy, "dev_merge_repositories"), false);
   assert.throws(() =>
     managedRepositoryRulesets(
       { ...policy, dev_merge_mode: "invalid" },

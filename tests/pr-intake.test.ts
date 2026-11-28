@@ -839,36 +839,49 @@ test("a green dev PR wakes only after a newer trusted baseline and live enrollme
   assert.equal(await shouldResumeDevMerge(reader, enrolled, scope, control, prior), false);
 });
 
-test("controller intake admits only ordinary dev PRs, leaving native main CI unchanged", async () => {
+test("intake honors disabled dev repositories without changing ordinary main governance", async () => {
   const control = "fongap-labs/action-worker";
   const policy = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
-  const base = { ref: "dev", sha: shaB, repo: { full_name: control, private: false } };
-  const head = { ref: "fix/example", sha: shaA, repo: { full_name: control } };
-  const dispatched: unknown[][] = [];
-  const result = await scanOpenPullRequests(
-    { [control]: ["pr"] },
-    {
-      async get(path: string): Promise<unknown> {
-        if (path.includes("/pulls?")) {
-          return [
-            { number: 1, author_association: "MEMBER", base, head },
-            { number: 2, author_association: "MEMBER", base: { ...base, ref: "main" }, head },
-            { number: 3, author_association: "MEMBER", base, head: { ...head, ref: "main" } },
-          ];
-        }
-        assert.equal(path, `repos/${control}/commits/${shaA}/status`);
-        return { statuses: [] };
+  const enabled = {
+    ...policy,
+    dev_disabled_repositories: policy.dev_disabled_repositories.filter(
+      (name: string) => name !== control
+    ),
+  };
+  for (const [repository, rules, expected, blocked] of [
+    [control, policy, [], 0],
+    [control, enabled, [[control, 1, shaA, "dev"]], 1],
+    ["fongap-labs/ai-gateway", policy, [["fongap-labs/ai-gateway", 2, shaA]], 2],
+  ] as const) {
+    const base = { ref: "dev", sha: shaB, repo: { full_name: repository, private: false } };
+    const head = { ref: "fix/example", sha: shaA, repo: { full_name: repository } };
+    const dispatched: unknown[][] = [];
+    const result = await scanOpenPullRequests(
+      { [repository]: ["pr"] },
+      {
+        async get(path: string): Promise<unknown> {
+          if (path.includes("/pulls?")) {
+            assert.notEqual(repository === control && rules === policy, true);
+            return [
+              { number: 1, author_association: "MEMBER", base, head },
+              { number: 2, author_association: "MEMBER", base: { ...base, ref: "main" }, head },
+              { number: 3, author_association: "MEMBER", base, head: { ...head, ref: "main" } },
+            ];
+          }
+          assert.equal(path, `repos/${repository}/commits/${shaA}/status`);
+          return { statuses: [] };
+        },
       },
-    },
-    async (...args) => {
-      dispatched.push(args);
-    },
-    control,
-    undefined,
-    undefined,
-    "",
-    policy
-  );
-  assert.deepEqual(dispatched, [[control, 1, shaA, "dev"]]);
-  assert.equal(result.blocked_unauthorized, 1);
+      async (...args) => {
+        dispatched.push(args);
+      },
+      control,
+      undefined,
+      undefined,
+      "",
+      rules
+    );
+    assert.deepEqual(dispatched, expected);
+    assert.equal(result.blocked_unauthorized, blocked);
+  }
 });

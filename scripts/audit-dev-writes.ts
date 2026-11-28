@@ -1,9 +1,9 @@
-import { readFileSync } from "node:fs";
 import {
   hasBetaPushGrant,
   parseBetaDeployTargets,
   readBetaDeployPolicy,
 } from "./beta-deploy-authorization.ts";
+import { isDevEnabled, readBranchPolicy } from "./branch-publication-policy.ts";
 import type { JsonReader } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
 import { deleteTemporaryDevGuard } from "./create-protected-dev.ts";
@@ -153,13 +153,13 @@ async function main(): Promise<void> {
   const publisher = trigger
     ? await completedDevMergePublisher(reader, controlRepository, Number(trigger))
     : "";
-  const rulesetPolicy: unknown = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
-  const isAutomatic = isJsonRecord(rulesetPolicy) && rulesetPolicy.dev_merge_mode === "automatic";
+  const rulesetPolicy = readBranchPolicy();
   const context = managedBranchWriteContext("dev");
   const betaTargets = parseBetaDeployTargets(readBetaDeployPolicy());
   const wakeRepositories = new Set<string>();
   let isBootstrapRequired = false;
   for (const repository of repositories) {
+    const isAutomatic = isDevEnabled(rulesetPolicy, repository);
     const repo = await reader.get(`repos/${repository}`);
     if (!isJsonRecord(repo) || repo.full_name !== repository) {
       throw new CliError("Development audit repository identity is invalid.", 65);

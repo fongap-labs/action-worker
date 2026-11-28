@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { isDevEnabled, readBranchPolicy } from "./branch-publication-policy.ts";
 import { trustedControlRunId } from "./ci-evidence.ts";
 import {
   devGovernanceReceipt,
@@ -466,6 +467,7 @@ export async function scanOpenPullRequests(
       const headRepo = isJsonRecord(pull.pull.head) ? pull.pull.head.repo : undefined;
       if (
         baseRef === "dev" &&
+        isDevEnabled(rulesetPolicy ?? readBranchPolicy(), repository) &&
         headRef !== "" &&
         !isReservedMergeSourceRef(headRef) &&
         isJsonRecord(baseRepo) &&

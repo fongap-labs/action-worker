@@ -1,3 +1,4 @@
+import { isDevEnabled, readBranchPolicy } from "./branch-publication-policy.ts";
 import type { JsonReader } from "./ci-evidence.ts";
 import { assertTrustedDevWrite, verifyRecordedDevWrite } from "./dev-write-guard.ts";
 import { getJsonString, isJsonRecord } from "./github-api.ts";
@@ -21,6 +22,9 @@ export async function verifyCurrentBetaSource(
     repository.toLowerCase() === controlRepository.toLowerCase()
   ) {
     throw new CliError("Invalid Beta source identity.", 65);
+  }
+  if (!isDevEnabled(readBranchPolicy(), repository)) {
+    throw new CliError("Beta source is disabled by central development policy.", 77);
   }
   const source = await reader.get(`repos/${repository}`);
   if (
