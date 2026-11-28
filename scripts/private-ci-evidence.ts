@@ -407,6 +407,10 @@ export async function fetchAndVerifyPrivateCiForPull(
     const head = await reader.get(`repos/${repo}/git/commits/${request.headSha}`);
     if (
       !isJsonRecord(head) ||
+      getJsonString(head.tree, "sha") !== getJsonString(merge.tree, "sha") ||
+      !shaPattern.test(getJsonString(merge.tree, "sha"))
+    )
+      fail();
     return { bootstrap: true };
   }
   const identity: PrivateCiIdentity = {
