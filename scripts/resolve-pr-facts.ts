@@ -1,3 +1,4 @@
+import { isDevEnabled, readBranchPolicy } from "./branch-publication-policy.ts";
 import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, runText } from "./runtime-command.ts";
 
@@ -117,6 +118,9 @@ export async function fetchPullFacts(
   isMergedAllowed = false,
   targetBranch = "main"
 ): Promise<PullFacts> {
+  if (targetBranch === "dev" && !isDevEnabled(readBranchPolicy(), repository)) {
+    throw new CliError("Dev PR governance is disabled for this repository.", 77);
+  }
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
   if (!isJsonRecord(pull) || !pullAllowsFacts(pull, isMergedAllowed)) {
     throw new CliError("::error::Target PR is not open.", 65);
@@ -167,7 +171,8 @@ async function main(): Promise<void> {
   }
   if (stage === "route-legacy") {
     const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
-    const wake = legacyDevIntakeWake(pull, repository);
+    const wake =
+      isDevEnabled(readBranchPolicy(), repository) && legacyDevIntakeWake(pull, repository);
     await appendLines(process.env.GITHUB_OUTPUT, [
       `wake_dev=${String(wake)}`,
       `managed_head=${String(hasManagedPullHead(pull))}`,

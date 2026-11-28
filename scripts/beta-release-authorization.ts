@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { verifyCurrentBetaSource } from "./beta-source-proof.ts";
+import { isDevEnabled, readBranchPolicy } from "./branch-publication-policy.ts";
 import type { JsonReader } from "./ci-evidence.ts";
 import { getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { hasRepositoryCapability } from "./repository-policy.ts";
@@ -40,6 +41,7 @@ export function betaReleaseEnabled(
 ): boolean {
   return (
     betaReleaseMode(policy) === "automatic" &&
+    isDevEnabled(readBranchPolicy(), repository) &&
     betaReleaseCandidate(repository, repositoryPolicy, controlRepository)
   );
 }

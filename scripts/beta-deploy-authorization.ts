@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { verifyCurrentBetaSource } from "./beta-source-proof.ts";
+import { isDevEnabled, readBranchPolicy } from "./branch-publication-policy.ts";
 import type { JsonReader } from "./ci-evidence.ts";
 import { isDeployPolicyKey, productPolicyKey } from "./deploy-policy-key.ts";
 import { isJsonRecord } from "./github-api.ts";
@@ -108,6 +109,9 @@ export function resolveBetaDeployTarget(
   repository: string,
   product: string
 ): BetaDeployTarget {
+  if (!isDevEnabled(readBranchPolicy(), repository)) {
+    throw new CliError("Beta deployment is disabled for this repository.", 77);
+  }
   const selected = parseBetaDeployTargets(policy).get(productPolicyKey(repository, product));
   if (!selected) throw new CliError("Beta deployment is disabled for this product.", 77);
   return selected;
@@ -133,9 +137,12 @@ export function hasBetaPushGrant(
   targets: ReadonlyMap<string, BetaDeployTarget>,
   repository: string
 ): boolean {
-  return [...targets].some(
-    ([key, grant]) =>
-      (key === repository || key.startsWith(repository + "/")) && grant.allow_push === true
+  return (
+    isDevEnabled(readBranchPolicy(), repository) &&
+    [...targets].some(
+      ([key, grant]) =>
+        (key === repository || key.startsWith(repository + "/")) && grant.allow_push === true
+    )
   );
 }
 
