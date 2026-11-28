@@ -5,8 +5,15 @@ import { type PrCiScope, prCiScopeDescription } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
 import { verifyDevMergeAdmission, verifyDevSquashCommit } from "./dev-merge-admission.ts";
 import { assertTrustedDevWrite, devMergeReceiptContext } from "./dev-write-guard.ts";
-import { getJsonArray, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import {
+  GithubHttpError,
+  getJsonArray,
+  getJsonString,
+  isJsonRecord,
+  statusAwareReader,
+} from "./github-api.ts";
 import { squashManagedPull } from "./managed-pr-squash.ts";
+import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
 import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
@@ -86,11 +93,27 @@ export function devMergePolicyEnabled(
 export async function requireLiveProtection(
   reader: JsonReader,
   repository: string,
-  controlRepository: string
+  controlRepository: string,
+  isPrivate = false
 ): Promise<void> {
-  const rulesets = getJsonArray(
-    await reader.get(`repos/${repository}/rulesets?includes_parents=false&per_page=100`)
-  );
+  let listing: unknown;
+  try {
+    listing = await reader.get(`repos/${repository}/rulesets?includes_parents=false&per_page=100`);
+  } catch (error) {
+    if (
+      isPrivate &&
+      error instanceof GithubHttpError &&
+      error.status === 403 &&
+      error.kind === "plan-restriction"
+    ) {
+      console.warn(
+        "Private native protection unavailable; central signed admission and write audit remain required."
+      );
+      return;
+    }
+    throw error;
+  }
+  const rulesets = getJsonArray(listing);
   for (const branch of ["main", "dev"] as const) {
     const name = branch === "main" ? "Protect Main Branch" : "Protect Dev Branch";
     const candidates = rulesets.filter((rule) => getJsonString(rule, "name") === name);
@@ -128,13 +151,16 @@ export async function authorizeDevMerge(
   const source = await reader.get(`repos/${repository}`);
   if (
     !isJsonRecord(source) ||
-    source.private !== false ||
+    typeof source.private !== "boolean" ||
     source.default_branch !== "main" ||
     source.full_name !== repository
   ) {
-    throw new CliError("Dev merge requires a protected public managed repository.", 75);
+    throw new CliError("Dev merge requires a managed repository with known visibility.", 75);
   }
-  await requireLiveProtection(reader, repository, controlRepository);
+  if (source.private && !(await hasApprovedPrivateCiCaller(reader, repository, baseSha))) {
+    throw new CliError("Private dev merge requires an approved source-owned CI caller.", 75);
+  }
+  await requireLiveProtection(reader, repository, controlRepository, source.private);
   // The first dev baseline requires its own reviewed authorization. No implicit main trust.
   await assertTrustedDevWrite(reader, repository, baseSha, controlRepository);
   const scope = await verifyDevMergeAdmission(

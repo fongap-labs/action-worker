@@ -685,13 +685,17 @@ test("repository-dispatch intake reads only the authorized wake-up target", asyn
   assert.equal(result.repositories, 1);
 });
 
-test("intake routes trusted public dev PRs without consuming main gates or repair", async () => {
+test("intake routes trusted dev PRs only when a private base has its approved caller", async () => {
   const repository = "fongap-labs/example";
   const control = "fongap-labs/action-worker";
   const dispatched: unknown[] = [];
   const reserved: string[] = [];
   const base = { ref: "dev", repo: { full_name: repository, private: false } };
   const head = { ref: "feat/dev-task", sha: shaA, repo: { full_name: repository } };
+  const privateBase = { ...base, sha: shaB, repo: { ...base.repo, private: true } };
+  const privateHead = { ...head, sha: shaC };
+  const callerPath = ".github/workflows/private-source-ci.yml";
+  const callerContent = readFileSync("templates/bridge/private-source-ci.yml", "utf8");
   const result = await scanOpenPullRequests(
     { [repository]: ["pr"] },
     {
@@ -706,9 +710,23 @@ test("intake routes trusted public dev PRs without consuming main gates or repai
               base: { ...base, repo: { ...base.repo, private: true } },
               head,
             },
+            { number: 4, author_association: "MEMBER", base: privateBase, head: privateHead },
           ];
         }
-        assert.equal(path, `repos/${repository}/commits/${shaA}/status`);
+        if (path === `repos/${repository}/contents/${callerPath}?ref=${shaB}`) {
+          return {
+            path: callerPath,
+            type: "file",
+            encoding: "base64",
+            content: Buffer.from(callerContent).toString("base64"),
+          };
+        }
+        assert.ok(
+          [
+            `repos/${repository}/commits/${shaA}/status`,
+            `repos/${repository}/commits/${shaC}/status`,
+          ].includes(path)
+        );
         return attestFixtureResponseForPath(path, {
           statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
             context,
@@ -727,9 +745,12 @@ test("intake routes trusted public dev PRs without consuming main gates or repai
       reserved.push(context);
     }
   );
-  assert.deepEqual(dispatched, [[repository, 1, shaA, "dev"]]);
-  assert.deepEqual(reserved, ["Dev PR Governance"]);
-  assert.equal(result.dispatched, 1);
+  assert.deepEqual(dispatched, [
+    [repository, 1, shaA, "dev"],
+    [repository, 4, shaC, "dev"],
+  ]);
+  assert.deepEqual(reserved, ["Dev PR Governance", "Dev PR Governance"]);
+  assert.equal(result.dispatched, 2);
   assert.equal(result.blocked_unauthorized, 2);
 });
 
