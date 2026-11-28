@@ -63,13 +63,17 @@ export function renderAgentGuide(
   const branchRules = isDevEnabled(policy, repository)
     ? "main is stable/production; dev is Beta only. Use independent task branches and PRs."
     : "Use main only. Dev is disabled; do not initialize, target, publish or deploy from dev.";
-  return [
-    "# AGENTS",
-    commonHeading + "\n" + commonAgentRules(centralGuide),
-    branchHeading + "\n- " + branchRules,
-    repositoryHeading + "\n" + projectRules.trim(),
-    "",
-  ].join("\n\n").trimEnd() + "\n";
+  return (
+    [
+      "# AGENTS",
+      commonHeading + "\n" + commonAgentRules(centralGuide),
+      branchHeading + "\n- " + branchRules,
+      repositoryHeading + "\n" + projectRules.trim(),
+      "",
+    ]
+      .join("\n\n")
+      .trimEnd() + "\n"
+  );
 }
 
 type AuditState = "current" | "drifted" | "migration" | "missing" | "absent" | "incomplete";
