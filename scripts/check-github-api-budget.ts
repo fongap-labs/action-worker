@@ -24,10 +24,7 @@ export function evaluateGithubCoreBudget(
   value: unknown,
   reserve?: number
 ): GithubCoreBudgetDecision {
-  if (
-    reserve !== undefined &&
-    (!Number.isSafeInteger(reserve) || reserve < 1 || reserve > 99999)
-  ) {
+  if (reserve !== undefined && (!Number.isSafeInteger(reserve) || reserve < 1 || reserve > 99999)) {
     throw new CliError("GitHub API reserve must be an integer from 1 to 99999.", 64);
   }
   const resources = isJsonRecord(value) ? value.resources : undefined;
@@ -48,7 +45,13 @@ export function evaluateGithubCoreBudget(
   const limit = core.limit as number;
   const reset_at = new Date((core.reset as number) * 1000).toISOString();
   const protectedReserve = reserve ?? githubCoreReserve(limit);
-  return { run: remaining > protectedReserve, remaining, limit, reserve: protectedReserve, reset_at };
+  return {
+    run: remaining > protectedReserve,
+    remaining,
+    limit,
+    reserve: protectedReserve,
+    reset_at,
+  };
 }
 
 async function main(): Promise<void> {
@@ -62,16 +65,16 @@ async function main(): Promise<void> {
   const decision = evaluateGithubCoreBudget(await getGithubJson("rate_limit", token), reserve);
   await appendLines(process.env.GITHUB_OUTPUT, [`run=${decision.run}`]);
   console.log(
-    `GitHub App REST core remaining=${decision.remaining}/${decision.limit}; reserve=${reserve}; reset=${decision.reset_at}.`
+    `GitHub App REST core remaining=${decision.remaining}/${decision.limit}; reserve=${decision.reserve}; reset=${decision.reset_at}.`
   );
   if (!decision.run) {
     const notice =
       `Optional intake scan deferred to preserve GitHub App REST core quota: ` +
-      `remaining=${decision.remaining}, reserve=${reserve}, reset=${decision.reset_at}.`;
+      `remaining=${decision.remaining}, reserve=${decision.reserve}, reset=${decision.reset_at}.`;
     console.log(`::warning::${notice}`);
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       `### API 配额保护：本轮可延后扫描未执行`,
-      `剩余额度 ${decision.remaining}/${decision.limit}，保留阈值 ${reserve}，重置时间 ${decision.reset_at}。`,
+      `剩余额度 ${decision.remaining}/${decision.limit}，保留阈值 ${decision.reserve}，重置时间 ${decision.reset_at}。`,
       "主分支 CI、PR 治理及主分支写入审计不受此预检影响。",
     ]);
   }

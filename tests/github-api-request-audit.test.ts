@@ -92,19 +92,21 @@ test("audited 403 distinguishes exhausted primary rate quota from permissions", 
   globalThis.fetch = async () => {
     calls += 1;
     return calls === 1
-      ? Response.json(
+      ? Response.json({ message: "Resource not accessible" }, { status: 403 })
+      : Response.json(
           { message: "API rate limit exceeded" },
           { status: 403, headers: { "x-ratelimit-remaining": "0" } }
-        )
-      : Response.json({ message: "Resource not accessible" }, { status: 403 });
+        );
   };
   try {
     const reader = new GithubReader("https://api.github.test", "token", {
       audit,
       attemptLimit: 1,
     });
-    await assert.rejects(() => reader.get("repos/example/one"), /primary API rate limit/);
-    await assert.rejects(() => reader.get("repos/example/two"), /access forbidden/);
+    await assert.rejects(() => reader.get("repos/example/one"), /access forbidden/);
+    await assert.rejects(() => reader.get("repos/example/two"), /primary API rate limit/);
+    await assert.rejects(() => reader.get("repos/example/three"), /primary API rate limit/);
+    assert.equal(calls, 2);
     assert.equal(audit.snapshot().forbidden, 2);
     assert.equal(audit.snapshot().primary_limit, 1);
     assert.equal(audit.snapshot().secondary_limit, 0);
