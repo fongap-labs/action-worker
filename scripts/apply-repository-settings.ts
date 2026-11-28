@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { formalTagProtection, readBetaReleasePolicy } from "./beta-release-authorization.ts";
+import { isDevEnabled } from "./branch-publication-policy.ts";
 import type { JsonReader } from "./ci-evidence.ts";
 import { devRulesetSnapshot } from "./create-protected-dev.ts";
 import { isClosedDevProtection } from "./dev-bootstrap-authorization.ts";
@@ -120,7 +121,6 @@ export function rulesetsForRepository(
   });
 }
 
-/** Derive the ordinary dev gate from one organization-wide policy, never a second repo list. */
 export function managedRepositoryRulesets(
   policy: unknown,
   repository: string,
@@ -132,12 +132,8 @@ export function managedRepositoryRulesets(
   if (!closed || !isClosedDevProtection(closed)) {
     throw new CliError("Default dev protection must remain closed.", 65);
   }
-  const mode = isJsonRecord(policy) ? policy.dev_merge_mode : undefined;
-  if (mode !== "automatic" && mode !== "closed") {
-    throw new CliError("Invalid development enrollment mode.", 65);
-  }
   const scoped = rulesetsForRepository(rulesets, repository, controlRepository);
-  if (mode === "closed" || !isDevReady || !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository)) {
+  if (!isDevEnabled(policy, repository) || !isDevReady) {
     return scoped;
   }
   const main = scoped.find((rule) => rule.name === "Protect Main Branch");

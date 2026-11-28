@@ -1,3 +1,4 @@
+import { isDevEnabled, readBranchPolicy } from "./branch-publication-policy.ts";
 import { assertManualBranchAuthorization } from "./branch-transfer-approval.ts";
 import { readTransferPlan, transferPlanDescription } from "./branch-transfer-intent.ts";
 import { requireToken } from "./control-token.ts";
@@ -157,6 +158,9 @@ async function main(): Promise<void> {
     throw new CliError("A locked source SHA from the plan is required.", 75);
   }
   validateRepositoryCapability(repository, JSON.parse(readRepositoryPolicyText()), "pr");
+  if (!isDevEnabled(readBranchPolicy(), repository)) {
+    throw new CliError("Development is disabled for this repository by central policy.", 77);
+  }
   const reader = withProtectionReads(
     statusAwareReader(
       process.env.GITHUB_API_URL ?? "https://api.github.com",

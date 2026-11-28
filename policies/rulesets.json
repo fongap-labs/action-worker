@@ -1,6 +1,13 @@
 {
   "schema_version": 1,
   "dev_merge_mode": "automatic",
+  "dev_disabled_repositories": [
+    "fongap-labs/action-worker",
+    "fongap-labs/ai-gateway",
+    "fongap-labs/external-vault",
+    "fongap-labs/internal-vault",
+    "fongap-labs/mcp-hub"
+  ],
   "rulesets": [
     {
       "name": "Protect Main Branch",
