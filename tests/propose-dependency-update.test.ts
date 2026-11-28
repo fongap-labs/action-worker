@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { parseDependencyPolicy } from "../scripts/dependency-version-policy.ts";
+import { renderAgentGuide } from "../scripts/generate-agent-guide.ts";
 import {
+  buildAgentGuideProposal,
   buildEngineeringProposal,
   buildNodeProposal,
   discoverProposalTargets,
@@ -225,4 +227,25 @@ test("known compatibility declarations require review after expiry rather than a
       assert.equal(result.lockPath, null);
     }
   }
+});
+
+test("agent guide proposals preserve project rules and change only drifted generated guides", () => {
+  const central =
+    "# AGENTS\n\n## Common rules\n\nCurrent rules.\n\n## Repository rules\n\nControl.";
+  const branchPolicy = { dev_merge_mode: "automatic", dev_disabled_repositories: [] };
+  const rules = "- Product boundary.";
+  const previous = renderAgentGuide(
+    central.replace("Current rules.", "Old rules."),
+    repo,
+    rules,
+    branchPolicy
+  );
+  const files = new Map([["AGENTS.md", previous], ["CHANGELOG.md", record]]);
+  const changes = buildAgentGuideProposal(central, repo, files, branchPolicy);
+  assert.deepEqual(changes?.map((change) => change.path), ["AGENTS.md", "CHANGELOG.md"]);
+  assert.equal(changes?.[0]?.content, renderAgentGuide(central, repo, rules, branchPolicy));
+  for (const change of changes ?? []) files.set(change.path, change.content);
+  assert.deepEqual(buildAgentGuideProposal(central, repo, files, branchPolicy), []);
+  files.set("AGENTS.md", "# AGENTS\nLegacy rules.");
+  assert.equal(buildAgentGuideProposal(central, repo, files, branchPolicy), undefined);
 });

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { inspectManifest } from "./audit-dependency-inventory.ts";
+import { isDevEnabled, readBranchPolicy } from "./branch-publication-policy.ts";
 import { assertManualBranchAuthorization } from "./branch-transfer-approval.ts";
 import { inspectNpmLock } from "./dependency-lock-integrity.ts";
 import {
@@ -11,6 +12,7 @@ import {
   evaluateDeclaration,
   parseDependencyPolicy,
 } from "./dependency-version-policy.ts";
+import { renderAgentGuide, repositoryAgentRules } from "./generate-agent-guide.ts";
 import {
   decodeGithubContent,
   GithubHttpError,
@@ -42,6 +44,7 @@ const shaPattern = /^[a-f0-9]{40}$/;
 const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 const title = "chore(dependencies): align central dependency baseline";
 const prefix = "chore/dependency-baseline-";
+const guideFileNames = new Set(["AGENTS.md", "CHANGELOG.md"]);
 const fileNames = new Set([
   "package.json",
   "package-lock.json",
@@ -208,6 +211,47 @@ export function buildNodeProposal(
   return changes.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+export function buildAgentGuideProposal(
+  centralGuide: string,
+  repository: string,
+  files: Files,
+  branchPolicy: unknown
+): Change[] | undefined {
+  const current = files.get("AGENTS.md");
+  const rules = current === undefined ? undefined : repositoryAgentRules(current);
+  if (rules === undefined || /^## (Common|Branch|Repository) rules\s*$/m.test(rules)) {
+    return undefined;
+  }
+  const guide = renderAgentGuide(centralGuide, repository, rules, branchPolicy);
+  if (guide === current) return [];
+  const changelog = files.get("CHANGELOG.md");
+  const heading = /^## \[Unreleased\]\r?$/gm;
+  if (
+    !changelog ||
+    changelog.split(/\r?\n/, 1)[0] !== "# 更新日志" ||
+    [...changelog.matchAll(heading)].length !== 1
+  ) {
+    return undefined;
+  }
+  const newline = changelog.includes("\r\n") ? "\r\n" : "\n";
+  const entry =
+    "- 维护: 同步中央智能体规范与分支策略（规范摘要 " + digest(guide).slice(0, 12) + "）。";
+  if (changelog.includes(entry)) return undefined;
+  return [
+    { path: "AGENTS.md", mode: "100644", type: "blob", content: guide },
+    {
+      path: "CHANGELOG.md",
+      mode: "100644",
+      type: "blob",
+      content: changelog.replace(
+        heading,
+        (marker) =>
+          marker.replace(/\r$/, "") + newline + newline + entry + (newline === "\r\n" ? "\r" : "")
+      ),
+    },
+  ];
+}
+
 async function assertScope(reader: Reader, repository: string, isPrivate: boolean): Promise<void> {
   const meta = await reader.get("repos/" + repository);
   if (
@@ -246,7 +290,8 @@ async function readSnapshot(
   reader: Reader,
   repository: string,
   branch: Branch,
-  isPrivate: boolean
+  isPrivate: boolean,
+  allowedFiles: ReadonlySet<string> = fileNames
 ): Promise<Snapshot> {
   const head = await readHead(reader, repository, branch, isPrivate);
   const tree = await reader.get("repos/" + repository + "/git/trees/" + head.tree);
@@ -255,7 +300,7 @@ async function readSnapshot(
   }
   const files = new Map<string, string>();
   for (const item of tree.tree) {
-    if (!isJsonRecord(item) || typeof item.path !== "string" || !fileNames.has(item.path)) continue;
+    if (!isJsonRecord(item) || typeof item.path !== "string" || !allowedFiles.has(item.path)) continue;
     const sha = getJsonString(item, "sha");
     if (
       files.has(item.path) ||
@@ -301,23 +346,32 @@ export async function publishNodeProposal(
   snapshot: Snapshot,
   changes: readonly Change[],
   targetBranch: Branch = "main",
-  isPrivate = false
+  isPrivate = false,
+  kind: "dependency" | "agent-guide" = "dependency"
 ): Promise<number | null> {
   if (changes.length === 0) return null;
+  const isGuide = kind === "agent-guide";
+  const allowedFiles = isGuide ? guideFileNames : fileNames;
+  const proposalPrefix = isGuide ? "chore/agent-guide-sync-" : prefix;
+  const proposalTitle = isGuide ? "chore: synchronize central agent guidance" : title;
+  const proposalBody = isGuide
+    ? "同步中央基础规范及分支策略，保留仓库专属规则。"
+    : "将现有运行时及通用工程依赖与中央版本基准同步。";
   if (
     !repositoryPattern.test(repository) ||
     repository === control ||
     !shaPattern.test(snapshot.sha) ||
     !shaPattern.test(snapshot.tree) ||
     changes.some(
-      (change) => !fileNames.has(change.path) || change.mode !== "100644" || change.type !== "blob"
+      (change) =>
+        !allowedFiles.has(change.path) || change.mode !== "100644" || change.type !== "blob"
     )
   ) {
     throw new CliError("Invalid proposal publication scope.", 77);
   }
   const repo = "repos/" + repository;
   const branch =
-    prefix + targetBranch + "-" + proposalIdentity(snapshot, changes, targetBranch).slice(0, 24);
+    proposalPrefix + targetBranch + "-" + proposalIdentity(snapshot, changes, targetBranch).slice(0, 24);
   // Do not generate a second proposal while the repository already has an open baseline PR.
   for (let page = 1; page <= 10; page++) {
     const pulls = getJsonArray(
@@ -330,7 +384,7 @@ export async function publishNodeProposal(
         isJsonRecord(pull) &&
         isJsonRecord(pull.head) &&
         getJsonString(pull.head.repo, "full_name") === repository &&
-        getJsonString(pull.head, "ref").startsWith(prefix)
+        getJsonString(pull.head, "ref").startsWith(proposalPrefix)
       ) {
         if (
           typeof pull.number !== "number" ||
@@ -371,7 +425,7 @@ export async function publishNodeProposal(
   } else {
     const commit = getJsonString(
       await write(repo + "/git/commits", {
-        message: title + "\n\n将现有运行时及通用工程依赖与中央版本基准同步。",
+        message: proposalTitle + "\n\n" + proposalBody,
         tree,
         parents: [snapshot.sha],
       }),
@@ -388,10 +442,10 @@ export async function publishNodeProposal(
     throw new CliError("Main moved before pull request creation.", 75);
   }
   const pull = await write(repo + "/pulls", {
-    title,
+    title: proposalTitle,
     head: branch,
     base: targetBranch,
-    body: "同步中央运行时及已设定版本的通用工程依赖。按目标分支独立计算，兼容性由现有 CI 和合并门禁验证。",
+    body: proposalBody + "按目标分支独立计算，由现有 CI 和合并门禁验证。",
     draft: false,
   });
   if (
@@ -753,6 +807,7 @@ async function getScopes(
 ): Promise<Scope[]> {
   const policy = parseRepositoryPolicy(grants);
   const result: Scope[] = [];
+  const branchPolicy = readBranchPolicy();
   for (const repo of inventory) {
     if (
       repo.private !== isPrivate ||
@@ -766,6 +821,7 @@ async function getScopes(
     )
       continue;
     for (const branch of ["main", "dev"] as const) {
+      if (branch === "dev" && !isDevEnabled(branchPolicy, repo.full_name)) continue;
       const value = await getGithubJsonIfExists(
         "repos/" + repo.full_name + "/branches/" + branch,
         (path) => reader.get(path)
@@ -873,6 +929,67 @@ async function main(): Promise<void> {
     throw new CliError("Repository exclusion policy is invalid.", 65);
   }
   const exclusions = access.excluded_repositories as string[];
+  if (stage === "guides") {
+    const reader = new GithubReader(api, token("AW_INVENTORY_TOKEN"));
+    const inventory = await readInstallationInventory(reader);
+    const scopes = [
+      ...(await getScopes(reader, inventory, grants, exclusions, false)),
+      ...(await getScopes(reader, inventory, grants, exclusions, true)),
+    ];
+    if (scopes.length > 128) throw new CliError("Agent guide batch exceeds scope limit.", 65);
+    const guide = await readFile("AGENTS.md", "utf8");
+    const branchPolicy = readBranchPolicy();
+    const counts = { current: 0, planned: 0, published: 0, manualReview: 0, failed: 0 };
+    for (const scope of scopes) {
+      try {
+        const snapshot = await readSnapshot(
+          reader,
+          scope.repository,
+          scope.branch,
+          scope.isPrivate,
+          guideFileNames
+        );
+        const changes = buildAgentGuideProposal(
+          guide,
+          scope.repository,
+          snapshot.files,
+          branchPolicy
+        );
+        if (changes === undefined) {
+          counts.manualReview++;
+          continue;
+        }
+        if (!changes.length) {
+          counts.current++;
+          continue;
+        }
+        counts.planned++;
+        if (process.env.OPERATOR_CONFIRMED !== "true") continue;
+        await authorize(scope.repository, api);
+        const scoped = await privateWriter(scope.repository);
+        try {
+          const number = await publishNodeProposal(
+            reader,
+            writerFor(scoped.writeToken),
+            scope.repository,
+            snapshot,
+            changes,
+            scope.branch,
+            scope.isPrivate,
+            "agent-guide"
+          );
+          if (number) counts.published++;
+        } finally {
+          await scoped.revoke();
+        }
+      } catch {
+        counts.failed++;
+      }
+    }
+    console.log(JSON.stringify(counts));
+    if (counts.failed) throw new CliError("Some agent guide proposals could not be verified.", 75);
+    return;
+  }
   const policy = parseDependencyPolicy(
     JSON.parse(await readFile("policies/dependency-versions.json", "utf8")),
     "fongap-labs"
