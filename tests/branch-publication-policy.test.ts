@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   assertBranchDeployEnvironment,
-  assertOrdinaryDevelopmentTarget,
   assertBranchReleaseTag,
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
+  assertOrdinaryDevelopmentTarget,
   branchReleaseArtifactName,
   resolveOrdinaryDevelopmentBranch,
 } from "../scripts/branch-publication-policy.ts";
