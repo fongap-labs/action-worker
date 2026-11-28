@@ -123,7 +123,7 @@ const model = request.model;
 function restoreSessionState() {}
 ```
 
-局部变量、函数及参数不强制三段。布尔名称优先使用 `is`、`has`、`can`、`should`。
+局部变量、函数及参数不强制三段。自有布尔变量及参数必须使用 `is`、`has`、`can`、`should` 前缀（Python、Rust 使用 `is_`、`has_`、`can_`、`should_`）；外部固定协议名称不得擅改。
 
 ## 6. 缩写与归属
 

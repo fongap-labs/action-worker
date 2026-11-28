@@ -308,6 +308,9 @@ GitHub 只读比较 API 与 `base/head` 不可变提交运行
 目录级 AGENTS.md = 本目录适用的增量规则
 ```
 
+- 每份 `AGENTS.md` 不超过 300 个 Unicode 码点（包含 Markdown、链接及换行）；使用明确指令与正反示例，业务仓库引用中央 AGENTS.md 并仅保留专属增量。长度及自动继承的确定性校验另行接入，现行门禁不变。
+- 注释仅在缺失会导致具体可预见错误时保留；法定声明、机器指令及必要外部契约不属于解释性注释。测试只保留必要行为及回归验证。
+- 中央智能体执行应阅读架构治理、任务相关合同、策略、规则、测试和文档；使用 `scripts/resolve-agent-skills.ts` 与 `scripts/build-agent-prompt.ts` 组装 `AGENT_SYSTEM_PROMPT_PATH`。治理变更同步维护机器合同、实现与必要回归；中央变更合并前执行 `npm run check`。不得新增单维护者独立人工审查门禁，提交身份归实际 GitHub 账户，禁止 AI 署名，详见 `policies/attribution.json`。
 - 组织共用治理集中在 Action Worker 的 docs/；业务仓库引用中央规则，只在本仓库说明产品架构、协议、操作与项目专属约束。
 - 仓库根目录的 AGENTS.md 是智能体规则的唯一规范来源。需要目录专属规则时，使用该目录下的 AGENTS.md，只写相对根规则增加的约束。
 - 根目录 CLAUDE.md 只保留指向同目录 AGENTS.md 的简短说明，不复制规则。
