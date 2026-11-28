@@ -807,6 +807,25 @@ jobs:
           set -Eeuo pipefail
           test "$(git -C "$AW_SOURCE_DIR" rev-parse HEAD)" = "$BOOTSTRAP_REF"
           test -s "$AW_SOURCE_DIR/bootstrap.sh"
+      - name: Resolve isolated agent skills
+        id: skills
+        env:
+          AGENT_DOMAIN: ${{ needs.validate.outputs.agent_domain }}
+          OPERATION: ${{ needs.validate.outputs.operation }}
+        run: node scripts/resolve-agent-skills.ts "$AGENT_DOMAIN" "$OPERATION"
+
+      - name: Build isolated agent prompt
+        env:
+          AGENT_SKILLS_JSON: ${{ steps.skills.outputs.skills }}
+          AGENT_PROMPT_OUTPUT_PATH: ${{ runner.temp }}/action-worker-agent-prompt.md
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C "$AW_SOURCE_DIR" rev-parse HEAD)" = "$BOOTSTRAP_REF"
+          umask 077
+          node scripts/build-agent-prompt.ts
+          echo "AGENT_SYSTEM_PROMPT_PATH=${AGENT_PROMPT_OUTPUT_PATH}" >> "$GITHUB_ENV"
+
       - name: Download encrypted private input
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -1088,6 +1107,7 @@ jobs:
       PROJECT: ${{ github.event.client_payload.project }}
       BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
       REQUEST_ID: ${{ github.event.client_payload.request_id }}
+      AW_SOURCE_DIR: ${{ github.workspace }}/task-source
       AW_TASK_STATE_DIR: ${{ github.workspace }}/isolated-task-state
       AW_TASK_TRANSFER_ROLE: task
     steps:
@@ -1113,6 +1133,25 @@ jobs:
           path: task-source
           fetch-depth: 1
           persist-credentials: false
+      - name: Resolve isolated agent skills
+        id: skills
+        env:
+          AGENT_DOMAIN: ${{ needs.validate.outputs.agent_domain }}
+          OPERATION: ${{ needs.validate.outputs.operation }}
+        run: node scripts/resolve-agent-skills.ts "$AGENT_DOMAIN" "$OPERATION"
+
+      - name: Build isolated agent prompt
+        env:
+          AGENT_SKILLS_JSON: ${{ steps.skills.outputs.skills }}
+          AGENT_PROMPT_OUTPUT_PATH: ${{ runner.temp }}/action-worker-agent-prompt.md
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C "$AW_SOURCE_DIR" rev-parse HEAD)" = "$BOOTSTRAP_REF"
+          umask 077
+          node scripts/build-agent-prompt.ts
+          echo "AGENT_SYSTEM_PROMPT_PATH=${AGENT_PROMPT_OUTPUT_PATH}" >> "$GITHUB_ENV"
+
       - name: Download run-bound state input
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
