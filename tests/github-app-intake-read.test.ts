@@ -91,10 +91,12 @@ test("native read delegation is restricted to trusted intake and local guard ste
   const jobs = Object.entries(workflow.jobs).filter(([, job]) =>
     job.steps.some((step) => step.env?.AW_NATIVE_TOKEN)
   );
-  assert.deepEqual(
-    jobs.map(([name]) => name).sort(),
-    ["dev-merge-audit", "main-ci", "main-writes", "pull-requests"]
-  );
+  assert.deepEqual(jobs.map(([name]) => name).sort(), [
+    "dev-merge-audit",
+    "main-ci",
+    "main-writes",
+    "pull-requests",
+  ]);
   for (const [, job] of jobs) {
     assert.ok(Object.values(job.permissions).every((permission) => permission === "read"));
     const step = job.steps.find((item) => item.env?.AW_NATIVE_TOKEN);
