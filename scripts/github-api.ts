@@ -349,7 +349,7 @@ export class GithubReader {
 type NativeRepositoryRead = { repository: string; token: string };
 
 function nativeRepositoryPath(path: string, repository: string): boolean {
-  const parts = path.split("?")[0].split("/");
+  const parts = path.split("?", 1)[0]?.split("/") ?? [];
   if (
     parts.some((part) => !/^[A-Za-z0-9_.-]+$/.test(part) || part === "." || part === "..") ||
     parts.slice(0, 3).join("/") !== `repos/${repository}`
@@ -360,7 +360,8 @@ function nativeRepositoryPath(path: string, repository: string): boolean {
   return (
     endpoint === "" ||
     /^(?:commits|pulls|branches|issues|statuses|contents)(?:\/|$)/.test(endpoint) ||
-    /^actions\/runs(?:\/|$)/.test(endpoint)
+    /^actions\/runs(?:\/|$)/.test(endpoint) ||
+    /^(?:check-runs|check-suites)(?:\/|$)/.test(endpoint)
   );
 }
 

@@ -21,7 +21,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
       checks: read
+      issues: read
       pull-requests: read
       statuses: read
 
@@ -50,9 +52,24 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-statuses: write
 
+      - name: Mint main write read token
+        id: guard_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-actions: read
+          permission-checks: read
+          permission-contents: read
+          permission-issues: read
+          permission-pull-requests: read
+          permission-statuses: read
+
       - name: Validate main write provenance
         env:
-          MAIN_WRITE_TOKEN: ${{ steps.status_app.outputs.token }}
+          MAIN_WRITE_TOKEN: ${{ steps.guard_read_app.outputs.token }}
           AW_NATIVE_TOKEN: ${{ github.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}

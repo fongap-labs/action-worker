@@ -101,6 +101,7 @@ test("native read delegation is restricted to trusted intake and local guard ste
     assert.equal(step?.env?.AW_NATIVE_TOKEN, "${{ github.token }}");
   }
   const guard = await readFile(".github/workflows/main-write-guard.yml", "utf8");
+  assert.match(guard, /MAIN_WRITE_TOKEN: \$\{\{ steps\.guard_read_app\.outputs\.token \}\}/);
   assert.match(guard, /AW_NATIVE_TOKEN: \$\{\{ github\.token \}\}/);
   assert.match(guard, /AW_STATUS_API_TOKEN: \$\{\{ steps\.status_app\.outputs\.token \}\}/);
 });

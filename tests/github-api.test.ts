@@ -387,6 +387,8 @@ test("native repository reads preserve credential boundaries and switch only on 
     await reader.get("repos/example/other/commits/abc/status");
     await reader.get("repos/example/other/pulls");
     await reader.get("repos/example/control/rules/branches/main");
+    await reader.get("repos/example/control/../other/pulls");
+    await reader.get("repos/example/control/%2e%2e/other/pulls");
     responseKind = "permission";
     await assert.rejects(() => reader.get("repos/example/control/pulls"), /access forbidden/);
     responseKind = "quota";
@@ -396,6 +398,8 @@ test("native repository reads preserve credential boundaries and switch only on 
       "Bearer native",
       "Bearer native",
       "Bearer status",
+      "Bearer control",
+      "Bearer control",
       "Bearer control",
       "Bearer control",
       "Bearer native",
