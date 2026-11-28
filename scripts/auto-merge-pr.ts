@@ -1,3 +1,4 @@
+import { assertOrdinaryDevelopmentTarget, readBranchPolicy } from "./branch-publication-policy.ts";
 import { defaultControlRepository, type JsonReader } from "./ci-evidence.ts";
 import { prCiScopeDescription, readCurrentPrCiScope } from "./ci-scope-receipt.ts";
 import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
@@ -335,6 +336,12 @@ async function main(): Promise<void> {
     console.log(`Already merged exact CI-approved head: ${repository}#${number}@${headSha}.`);
     return;
   }
+  await assertOrdinaryDevelopmentTarget(
+    (path) => getGithubJson(path, readToken),
+    repository,
+    "main",
+    readBranchPolicy()
+  );
   const advancedBaseNeedsRefresh = authorizeAdvancedBaseRefresh(
     pull,
     statuses,
@@ -388,6 +395,12 @@ async function main(): Promise<void> {
   );
   // GitHub still applies protected branch rules. Matching the exact PR head
   // prevents a newer revision from being merged by this older governance run.
+  await assertOrdinaryDevelopmentTarget(
+    (path) => getGithubJson(path, readToken),
+    repository,
+    "main",
+    readBranchPolicy()
+  );
   try {
     await squashManagedPull(repository, Number(number), headSha, writeToken);
   } catch (error) {

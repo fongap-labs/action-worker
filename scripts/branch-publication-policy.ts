@@ -58,6 +58,21 @@ export async function resolveOrdinaryDevelopmentBranch(
   return snapshot(dev, "dev");
 }
 
+export async function assertOrdinaryDevelopmentTarget(
+  get: (path: string) => Promise<unknown>,
+  repository: string,
+  targetBranch: string,
+  policy: unknown
+): Promise<void> {
+  const target = await resolveOrdinaryDevelopmentBranch(get, repository, policy);
+  if (target.branch !== targetBranch) {
+    throw new CliError(
+      "Ordinary PR must target " + target.branch + "; main requires authorized dev transfer.",
+      77
+    );
+  }
+}
+
 // The three-component build version and legacy four-component artifact version are both supported.
 const stableVersion = /^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$/;
 const betaVersion = /^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?-beta\.[1-9][0-9]*$/;

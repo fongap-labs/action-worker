@@ -1,4 +1,8 @@
-import { isDevEnabled, readBranchPolicy } from "./branch-publication-policy.ts";
+import {
+  assertOrdinaryDevelopmentTarget,
+  isDevEnabled,
+  readBranchPolicy,
+} from "./branch-publication-policy.ts";
 import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, runText } from "./runtime-command.ts";
 
@@ -142,6 +146,14 @@ export async function fetchPullFacts(
     throw new CliError("Dev PR governance requires a public same-repository PR.", 75);
   }
   const baseSha = resolvePullDiffBaseSha(base, repository);
+  if (pull.state === "open") {
+    await assertOrdinaryDevelopmentTarget(
+      (path) => getGithubJson(path, token),
+      repository,
+      targetBranch,
+      readBranchPolicy()
+    );
+  }
   const headSha = getJsonString(head, "sha");
   if (!/^[0-9a-f]{40}$/.test(headSha)) {
     throw new CliError("::error::PR head SHA is invalid.", 65);
@@ -179,6 +191,15 @@ async function main(): Promise<void> {
     ]);
     return;
   }
+  if (stage === "check-target") {
+    await assertOrdinaryDevelopmentTarget(
+      (path) => getGithubJson(path, token),
+      repository,
+      process.env.AW_CI_TARGET_BRANCH ?? "main",
+      readBranchPolicy()
+    );
+    return;
+  }
   if (stage === "fetch") {
     await writeFacts(
       await fetchPullFacts(
@@ -192,7 +213,7 @@ async function main(): Promise<void> {
     return;
   }
   if (stage !== "resolve") {
-    throw new CliError("Usage: resolve-pr-facts.ts <route-legacy|fetch|resolve>", 64);
+    throw new CliError("Usage: resolve-pr-facts.ts <route-legacy|fetch|resolve|check-target>", 64);
   }
   const initial: PullFacts = {
     baseSha: process.env.INITIAL_BASE_SHA ?? "",
