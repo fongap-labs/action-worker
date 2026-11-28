@@ -184,6 +184,10 @@ export function parseRetryAfter(value: string | null, now = Date.now()): number 
   return Number.isNaN(retryAt) ? undefined : Math.max(0, retryAt - now);
 }
 
+export function githubCoreReserve(limit: number): number {
+  return Math.ceil(limit / 5);
+}
+
 export function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
 }
@@ -207,6 +211,7 @@ export class GithubReader {
   private readonly audit: typeof githubApiAudit;
   private readonly immutableCache = new Map<string, ImmutableCacheEntry>();
   private readonly inFlight = new Map<string, Promise<unknown>>();
+  private rateLimit?: { error: GithubHttpError; until: number };
   readonly attemptLimit: number;
   readonly apiUrl: string;
   readonly retryDelayMs: number;
@@ -249,6 +254,9 @@ export class GithubReader {
   private async fetchJson(path: string, immutable: boolean): Promise<unknown> {
     let lastError: unknown;
     for (let attempt = 0; attempt < this.attemptLimit; attempt += 1) {
+      if (this.rateLimit && Date.now() < this.rateLimit.until) {
+        throw this.rateLimit.error;
+      }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       try {
@@ -290,7 +298,10 @@ export class GithubReader {
           if (kind === "primary-rate-limit" || kind === "secondary-rate-limit") {
             this.audit.rateLimited(kind);
           }
-          const resetAtMs = rateLimitReset(response.headers);
+          const resetAtMs =
+            kind === "primary-rate-limit" || response.headers.get("x-ratelimit-remaining") === "0"
+              ? rateLimitReset(response.headers)
+              : undefined;
           const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
           const safePath = `/${(path.startsWith("/") ? path.slice(1) : path).split("?")[0]}`;
           throw new GithubHttpError(response.status, retryAfterMs, {
@@ -317,27 +328,30 @@ export class GithubReader {
         return value;
       } catch (error) {
         lastError = error;
-        const retryReset =
-          error instanceof GithubHttpError && error.kind === "primary-rate-limit"
-            ? error.resetAtMs === undefined
-              ? undefined
-              : Math.max(0, error.resetAtMs - Date.now())
-            : undefined;
-        // Do not spin on exhausted primary quota or wait hours in a release workflow.
-        const canRetry =
-          !(error instanceof GithubHttpError) ||
-          isRetryableStatus(error.status) ||
-          error.kind === "secondary-rate-limit" ||
-          (retryReset !== undefined && retryReset <= 30_000);
-        if (!canRetry || attempt + 1 >= this.attemptLimit) throw error;
+        let retryDelay = this.retryDelayMs * 2 ** attempt;
+        if (error instanceof GithubHttpError) {
+          if (error.kind === "primary-rate-limit" || error.kind === "secondary-rate-limit") {
+            const now = Date.now();
+            retryDelay =
+              error.kind === "primary-rate-limit"
+                ? Math.max(0, (error.resetAtMs ?? Number.POSITIVE_INFINITY) - now) + 250
+                : Math.max(
+                    error.retryAfterMs ?? 60_000,
+                    error.resetAtMs === undefined ? 0 : error.resetAtMs - now
+                  );
+            const until = now + retryDelay;
+            if (!this.rateLimit || this.rateLimit.until < until) {
+              this.rateLimit = { error, until };
+            }
+          } else if (!isRetryableStatus(error.status)) {
+            throw error;
+          } else {
+            retryDelay = error.retryAfterMs ?? retryDelay;
+          }
+        }
+        if (attempt + 1 >= this.attemptLimit || retryDelay > 30_000) throw error;
         this.audit.retry();
-        const retryDelay =
-          retryReset !== undefined
-            ? retryReset + 250
-            : error instanceof GithubHttpError && error.retryAfterMs !== undefined
-              ? error.retryAfterMs
-              : this.retryDelayMs * 2 ** attempt;
-        await sleep(Math.min(retryDelay, 30_000));
+        await sleep(retryDelay);
       } finally {
         clearTimeout(timer);
       }
