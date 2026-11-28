@@ -137,13 +137,7 @@ test("private docs bootstrap verifies both trees and never accepts source or bri
     bridge,
   ];
   const head = [...entries, bridge];
-  const changes = [
-    "A\tAGENTS.md",
-    "A\tCLAUDE.md",
-    "A\tLICENSE",
-    "M\tREADME.md",
-    "M\tCHANGELOG.md",
-  ];
+  const changes = ["A\tAGENTS.md", "A\tCLAUDE.md", "A\tLICENSE", "M\tREADME.md", "M\tCHANGELOG.md"];
   assert.doesNotThrow(() => verifyPrivateDocsTrees(base, head, changes, trusted, false));
   assert.doesNotThrow(() => verifyPrivateDocsTrees(head, head, [], trusted, true));
   for (const path of ["src/index.ts", ".github/execution-manifest.json"]) {

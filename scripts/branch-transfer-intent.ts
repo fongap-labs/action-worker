@@ -280,7 +280,9 @@ export function transferStageRef(intent: TransferIntent, runId: number): string 
   return `aw-transfer/${sourceBranchOf(intent.targetBranch)}/${intent.prNumber}/${runId}`;
 }
 
-const stageMessagePrefix = "Action Worker authorized transfer\n\n";
+const stageMessagePrefix =
+  "chore(transfer): stage authorized branch transfer\n\n按已授权的分支流转意图生成验证快照。\n\n";
+const legacyStageMessagePrefix = "Action Worker authorized transfer\n\n";
 
 export function transferStageMessage(intent: TransferIntent): string {
   return stageMessagePrefix + JSON.stringify(validateTransferIntent(intent));
@@ -288,8 +290,11 @@ export function transferStageMessage(intent: TransferIntent): string {
 
 export function intentFromStageCommit(commit: unknown): TransferIntent {
   const message = getJsonString(commit, "message");
-  if (!message.startsWith(stageMessagePrefix)) throw new CliError("Missing staging intent.", 75);
-  return validateTransferIntent(JSON.parse(message.slice(stageMessagePrefix.length)));
+  const prefix = [stageMessagePrefix, legacyStageMessagePrefix].find((value) =>
+    message.startsWith(value)
+  );
+  if (!prefix) throw new CliError("Missing staging intent.", 75);
+  return validateTransferIntent(JSON.parse(message.slice(prefix.length)));
 }
 
 /** Independently verify the original source, target and the selected immutable content basis. */
