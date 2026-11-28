@@ -93,6 +93,7 @@ test("native read delegation is restricted to trusted intake and local guard ste
   );
   assert.deepEqual(jobs.map(([name]) => name).sort(), [
     "dev-merge-audit",
+    "dev-writes",
     "main-ci",
     "main-writes",
     "pull-requests",

@@ -1,4 +1,4 @@
-import { githubApiAudit } from "./github-api-request-audit.ts";
+import { type GithubApiCredential, githubApiAudit } from "./github-api-request-audit.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
 import { CliError, runCommand, runText } from "./runtime-command.ts";
 
@@ -82,7 +82,12 @@ export async function getGithubJsonIfExists(
   }
 }
 
+type RateLimitState = { cooldown?: { error: GithubHttpError; until: number } };
+
 type ReaderOptions = {
+  credential?: GithubApiCredential;
+  primaryLimit?: RateLimitState;
+  secondaryLimit?: RateLimitState;
   attemptLimit?: number;
   retryDelayMs?: number;
   timeoutMs?: number;
@@ -211,7 +216,9 @@ export class GithubReader {
   private readonly audit: typeof githubApiAudit;
   private readonly immutableCache = new Map<string, ImmutableCacheEntry>();
   private readonly inFlight = new Map<string, Promise<unknown>>();
-  private rateLimit?: { error: GithubHttpError; until: number };
+  private readonly credential: GithubApiCredential;
+  private readonly primaryLimit: RateLimitState;
+  private readonly secondaryLimit: RateLimitState;
   readonly attemptLimit: number;
   readonly apiUrl: string;
   readonly retryDelayMs: number;
@@ -221,6 +228,9 @@ export class GithubReader {
   constructor(apiUrl: string, token: string, options: ReaderOptions = {}) {
     this.apiUrl = apiUrl.replace(/\/+$/, "");
     this.audit = options.audit ?? githubApiAudit;
+    this.credential = options.credential ?? "unclassified";
+    this.primaryLimit = options.primaryLimit ?? {};
+    this.secondaryLimit = options.secondaryLimit ?? {};
     this.token = token;
     this.attemptLimit = options.attemptLimit ?? 4;
     this.retryDelayMs = options.retryDelayMs ?? 1000;
@@ -254,8 +264,10 @@ export class GithubReader {
   private async fetchJson(path: string, immutable: boolean): Promise<unknown> {
     let lastError: unknown;
     for (let attempt = 0; attempt < this.attemptLimit; attempt += 1) {
-      if (this.rateLimit && Date.now() < this.rateLimit.until) {
-        throw this.rateLimit.error;
+      for (const limit of [this.secondaryLimit, this.primaryLimit]) {
+        if (limit.cooldown && Date.now() < limit.cooldown.until) {
+          throw limit.cooldown.error;
+        }
       }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -269,7 +281,7 @@ export class GithubReader {
         }
         const cached = immutable ? this.immutableCache.get(path) : undefined;
         if (cached) headers["If-None-Match"] = cached.etag;
-        this.audit.fetchStart(Boolean(cached), path);
+        this.audit.fetchStart(Boolean(cached), path, this.credential);
         let response: Response;
         try {
           response = await fetch(`${this.apiUrl}/${path.replace(/^\/+/, "")}`, {
@@ -280,7 +292,7 @@ export class GithubReader {
           this.audit.fetchTransportError();
           throw error;
         }
-        this.audit.fetchResponse(response.status, response.headers);
+        this.audit.fetchResponse(response.status, response.headers, this.credential);
         if (response.status === 304 && cached) {
           return cached.value;
         }
@@ -340,8 +352,10 @@ export class GithubReader {
                     error.resetAtMs === undefined ? 0 : error.resetAtMs - now
                   );
             const until = now + retryDelay;
-            if (!this.rateLimit || this.rateLimit.until < until) {
-              this.rateLimit = { error, until };
+            const limit =
+              error.kind === "primary-rate-limit" ? this.primaryLimit : this.secondaryLimit;
+            if (!limit.cooldown || limit.cooldown.until < until) {
+              limit.cooldown = { error, until };
             }
           } else if (!isRetryableStatus(error.status)) {
             throw error;
@@ -373,7 +387,7 @@ function nativeRepositoryPath(path: string, repository: string): boolean {
   const endpoint = parts.slice(3).join("/");
   return (
     endpoint === "" ||
-    /^(?:commits|pulls|branches|issues|statuses|contents)(?:\/|$)/.test(endpoint) ||
+    /^(?:commits|pulls|branches|issues|statuses|contents|compare)(?:\/|$)/.test(endpoint) ||
     /^actions\/runs(?:\/|$)/.test(endpoint) ||
     /^(?:check-runs|check-suites)(?:\/|$)/.test(endpoint)
   );
@@ -395,13 +409,18 @@ export function statusAwareReader(
       77
     );
   }
-  const controlReader = new GithubReader(apiUrl, controlToken);
-  const statusReader = new GithubReader(apiUrl, statusToken);
+  const primaryLimit: RateLimitState = {};
+  const secondaryLimit: RateLimitState = {};
+  const appOptions: ReaderOptions = { credential: "app", primaryLimit, secondaryLimit };
+  const controlReader = new GithubReader(apiUrl, controlToken, appOptions);
+  const statusReader = new GithubReader(apiUrl, statusToken, appOptions);
   const statusPath =
     /^repos\/[^/]+\/[^/]+\/(?:statuses\/[^/?]+|commits\/[^/?]+\/status(?:es)?)(?:\?|$)/;
   const readControlPath = controlReader.get.bind(controlReader);
   const nativeReader =
-    native.token && native.repository ? new GithubReader(apiUrl, native.token) : undefined;
+    native.token && native.repository
+      ? new GithubReader(apiUrl, native.token, { credential: "native", secondaryLimit })
+      : undefined;
   let nativeResetAt = 0;
   controlReader.get = async (path) => {
     if (
@@ -416,6 +435,7 @@ export function statusAwareReader(
           throw error;
         }
         nativeResetAt = error.resetAtMs ?? Number.POSITIVE_INFINITY;
+        githubApiAudit.nativeFallback();
         console.log("::notice::Native repository API quota exhausted; using scoped App reads.");
       }
     }

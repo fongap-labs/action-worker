@@ -440,3 +440,40 @@ test("native repository reads preserve credential boundaries and switch only on 
     globalThis.fetch = originalFetch;
   }
 });
+
+test("scoped App reads share primary cooldown and native reads share secondary cooldown", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  try {
+    for (const kind of ["primary", "secondary"]) {
+      calls = 0;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return Response.json(
+          { message: kind === "primary" ? "API rate limit exceeded" : "secondary rate limit" },
+          {
+            status: 403,
+            headers: new Headers(
+              kind === "primary"
+                ? { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "4102444800" }
+                : { "retry-after": "120" }
+            ),
+          }
+        );
+      };
+      const reader = statusAwareReader("https://api.github.test", "control", "status", {
+        repository: "example/control",
+        token: "native",
+      });
+      const path = kind === "primary" ? "repos/example/other/pulls" : "repos/example/control/pulls";
+      await assert.rejects(() => reader.get(path), /API rate limit/);
+      await assert.rejects(
+        () => reader.get("repos/example/other/commits/abc/status"),
+        /API rate limit/
+      );
+      assert.equal(calls, 1);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

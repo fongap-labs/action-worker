@@ -1,6 +1,11 @@
 import type { JsonReader } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
-import { GithubReader, getGithubJsonIfExists, getJsonString, isJsonRecord } from "./github-api.ts";
+import {
+  getGithubJsonIfExists,
+  getJsonString,
+  isJsonRecord,
+  statusAwareReader,
+} from "./github-api.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
@@ -114,8 +119,9 @@ export async function summarizeBranchDrift(
 }
 
 async function main(): Promise<void> {
-  const reader = new GithubReader(
+  const reader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
+    requireToken("control"),
     requireToken("control")
   );
   const repositories = repositoriesForCapability(JSON.parse(readRepositoryPolicyText()), "pr");

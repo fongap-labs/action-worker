@@ -10,11 +10,11 @@ import {
 } from "./cron-schedule.ts";
 import {
   decodeGithubContent,
-  getGithubJson,
+  GithubReader,
   getGithubJsonIfExists,
   githubEnvironment,
-  githubExists,
   isJsonRecord,
+  statusAwareReader,
 } from "./github-api.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { assertExactKeys as exactKeys } from "./lib/manifest-input-validation.ts";
@@ -155,8 +155,8 @@ export function projectsForSchedule(manifest: TaskSourceManifest, cron: string):
   ].sort();
 }
 
-async function defaultHead(repository: string, token: string): Promise<string> {
-  const repositoryValue = await getGithubJson(`repos/${repository}`, token);
+async function defaultHead(repository: string, reader: GithubReader): Promise<string> {
+  const repositoryValue = await reader.get(`repos/${repository}`);
   if (!isJsonRecord(repositoryValue)) {
     throw new CliError(`GitHub repository response is invalid: ${repository}.`, 65);
   }
@@ -165,7 +165,7 @@ async function defaultHead(repository: string, token: string): Promise<string> {
   if (!defaultBranch) {
     throw new CliError(`Repository default branch is unavailable: ${repository}.`, 65);
   }
-  const commitValue = await getGithubJson(`repos/${repository}/commits/${defaultBranch}`, token);
+  const commitValue = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
   if (
     !isJsonRecord(commitValue) ||
     typeof commitValue.sha !== "string" ||
@@ -182,7 +182,8 @@ export async function resolveScheduledTasks(
   lookbackMinutes: number,
   controlRepository: string,
   token: string,
-  onlyRepository = ""
+  onlyRepository = "",
+  reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token)
 ): Promise<ScheduledTask[]> {
   if (!repositoryPattern.test(controlRepository)) {
     throw new CliError("Control repository is invalid.", 64);
@@ -198,12 +199,9 @@ export async function resolveScheduledTasks(
   );
 
   for (const repository of repositories) {
-    const headSha = await defaultHead(repository, token);
+    const headSha = await defaultHead(repository, reader);
     const manifestPath = `repos/${repository}/contents/.github/task-source.json?ref=${headSha}`;
-    const manifestValue = await getGithubJsonIfExists(
-      manifestPath,
-      async (path) => await getGithubJson(path, token)
-    );
+    const manifestValue = await getGithubJsonIfExists(manifestPath, (path) => reader.get(path));
     if (manifestValue === undefined) {
       continue;
     }
@@ -216,7 +214,7 @@ export async function resolveScheduledTasks(
     );
     for (const due of projectsDueAt(manifest, now, lookbackMinutes)) {
       const taskPath = `repos/${repository}/contents/projects/${encodeURIComponent(due.project)}/task.json?ref=${headSha}`;
-      if (!(await githubExists(taskPath, token))) {
+      if ((await getGithubJsonIfExists(taskPath, (path) => reader.get(path))) === undefined) {
         throw new CliError(
           `Scheduled project is missing task.json: ${repository}/projects/${due.project}/task.json.`,
           66
@@ -359,26 +357,25 @@ async function main(): Promise<void> {
 
   const policy = parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65);
   const target = trustedIntakeTarget(policy, process.env.AW_INTAKE_TARGET_REPOSITORY ?? "");
+  const reader = statusAwareReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    controlToken,
+    statusToken
+  );
   const tasks = await resolveScheduledTasks(
     policy,
     now,
     lookbackMinutes,
     controlRepository,
     controlToken,
-    target
+    target,
+    reader
   );
 
   let dispatched = 0;
   let deduplicated = 0;
   for (const task of tasks) {
-    if (
-      await wasDispatched(task, (path) =>
-        getGithubJson(
-          path,
-          /\/commits\/[^/]+\/statuses(?:\?|$)/.test(path) ? statusToken : controlToken
-        )
-      )
-    ) {
+    if (await wasDispatched(task, (path) => reader.get(path))) {
       deduplicated += 1;
       continue;
     }

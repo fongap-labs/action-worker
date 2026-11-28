@@ -144,6 +144,9 @@ test("all intake scan and preflight steps publish opt-in per-process GitHub API 
     "pull-requests": "intake-open-prs.ts",
     "main-ci": "intake-main-ci.ts",
     "main-writes": "audit-main-writes.ts",
+    "dev-writes": "audit-dev-writes.ts",
+    "dev-merge-audit": "audit-dev-writes.ts",
+    "skill-admissions": "skill-proposal-reconcile.ts",
     "task-sources": "intake-task-sources.ts",
     "task-schedules": "dispatch-scheduled-tasks.ts",
     "deploy-schedules": "dispatch-scheduled-deploys.ts",
@@ -157,6 +160,13 @@ test("all intake scan and preflight steps publish opt-in per-process GitHub API 
     const step = workflow.jobs[job]?.steps.find(
       (item) => item.run === "node scripts/check-github-api-budget.ts"
     );
+    assert.equal(step?.env?.AW_GITHUB_API_METRICS, "1", job);
+  }
+  for (const [job, script] of [
+    ["main-writes", "audit-branch-drift.ts"],
+    ["skill-admissions", "skill-proposal-advance.ts"],
+  ] as const) {
+    const step = workflow.jobs[job]?.steps.find((item) => item.run === `node scripts/${script}`);
     assert.equal(step?.env?.AW_GITHUB_API_METRICS, "1", job);
   }
   const raw = await readFile(".github/workflows/intake.yml", "utf8");
@@ -189,8 +199,13 @@ test("fixed endpoint categories cover GitHub REST route families without leaking
 
 test("endpoint counts classify actual HTTP and CLI attempts, but not cache coalescing", () => {
   const audit = new GithubApiRequestAudit();
-  audit.fetchStart(false, "repos/secret-org/private-repo");
-  audit.fetchStart(true, "repos/secret-org/private-repo/commits/a/status");
+  audit.fetchStart(false, "repos/secret-org/private-repo", "native");
+  audit.fetchResponse(
+    200,
+    new Headers({ "x-ratelimit-resource": "core", "x-ratelimit-remaining": "800" }),
+    "native"
+  );
+  audit.fetchStart(true, "repos/secret-org/private-repo/commits/a/status", "app");
   audit.fetchStart(false, "repos/secret-org/private-repo/actions/runs/421");
   audit.coalescedRequest();
   audit.cliStart("repos/secret-org/private-repo/issues/32");
@@ -198,6 +213,9 @@ test("endpoint counts classify actual HTTP and CLI attempts, but not cache coale
   audit.cliStart("unknown-endpoint?token=SHOULD_NOT_APPEAR");
   const snapshot = audit.snapshot();
   assert.equal(snapshot.fetch + snapshot.cli, 5);
+  assert.equal(snapshot.credential_counts.native.fetch, 1);
+  assert.equal(snapshot.credential_counts.native.core_min, 800);
+  assert.equal(snapshot.credential_counts.app.fetch, 1);
   assert.deepEqual(
     {
       repository: snapshot.endpoint_counts.repository,
