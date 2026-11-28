@@ -21,7 +21,7 @@ export type DependencyPolicy = {
 };
 export type DeclarationStatus = "matching" | "different" | "range-review" | "excepted" | "observe";
 
-const keyPattern = /^(?:tool|npm|python|cargo):(?:@[\w.-]+\/)?[\w.-]+$/;
+const keyPattern = /^(?:tool|npm|python|cargo|runtime):(?:@[\w.-]+\/)?[\w.-]+$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const versionPattern = /^\d+\.\d+(?:\.\d+)?$/;
 const declarationPattern = /^(?=.*\d)[\dA-Za-z.*^~<>=!|,+ -]{1,120}$/;
@@ -68,7 +68,8 @@ export function parseDependencyPolicy(value: unknown, organization: string): Dep
       (entry.version !== null &&
         (typeof entry.version !== "string" || !versionPattern.test(entry.version))) ||
       (entry.class !== "toolchain" && entry.class !== "engineering" && entry.version !== null) ||
-      key.startsWith("tool:") !== (entry.class === "toolchain")
+      key.startsWith("tool:") !== (entry.class === "toolchain") ||
+      (key.startsWith("runtime:") && (entry.class !== "project" || entry.version !== null))
     ) {
       invalid();
     }
