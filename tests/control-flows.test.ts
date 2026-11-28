@@ -35,7 +35,7 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
 
   await writeFile(join(root, "README.md"), "# Fixture\n\nMetrics changed.\n", "utf8");
   await git(root, ["add", "README.md"]);
-  await git(root, ["commit", "-qm", "metrics without change record"]);
+  await git(root, ["commit", "-qm", "chore: update metrics", "-m", "仅更新指标。"]);
   const metricsWithoutChangelog = await git(root, ["rev-parse", "HEAD"]);
   const previousValidatedRepository = process.env.AW_VALIDATED_REPOSITORY;
   process.env.AW_VALIDATED_REPOSITORY = "fongap-labs/action-worker";
@@ -63,7 +63,7 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
     "utf8"
   );
   await git(root, ["add", "README.md", "CHANGELOG.md"]);
-  await git(root, ["commit", "-qm", "metrics with standard change record"]);
+  await git(root, ["commit", "-qm", "chore: update metrics", "-m", "同步变更记录。"]);
   const metricsWithChangelog = await git(root, ["rev-parse", "HEAD"]);
   const metricsRecord = await validateChange(
     "chore(metrics): update work metrics",
@@ -80,7 +80,7 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
   await writeFile(join(root, "README.md"), "# Fixture\n\nMore docs.\n", "utf8");
   await writeFile(join(root, "CHANGELOG.md"), initial + "\n- 维护: 更新安装说明。\n", "utf8");
   await git(root, ["add", "README.md", "CHANGELOG.md"]);
-  await git(root, ["commit", "-qm", "docs"]);
+  await git(root, ["commit", "-qm", "chore: clarify setup", "-m", "更新安装说明。"]);
   const docsHead = await git(root, ["rev-parse", "HEAD"]);
   assert.equal(
     (await validateChange("chore: clarify setup", base, docsHead, root, policyDir)).type,
@@ -94,7 +94,7 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
     await rm(join(root, "changelog.d"), { recursive: true, force: true });
     await writeFile(join(root, "CHANGELOG.md"), content, "utf8");
     await git(root, ["add", "."]);
-    await git(root, ["commit", "-qm", message]);
+    await git(root, ["commit", "-qm", `chore: ${message}`, "-m", "构造校验样本。"]);
     return git(root, ["rev-parse", "HEAD"]);
   }
 
@@ -132,7 +132,7 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
   await mkdir(join(root, "changelog.d"), { recursive: true });
   await writeFile(join(root, "changelog.d", "legacy.md"), "- 新增: 旧片段。\n", "utf8");
   await git(root, ["add", "."]);
-  await git(root, ["commit", "-qm", "legacy fragment"]);
+  await git(root, ["commit", "-qm", "chore: add fragment", "-m", "增加旧片段。"]);
   const fragmentHead = await git(root, ["rev-parse", "HEAD"]);
   await assert.rejects(
     validateChange("feat: add feature", base, fragmentHead, root, policyDir),
@@ -177,7 +177,7 @@ test("retiring fragments allows removing obsolete preface but preserves released
   await writeFile(join(root, "CHANGELOG.md"), headText, "utf8");
   await git(root, ["rm", "-q", "changelog.d/fix.md"]);
   await git(root, ["add", "."]);
-  await git(root, ["commit", "-qm", "retire fragments"]);
+  await git(root, ["commit", "-qm", "fix: retire fragments", "-m", "迁移旧片段。"]);
   const head = await git(root, ["rev-parse", "HEAD"]);
   const validated = await validateChange(
     "fix: repair changelog migration",
@@ -190,7 +190,7 @@ test("retiring fragments allows removing obsolete preface but preserves released
 
   await writeFile(join(root, "CHANGELOG.md"), headText.replace("旧版修复。", "改写旧版修复。"));
   await git(root, ["add", "."]);
-  await git(root, ["commit", "-qm", "tamper with history"]);
+  await git(root, ["commit", "-qm", "fix: edit history", "-m", "改写历史记录。"]);
   const changed = await git(root, ["rev-parse", "HEAD"]);
   await assert.rejects(
     validateChange("fix: repair changelog migration", base, changed, root, policyDir),
