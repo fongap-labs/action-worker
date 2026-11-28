@@ -6,7 +6,48 @@ import {
   assertBranchReleaseVersion,
   assertMainPublicationBranch,
   branchReleaseArtifactName,
+  resolveOrdinaryDevelopmentBranch,
 } from "../scripts/branch-publication-policy.ts";
+import { GithubHttpError } from "../scripts/github-api.ts";
+
+test("ordinary development selects the live dev branch and never falls back on errors", async () => {
+  const repository = "fongap-labs/example";
+  const policy = { dev_merge_mode: "automatic", dev_disabled_repositories: [] };
+  const snapshot = (name: string) => ({
+    name,
+    commit: { sha: "a".repeat(40), commit: { tree: { sha: "b".repeat(40) } } },
+  });
+  const reader = (dev: unknown) => async (path: string) => {
+    if (path.endsWith("/main")) return snapshot("main");
+    assert.equal(path, "repos/" + repository + "/branches/dev");
+    if (dev instanceof Error) throw dev;
+    return dev;
+  };
+  assert.equal(
+    (await resolveOrdinaryDevelopmentBranch(reader(snapshot("dev")), repository, policy)).branch,
+    "dev"
+  );
+  assert.equal(
+    (await resolveOrdinaryDevelopmentBranch(reader(new GithubHttpError(404)), repository, policy))
+      .branch,
+    "main"
+  );
+  for (const value of [
+    new GithubHttpError(403),
+    new GithubHttpError(429),
+    snapshot("wrong"),
+    null,
+  ]) {
+    await assert.rejects(resolveOrdinaryDevelopmentBranch(reader(value), repository, policy));
+  }
+  await assert.rejects(
+    resolveOrdinaryDevelopmentBranch(reader(snapshot("dev")), repository, {
+      ...policy,
+      dev_disabled_repositories: [repository],
+    }),
+    /Existing dev is disabled/
+  );
+});
 
 test("release version and prerelease identity must match the managed branch", () => {
   assert.doesNotThrow(() => assertBranchReleaseVersion("main", "v1.2.3", false));

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { inspectManifest } from "./audit-dependency-inventory.ts";
-import { isDevEnabled, readBranchPolicy } from "./branch-publication-policy.ts";
+import { readBranchPolicy, resolveOrdinaryDevelopmentBranch } from "./branch-publication-policy.ts";
 import { assertManualBranchAuthorization } from "./branch-transfer-approval.ts";
 import { inspectNpmLock } from "./dependency-lock-integrity.ts";
 import {
@@ -273,16 +273,18 @@ async function readHead(
   isPrivate = false
 ): Promise<{ sha: string; tree: string }> {
   await assertScope(reader, repository, isPrivate);
-  const ref = await reader.get("repos/" + repository + "/branches/" + branch);
-  if (!isJsonRecord(ref) || ref.name !== branch || !isJsonRecord(ref.commit)) {
-    throw new CliError("Main snapshot is unavailable.", 75);
+  const target = await resolveOrdinaryDevelopmentBranch(
+    (path) => reader.get(path),
+    repository,
+    readBranchPolicy()
+  );
+  if (target.branch !== branch) {
+    throw new CliError(
+      "Proposal target changed; ordinary changes must use the selected branch.",
+      77
+    );
   }
-  const sha = getJsonString(ref.commit, "sha");
-  const tree = isJsonRecord(ref.commit.commit) ? getJsonString(ref.commit.commit.tree, "sha") : "";
-  if (!shaPattern.test(sha) || !shaPattern.test(tree)) {
-    throw new CliError("Main snapshot has invalid Git object identifiers.", 75);
-  }
-  return { sha, tree };
+  return { sha: target.sha, tree: target.tree };
 }
 
 async function readSnapshot(
@@ -823,17 +825,12 @@ async function getScopes(
       !policy[repo.full_name]?.includes("pr")
     )
       continue;
-    for (const branch of ["main", "dev"] as const) {
-      if (branch === "dev" && !isDevEnabled(branchPolicy, repo.full_name)) continue;
-      const value = await getGithubJsonIfExists(
-        "repos/" + repo.full_name + "/branches/" + branch,
-        (path) => reader.get(path)
-      );
-      if (value === undefined && branch === "dev") continue;
-      if (!isJsonRecord(value) || value.name !== branch)
-        throw new CliError("Branch discovery is incomplete.", 75);
-      result.push({ repository: repo.full_name, branch, isPrivate });
-    }
+    const { branch } = await resolveOrdinaryDevelopmentBranch(
+      (path) => reader.get(path),
+      repo.full_name,
+      branchPolicy
+    );
+    result.push({ repository: repo.full_name, branch, isPrivate });
   }
   return result;
 }
