@@ -22,7 +22,7 @@ import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-st
 import { findActiveIncidents } from "./main-write-incidents.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { evaluatePrTrust } from "./pr-trust.ts";
-import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
+import { hasAdmittedPrivateDevCi } from "./private-ci-evidence.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { isReservedMergeSourceRef } from "./resolve-pr-facts.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
@@ -481,10 +481,12 @@ export async function scanOpenPullRequests(
       ) {
         if (
           baseRepo.private === true &&
-          !(await hasApprovedPrivateCiCaller(
+          !(await hasAdmittedPrivateDevCi(
             reader,
             repository,
-            getJsonString(pull.pull.base, "sha")
+            pull.number,
+            getJsonString(pull.pull.base, "sha"),
+            pull.headSha
           ))
         ) {
           result.blocked_unauthorized += 1;

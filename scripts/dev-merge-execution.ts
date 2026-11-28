@@ -13,7 +13,7 @@ import {
   statusAwareReader,
 } from "./github-api.ts";
 import { squashManagedPull } from "./managed-pr-squash.ts";
-import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
+import { hasAdmittedPrivateDevCi } from "./private-ci-evidence.ts";
 import { takeProtectionReadToken, withProtectionReads } from "./protection-read-scope.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
@@ -157,7 +157,7 @@ export async function authorizeDevMerge(
   ) {
     throw new CliError("Dev merge requires a managed repository with known visibility.", 75);
   }
-  if (source.private && !(await hasApprovedPrivateCiCaller(reader, repository, baseSha))) {
+  if (source.private && !(await hasAdmittedPrivateDevCi(reader, repository, prNumber, baseSha, headSha))) {
     throw new CliError("Private dev merge requires an approved source-owned CI caller.", 75);
   }
   await requireLiveProtection(reader, repository, controlRepository, source.private);
