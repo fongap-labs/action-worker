@@ -125,7 +125,7 @@ jobs:
 
       - name: Gate explicit stateless public isolation pilot
         id: isolation
-        if: vars.AW_TASK_ISOLATION_PILOT_ENABLED == 'true' && vars.AW_TASK_ISOLATION_PILOT_GROUP == steps.payload.outputs.task_group
+        if: steps.payload.outputs.target_branch == 'dev' || (vars.AW_TASK_ISOLATION_PILOT_ENABLED == 'true' && vars.AW_TASK_ISOLATION_PILOT_GROUP == steps.payload.outputs.task_group)
         env:
           AW_CONTROL_TOKEN: ${{ steps.task_read_app.outputs.token }}
           TASK_SOURCE_REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -140,7 +140,7 @@ jobs:
 
       - name: Gate independent private isolation pilot
         id: private_isolation
-        if: vars.AW_PRIVATE_ISOLATION_PILOT_ENABLED == 'true' && vars.AW_PRIVATE_ISOLATION_PILOT_GROUP == steps.payload.outputs.task_group
+        if: steps.payload.outputs.target_branch == 'main' && vars.AW_PRIVATE_ISOLATION_PILOT_ENABLED == 'true' && vars.AW_PRIVATE_ISOLATION_PILOT_GROUP == steps.payload.outputs.task_group
         env:
           AW_PRIVATE_ISOLATION_LOCK_ATTESTED: ${{ vars.AW_PRIVATE_ISOLATION_LOCK_ATTESTED }}
           AW_CONTROL_TOKEN: ${{ steps.task_read_app.outputs.token }}
@@ -218,7 +218,7 @@ jobs:
 
   execute:
     name: Execute task
-    if: "!cancelled() && needs.validate.result == 'success' && (needs.task_ops_vars.result == 'success' || needs.task_ops_vars.result == 'skipped') && needs.validate.outputs.isolation_mode != 'true' && needs.validate.outputs.private_isolation_mode != 'true'"
+    if: "!cancelled() && needs.validate.result == 'success' && (github.event.client_payload.target_branch || 'main') == 'main' && (needs.task_ops_vars.result == 'success' || needs.task_ops_vars.result == 'skipped') && needs.validate.outputs.isolation_mode != 'true' && needs.validate.outputs.private_isolation_mode != 'true'"
     needs: [validate, task_ops_vars]
     outputs:
       publication_staged: ${{ steps.publication.outputs.staged }}

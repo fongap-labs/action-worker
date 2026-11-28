@@ -121,6 +121,7 @@ test("task source gate accepts the default HEAD with verified evidence and a tru
   const check = await validateTaskSource(reader, repository, headSha, fast);
   assert.equal(check.default_branch, "main");
   assert.equal(check.target_branch, "main");
+  if (check.target_branch !== "main") assert.fail("Expected main proof");
   assert.equal(check.main_write.pr_number, 7);
   await validateTaskSource(reader, repository, headSha.toUpperCase(), fast);
 });
@@ -142,6 +143,37 @@ test("coding tasks cannot execute a main snapshot when dev exists", async () => 
     `repos/${repository}/branches/main`,
     `repos/${repository}/branches/dev`,
   ]);
+});
+
+test("dev coding task requires its own trusted write proof and public source", async () => {
+  const { paths, reader } = world();
+  paths.set(`repos/${repository}`, { default_branch: "main", private: false });
+  for (const name of ["main", "dev"]) {
+    paths.set(`repos/${repository}/branches/${name}`, {
+      name,
+      commit: { sha: headSha, commit: { tree: { sha: headSha } } },
+    });
+  }
+  paths.set(`repos/${repository}/commits/dev`, { sha: headSha });
+  paths.set(`repos/${repository}/issues?state=open&per_page=100&page=1`, []);
+  paths.set(`repos/${repository}/commits/${headSha}/status`, {
+    statuses: [{
+      context: "Dev Write Guard",
+      state: "success",
+      description: `init-v1=${headSha}`,
+      target_url: `${controlRuns}3`,
+      created_at: "2026-10-02T13:11:10Z",
+    }],
+  });
+  paths.set("repos/fongap-labs/action-worker/actions/runs/3", run(".github/workflows/intake.yml", "success", 3));
+  assert.deepEqual(await validateTaskSource(reader, repository, headSha, fast, "dev", true), {
+    default_branch: "main",
+    target_branch: "dev",
+  });
+  paths.set(`repos/${repository}/commits/${headSha}/status`, { statuses: [] });
+  assert.equal(await exitCodeOf(validateTaskSource(reader, repository, headSha, fast, "dev", true)), 75);
+  paths.set(`repos/${repository}`, { default_branch: "main", private: true });
+  assert.equal(await exitCodeOf(validateTaskSource(reader, repository, headSha, fast, "dev", true)), 77);
 });
 
 test("unadmitted task branches fail before source or evidence lookup", async () => {

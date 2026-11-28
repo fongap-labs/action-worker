@@ -6,6 +6,7 @@ import { CliError, handleError, isMain } from "./runtime-command.ts";
 import {
   legacyTaskStateArtifactName,
   taskStateArtifactName,
+  taskStateBranch,
   writeTaskStateManifest,
 } from "./task-state.ts";
 import { packTaskTransferFiles, unpackTaskTransferFiles } from "./task-transfer-files.ts";
@@ -112,15 +113,16 @@ export async function prepareIsolatedPublicState(
   reader: Reader,
   repository: string,
   project: string,
-  sha: string
+  sha: string,
+  targetBranch = "main"
 ): Promise<Buffer> {
   identity(repository, project, sha);
   // Refuse any prior artifact, including failed, expired or unverified runs.
   // Never interpret a truncated success-only history as an empty state.
-  for (const name of [
-    taskStateArtifactName(repository, project),
-    legacyTaskStateArtifactName(repository, project),
-  ]) {
+  const branch = taskStateBranch(targetBranch);
+  const names = [taskStateArtifactName(repository, project, branch)];
+  if (branch === "main") names.push(legacyTaskStateArtifactName(repository, project));
+  for (const name of names) {
     const listing = await reader.get(
       `repos/${controlRepository}/actions/artifacts?name=${encodeURIComponent(name)}&per_page=1`
     );
@@ -135,7 +137,7 @@ export async function prepareIsolatedPublicState(
   }
   const root = await mkdtemp(join(tmpdir(), "aw-isolated-public-"));
   try {
-    await writeTaskStateManifest(root, repository, project, sha);
+    await writeTaskStateManifest(root, repository, project, sha, branch);
     return await packTaskTransferFiles(root);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -147,9 +149,11 @@ export async function finalizeIsolatedPublicState(
   output: string,
   repository: string,
   project: string,
-  sha: string
+  sha: string,
+  targetBranch = "main"
 ): Promise<void> {
   identity(repository, project, sha);
+  const branch = taskStateBranch(targetBranch);
   // Validate the complete untrusted payload before any trusted output is created.
   await unpackTaskTransferFiles(packed, output);
   let manifest: unknown;
@@ -160,7 +164,11 @@ export async function finalizeIsolatedPublicState(
   }
   if (
     !isJsonRecord(manifest) ||
-    Object.keys(manifest).sort().join(",") !== "bootstrap_ref,project,repository" ||
+    Object.keys(manifest).sort().join(",") !==
+      (branch === "dev"
+        ? "bootstrap_ref,project,repository,target_branch"
+        : "bootstrap_ref,project,repository") ||
+    (branch === "dev" && manifest.target_branch !== branch) ||
     manifest.repository !== repository ||
     manifest.project !== project ||
     manifest.bootstrap_ref !== sha
@@ -171,7 +179,7 @@ export async function finalizeIsolatedPublicState(
 
 async function main(): Promise<void> {
   const [command = "", arg = "", destination = ""] = process.argv.slice(2);
-  if ((process.env.AW_TASK_TARGET_BRANCH ?? "main") !== "main") fail();
+  const branch = taskStateBranch(process.env.AW_TASK_TARGET_BRANCH ?? "main");
   const repository = process.env.TASK_SOURCE_REPOSITORY ?? "";
   const project = process.env.PROJECT ?? "";
   const sha = (process.env.BOOTSTRAP_REF ?? "").toLowerCase();
@@ -188,13 +196,12 @@ async function main(): Promise<void> {
         process.env.OPERATION ?? ""
       );
     } else if (command === "prepare" && arg && token) {
-      const result = await prepareIsolatedPublicState(reader, repository, project, sha);
+      const result = await prepareIsolatedPublicState(reader, repository, project, sha, branch);
       await writeFile(arg, result, { flag: "wx", mode: 0o600 });
     } else if (command === "open-input" && arg && destination) {
-      identity(repository, project, sha);
-      await unpackTaskTransferFiles(await readFile(arg), destination);
+      await finalizeIsolatedPublicState(await readFile(arg), destination, repository, project, sha, branch);
     } else if (command === "finalize" && arg && destination) {
-      await finalizeIsolatedPublicState(await readFile(arg), destination, repository, project, sha);
+      await finalizeIsolatedPublicState(await readFile(arg), destination, repository, project, sha, branch);
     } else {
       throw new CliError("Isolated public task command is invalid.", 64);
     }
