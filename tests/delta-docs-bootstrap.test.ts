@@ -126,10 +126,24 @@ test("docs-only Delta bootstrap permits an unchanged pinned approved bridge but 
 
 test("private docs bootstrap verifies both trees and never accepts source or bridge changes", () => {
   const trusted = "b".repeat(40);
-  const bridge = { mode: "100644", type: "blob", sha: trusted, path: ".github/workflows/notify-action-worker.yml" };
-  const base = [...entries.filter((entry) => ["README.md", "CHANGELOG.md"].includes(entry.path)), bridge];
+  const bridge = {
+    mode: "100644",
+    type: "blob",
+    sha: trusted,
+    path: ".github/workflows/notify-action-worker.yml",
+  };
+  const base = [
+    ...entries.filter((entry) => ["README.md", "CHANGELOG.md"].includes(entry.path)),
+    bridge,
+  ];
   const head = [...entries, bridge];
-  const changes = ["A\tAGENTS.md", "A\tCLAUDE.md", "A\tLICENSE", "M\tREADME.md", "M\tCHANGELOG.md"];
+  const changes = [
+    "A\tAGENTS.md",
+    "A\tCLAUDE.md",
+    "A\tLICENSE",
+    "M\tREADME.md",
+    "M\tCHANGELOG.md",
+  ];
   assert.doesNotThrow(() => verifyPrivateDocsTrees(base, head, changes, trusted, false));
   assert.doesNotThrow(() => verifyPrivateDocsTrees(head, head, [], trusted, true));
   for (const path of ["src/index.ts", ".github/execution-manifest.json"]) {
@@ -139,6 +153,8 @@ test("private docs bootstrap verifies both trees and never accepts source or bri
   }
   assert.throws(() => verifyPrivateDocsTrees(base, head, [], trusted, false));
   assert.throws(() => verifyPrivateDocsTrees(base, head, ["M\tLICENSE"], trusted, false));
-  assert.throws(() => verifyPrivateDocsTrees(base, head, ["M\t.github/workflows/notify-action-worker.yml"], trusted, false));
+  assert.throws(() =>
+    verifyPrivateDocsTrees(base, head, ["M\t.github/workflows/notify-action-worker.yml"], trusted, false)
+  );
   assert.throws(() => verifyPrivateDocsTrees(base, head, changes, "c".repeat(40), false));
 });

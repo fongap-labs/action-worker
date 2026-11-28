@@ -273,8 +273,15 @@ export function verifyPrivateDocsBootstrap(
   const readTree = (sha: string): GitEntry[] =>
     parseDocsTree(git(targetRoot, ["ls-tree", "-rz", "--full-tree", sha]).toString("utf8"));
   const diff = git(targetRoot, [
-    "diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--name-status", "-z",
-    base, head, "--",
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-renames",
+    "--name-status",
+    "-z",
+    base,
+    head,
+    "--",
   ]).toString("utf8");
   if (diff && !diff.endsWith("\0")) {
     throw new CliError("Private docs Git diff is incomplete.", 65);
@@ -284,7 +291,10 @@ export function verifyPrivateDocsBootstrap(
   const changes: string[] = [];
   for (let i = 0; i < items.length; i += 2) changes.push(`${items[i]}\t${items[i + 1]}`);
   const template = readFileSync(
-    join(resolve(dirname(fileURLToPath(import.meta.url)), ".."), "templates/bridge/notify-action-worker.yml")
+    join(
+      resolve(dirname(fileURLToPath(import.meta.url)), ".."),
+      "templates/bridge/notify-action-worker.yml"
+    )
   );
   const bridgeSha = createHash("sha1")
     .update(`blob ${template.length}\0`)
