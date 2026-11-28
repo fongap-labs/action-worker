@@ -8,7 +8,9 @@ import {
   devMergePolicyEnabled,
   executeDevMerge,
   protectedMergeRuleset,
+  requireLiveProtection,
 } from "../scripts/dev-merge-execution.ts";
+import { GithubHttpError } from "../scripts/github-api.ts";
 
 const policy: Record<string, unknown> = JSON.parse(readFileSync("policies/rulesets.json", "utf8"));
 const closedPolicy = { ...policy, dev_merge_mode: "closed" };
@@ -42,6 +44,28 @@ test("closed versioned dev protection withholds all merge writes and even live r
     ),
     /disabled by central policy/
   );
+});
+
+test("only a confirmed private platform plan restriction permits compensating merge admission", async () => {
+  const reader = (error: GithubHttpError) => ({
+    async get(): Promise<unknown> {
+      throw error;
+    },
+  });
+  const restriction = reader(new GithubHttpError(403, undefined, { kind: "plan-restriction" }));
+  await requireLiveProtection(restriction, identity.repository, identity.controlRepository, true);
+  await assert.rejects(
+    requireLiveProtection(restriction, identity.repository, identity.controlRepository)
+  );
+  for (const error of [
+    new GithubHttpError(403, undefined, { kind: "permission" }),
+    new GithubHttpError(429),
+    new GithubHttpError(404),
+  ]) {
+    await assert.rejects(
+      requireLiveProtection(reader(error), identity.repository, identity.controlRepository, true)
+    );
+  }
 });
 
 test("development protection requires strict independent status and no bypass", () => {

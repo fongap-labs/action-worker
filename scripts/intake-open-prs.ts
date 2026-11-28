@@ -20,6 +20,7 @@ import { gateContextsForBranch, loadGateContract } from "./governance-gate-contr
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { findActiveIncidents } from "./main-write-incidents.ts";
+import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { evaluatePrTrust } from "./pr-trust.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
@@ -362,7 +363,8 @@ export async function shouldResumeDevMerge(
   rulesetPolicy: unknown,
   scope: PrCiScope,
   controlRepository: string,
-  governance: Pick<StatusFact, "run_id" | "updated_at">
+  governance: Pick<StatusFact, "run_id" | "updated_at">,
+  isPrivate = false
 ): Promise<boolean> {
   if (
     scope.targetBranch !== "dev" ||
@@ -405,6 +407,7 @@ export async function shouldResumeDevMerge(
   }
   // Wait for repository settings to apply the enrolled policy. The merge executor
   // still performs its own privileged live protection and signed admission checks.
+  if (isPrivate) return true; // The merge executor verifies the exact live platform restriction.
   const rules = await reader.get(`${prefix}/rules/branches/dev`);
   if (!Array.isArray(rules)) return false;
   const live = rules.filter(isJsonRecord);
@@ -471,11 +474,18 @@ export async function scanOpenPullRequests(
         headRef !== "" &&
         !isReservedMergeSourceRef(headRef) &&
         isJsonRecord(baseRepo) &&
-        baseRepo.private === false &&
+        typeof baseRepo.private === "boolean" &&
         baseRepo.full_name === repository &&
         getJsonString(headRepo, "full_name") === repository &&
         evaluatePrTrust(pull.pull, [], pull.headSha).trusted
       ) {
+        if (
+          baseRepo.private === true &&
+          !(await hasApprovedPrivateCiCaller(reader, repository, getJsonString(pull.pull.base, "sha")))
+        ) {
+          result.blocked_unauthorized += 1;
+          continue;
+        }
         const statuses = statusMap(
           await reader.get(`repos/${repository}/commits/${pull.headSha}/status`),
           controlRepository,
@@ -524,7 +534,8 @@ export async function scanOpenPullRequests(
                 rulesetPolicy,
                 scope,
                 controlRepository,
-                governance
+                governance,
+                baseRepo.private === true
               ))
             ) {
               action = "dispatch";

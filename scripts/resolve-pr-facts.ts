@@ -4,6 +4,7 @@ import {
   readBranchPolicy,
 } from "./branch-publication-policy.ts";
 import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
+import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
 import { appendLines, CliError, handleError, isMain, runText } from "./runtime-command.ts";
 
 type PullFacts = {
@@ -84,7 +85,7 @@ export function legacyDevIntakeWake(pull: unknown, repository: string): boolean 
   const head = isJsonRecord(pull.head) ? pull.head : {};
   return (
     isJsonRecord(base.repo) &&
-    base.repo.private === false &&
+    typeof base.repo.private === "boolean" &&
     base.repo.full_name === repository &&
     getJsonString(head.repo, "full_name") === repository &&
     /^[a-f0-9]{40}$/.test(getJsonString(head, "sha"))
@@ -140,12 +141,20 @@ export async function fetchPullFacts(
   if (
     targetBranch === "dev" &&
     (!isJsonRecord(base.repo) ||
-      base.repo.private !== false ||
+      typeof base.repo.private !== "boolean" ||
       getJsonString(head.repo, "full_name") !== repository)
   ) {
-    throw new CliError("Dev PR governance requires a public same-repository PR.", 75);
+    throw new CliError("Dev PR governance requires a same-repository PR with known visibility.", 75);
   }
   const baseSha = resolvePullDiffBaseSha(base, repository);
+  if (
+    targetBranch === "dev" &&
+    isJsonRecord(base.repo) &&
+    base.repo.private === true &&
+    !(await hasApprovedPrivateCiCaller({ get: (path) => getGithubJson(path, token) }, repository, baseSha))
+  ) {
+    throw new CliError("Private dev PR requires an approved source-owned CI caller on its base.", 77);
+  }
   if (pull.state === "open") {
     await assertOrdinaryDevelopmentTarget(
       (path) => getGithubJson(path, token),

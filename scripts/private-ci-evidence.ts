@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
   decodeGithubContent,
+  getGithubJsonIfExists,
   getJsonArray,
   getJsonNumber,
   getJsonString,
@@ -150,31 +151,41 @@ export function verifyPrivateCiEvidence(
   return { runId, runAttempt };
 }
 
+export async function hasApprovedPrivateCiCaller(
+  reader: { get(path: string): Promise<unknown> },
+  repository: string,
+  baseSha: string
+): Promise<boolean> {
+  if (!repositoryPattern.test(repository) || !shaPattern.test(baseSha)) return false;
+  // A run title is trusted only when its caller is the audited workflow on the exact PR base.
+  const [caller, policyText] = await Promise.all([
+    getGithubJsonIfExists(`repos/${repository}/contents/${workflowPath}?ref=${baseSha}`, (path) => reader.get(path)),
+    readFile("policies/security.json", "utf8"),
+  ]);
+  const policy: unknown = JSON.parse(policyText);
+  if (!isJsonRecord(caller) || !isJsonRecord(policy)) return false;
+  if (getJsonString(caller, "path") !== workflowPath || getJsonString(caller, "type") !== "file") {
+    return false;
+  }
+  const matches = getJsonArray(policy, "approved_workflows").filter(
+    (item) => isJsonRecord(item) && getJsonString(item, "path") === workflowPath
+  );
+  if (matches.length !== 1) return false;
+  const trustedHash = getJsonString(matches[0], "sha256");
+  if (!/^[0-9a-f]{64}$/.test(trustedHash)) return false;
+  const content = decodeGithubContent(caller);
+  const actualHash = createHash("sha256").update(content.replace(/\r\n/g, "\n")).digest("hex");
+  return actualHash === trustedHash;
+
+}
+
 export async function fetchAndVerifyPrivateCiEvidence(
   reader: { get(path: string): Promise<unknown> },
   identity: PrivateCiIdentity
 ): Promise<VerifiedPrivateCi> {
   assertIdentity(identity);
   const repo = identity.repository;
-  // A run title is trusted only when its caller is the audited workflow on the exact PR base.
-  const [caller, policyText] = await Promise.all([
-    reader.get(`repos/${repo}/contents/${workflowPath}?ref=${identity.baseSha}`),
-    readFile("policies/security.json", "utf8"),
-  ]);
-  const policy: unknown = JSON.parse(policyText);
-  if (!isJsonRecord(caller) || !isJsonRecord(policy)) fail();
-  if (getJsonString(caller, "path") !== workflowPath || getJsonString(caller, "type") !== "file") {
-    fail();
-  }
-  const matches = getJsonArray(policy, "approved_workflows").filter(
-    (item) => isJsonRecord(item) && getJsonString(item, "path") === workflowPath
-  );
-  if (matches.length !== 1) fail();
-  const trustedHash = getJsonString(matches[0], "sha256");
-  if (!/^[0-9a-f]{64}$/.test(trustedHash)) fail();
-  const content = decodeGithubContent(caller);
-  const actualHash = createHash("sha256").update(content.replace(/\r\n/g, "\n")).digest("hex");
-  if (actualHash !== trustedHash) fail();
+  if (!(await hasApprovedPrivateCiCaller(reader, repo, identity.baseSha))) fail();
 
   const runs = await reader.get(
     `repos/${repo}/actions/workflows/private-source-ci.yml/runs?event=pull_request_target&head_sha=${identity.headSha}&per_page=100`

@@ -72,7 +72,7 @@ test("dev CI direction is explicit and cannot authorize branch transfers", () =>
   }
 });
 
-test("legacy bridge notifications can only wake intake for open public same-repository dev PRs", () => {
+test("legacy bridge notifications can only wake intake for open same-repository dev PRs", () => {
   const pull = {
     state: "open",
     base: { ref: "dev", repo: { private: false, full_name: repository } },
@@ -89,7 +89,7 @@ test("legacy bridge notifications can only wake intake for open public same-repo
       { ...pull, base: { ...pull.base, repo: { ...pull.base.repo, private: true } } },
       repository
     ),
-    false
+    true
   );
   for (const ref of ["main", "dev", ""]) {
     assert.equal(legacyDevIntakeWake({ ...pull, head: { ...pull.head, ref } }, repository), false);

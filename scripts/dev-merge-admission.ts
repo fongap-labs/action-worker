@@ -40,7 +40,7 @@ function assertDevPull(pull: unknown, scope: PrCiScope, isMerged: boolean): void
     !isJsonRecord(pull.head) ||
     !isJsonRecord(pull.base) ||
     !isJsonRecord(pull.base.repo) ||
-    pull.base.repo.private !== false ||
+    typeof pull.base.repo.private !== "boolean" ||
     getJsonString(pull.base.repo, "full_name") !== scope.repository ||
     getJsonString(pull.head.repo, "full_name") !== scope.repository ||
     getJsonString(pull.head, "sha") !== scope.headSha ||

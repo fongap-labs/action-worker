@@ -6,6 +6,7 @@ import {
 } from "./ci-scope-receipt.ts";
 import { requireToken } from "./control-token.ts";
 import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { hasApprovedPrivateCiCaller } from "./private-ci-evidence.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
@@ -27,10 +28,13 @@ export async function verifyDevGovernance(
     !isJsonRecord(pull) ||
     !isJsonRecord(pull.base) ||
     !isJsonRecord(pull.base.repo) ||
-    pull.base.repo.private !== false ||
+    typeof pull.base.repo.private !== "boolean" ||
     prTitleFingerprint(getJsonString(pull, "title").replace(/[\r\n]/g, " ")) !== titleFingerprint
   ) {
     throw new CliError("Dev governance repository or title changed.", 75);
+  }
+  if (pull.base.repo.private === true && !(await hasApprovedPrivateCiCaller(reader, repository, baseSha))) {
+    throw new CliError("Private dev governance requires an approved source-owned CI caller.", 75);
   }
   const status = await reader.get(`repos/${repository}/commits/${headSha}/status`);
   if (
