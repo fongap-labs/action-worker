@@ -346,11 +346,33 @@ export class GithubReader {
   }
 }
 
-/** Reads commit statuses with the dedicated App API token and all other facts with control access. */
+type NativeRepositoryRead = { repository: string; token: string };
+
+function nativeRepositoryPath(path: string, repository: string): boolean {
+  const parts = path.split("?")[0].split("/");
+  if (
+    parts.some((part) => !/^[A-Za-z0-9_.-]+$/.test(part) || part === "." || part === "..") ||
+    parts.slice(0, 3).join("/") !== `repos/${repository}`
+  ) {
+    return false;
+  }
+  const endpoint = parts.slice(3).join("/");
+  return (
+    endpoint === "" ||
+    /^(?:commits|pulls|branches|issues|statuses|contents)(?:\/|$)/.test(endpoint) ||
+    /^actions\/runs(?:\/|$)/.test(endpoint)
+  );
+}
+
+/** Explicit local read delegation; status publication and cross-repository credentials are unchanged. */
 export function statusAwareReader(
   apiUrl: string,
   controlToken: string,
-  statusToken: string
+  statusToken: string,
+  native: NativeRepositoryRead = {
+    repository: process.env.GITHUB_REPOSITORY ?? "",
+    token: process.env.AW_NATIVE_TOKEN ?? "",
+  }
 ): GithubReader {
   if (!controlToken || !statusToken) {
     throw new CliError(
@@ -363,7 +385,26 @@ export function statusAwareReader(
   const statusPath =
     /^repos\/[^/]+\/[^/]+\/(?:statuses\/[^/?]+|commits\/[^/?]+\/status(?:es)?)(?:\?|$)/;
   const readControlPath = controlReader.get.bind(controlReader);
-  controlReader.get = (path) =>
-    statusPath.test(path) ? statusReader.get(path) : readControlPath(path);
+  const nativeReader =
+    native.token && native.repository ? new GithubReader(apiUrl, native.token) : undefined;
+  let nativeResetAt = 0;
+  controlReader.get = async (path) => {
+    if (
+      nativeReader &&
+      Date.now() >= nativeResetAt &&
+      nativeRepositoryPath(path, native.repository)
+    ) {
+      try {
+        return await nativeReader.get(path);
+      } catch (error) {
+        if (!(error instanceof GithubHttpError) || error.kind !== "primary-rate-limit") {
+          throw error;
+        }
+        nativeResetAt = error.resetAtMs ?? Number.POSITIVE_INFINITY;
+        console.log("::notice::Native repository API quota exhausted; using scoped App reads.");
+      }
+    }
+    return statusPath.test(path) ? statusReader.get(path) : readControlPath(path);
+  };
   return controlReader;
 }

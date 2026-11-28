@@ -53,6 +53,7 @@ jobs:
       - name: Validate main write provenance
         env:
           MAIN_WRITE_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_NATIVE_TOKEN: ${{ github.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           MAIN_WRITE_REQUIRE_POLICY: "false"

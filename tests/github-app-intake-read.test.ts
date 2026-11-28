@@ -82,3 +82,25 @@ test("intake App read scopes never use the old duplicate-prone string concatenat
   const script = await readFile("scripts/repository-policy.ts", "utf8");
   assert.match(script, /read_repositories_csv=/);
 });
+
+test("native read delegation is restricted to trusted intake and local guard steps", async () => {
+  const source = await readFile(".github/workflows/intake.yml", "utf8");
+  const workflow = parse(source) as {
+    jobs: Record<string, { permissions: Record<string, string>; steps: Step[] }>;
+  };
+  const jobs = Object.entries(workflow.jobs).filter(([, job]) =>
+    job.steps.some((step) => step.env?.AW_NATIVE_TOKEN)
+  );
+  assert.deepEqual(
+    jobs.map(([name]) => name).sort(),
+    ["dev-merge-audit", "main-ci", "main-writes", "pull-requests"]
+  );
+  for (const [, job] of jobs) {
+    assert.ok(Object.values(job.permissions).every((permission) => permission === "read"));
+    const step = job.steps.find((item) => item.env?.AW_NATIVE_TOKEN);
+    assert.equal(step?.env?.AW_NATIVE_TOKEN, "${{ github.token }}");
+  }
+  const guard = await readFile(".github/workflows/main-write-guard.yml", "utf8");
+  assert.match(guard, /AW_NATIVE_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.match(guard, /AW_STATUS_API_TOKEN: \$\{\{ steps\.status_app\.outputs\.token \}\}/);
+});

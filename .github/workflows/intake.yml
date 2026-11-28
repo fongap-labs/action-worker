@@ -33,6 +33,11 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+      statuses: read
+      issues: read
 
     steps:
       - name: Checkout control plane
@@ -98,6 +103,7 @@ jobs:
         if: steps.pr_scope.outputs.scan != 'false'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_NATIVE_TOKEN: ${{ github.token }}
           AW_GITHUB_API_METRICS: "1"
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -113,6 +119,11 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+      statuses: read
+      issues: read
 
     steps:
       - name: Checkout control plane
@@ -178,6 +189,7 @@ jobs:
         if: steps.pr_scope.outputs.scan != 'false'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_NATIVE_TOKEN: ${{ github.token }}
           AW_GITHUB_API_METRICS: "1"
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -193,6 +205,11 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+      statuses: read
+      issues: read
 
     steps:
       - name: Checkout control plane
@@ -253,6 +270,7 @@ jobs:
       - name: Audit managed main branches
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_NATIVE_TOKEN: ${{ github.token }}
           AW_GITHUB_API_METRICS: "1"
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -358,6 +376,11 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+      statuses: read
+      issues: read
     outputs:
       bootstrap_required: ${{ steps.audit.outputs.bootstrap_required }}
 
@@ -422,6 +445,7 @@ jobs:
         if: ${{ always() && steps.control_read_app.outputs.token != '' && steps.status_app.outputs.token != '' && steps.issue_app.outputs.token != '' }}
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_NATIVE_TOKEN: ${{ github.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
