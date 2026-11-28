@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { readBranchPolicy, resolveOrdinaryDevelopmentBranch } from "./branch-publication-policy.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { hasRepositoryCapability, readRepositoryPolicyText } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
@@ -163,11 +164,15 @@ export async function resolveTrustedSourceSha(
   ) {
     throw new CliError("Target repository is not an active main-branch project.", 77);
   }
-  const commit = await fetcher(token, `repos/${repository}/commits/main`);
-  if (typeof commit.sha !== "string" || !SHA.test(commit.sha)) {
-    throw new CliError("Target main SHA is not available.", 75);
+  const target = await resolveOrdinaryDevelopmentBranch(
+    (path) => fetcher(token, path),
+    repository,
+    readBranchPolicy()
+  );
+  if (target.branch !== "main") {
+    throw new CliError("Coding task requires dev execution, which is not yet admitted.", 77);
   }
-  return commit.sha;
+  return target.sha;
 }
 
 export function agentDispatchPayload(request: AgentRequest, sha: string): Record<string, unknown> {

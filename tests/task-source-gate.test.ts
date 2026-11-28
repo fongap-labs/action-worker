@@ -125,6 +125,25 @@ test("task source gate accepts the default HEAD with verified evidence and a tru
   await validateTaskSource(reader, repository, headSha.toUpperCase(), fast);
 });
 
+test("coding tasks cannot execute a main snapshot when dev exists", async () => {
+  const { paths, reader, requested } = world();
+  for (const name of ["main", "dev"]) {
+    paths.set(`repos/${repository}/branches/${name}`, {
+      name,
+      commit: { sha: headSha, commit: { tree: { sha: headSha } } },
+    });
+  }
+  assert.equal(
+    await exitCodeOf(validateTaskSource(reader, repository, headSha, fast, "main", true)),
+    77
+  );
+  assert.deepEqual(requested, [
+    `repos/${repository}`,
+    `repos/${repository}/branches/main`,
+    `repos/${repository}/branches/dev`,
+  ]);
+});
+
 test("unadmitted task branches fail before source or evidence lookup", async () => {
   const { reader, requested } = world();
   for (const branch of ["dev", "other", ""]) {

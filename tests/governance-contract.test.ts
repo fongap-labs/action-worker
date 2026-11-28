@@ -747,14 +747,15 @@ test("task publication lands through a governed pull request", async () => {
   requireText(workflow, [
     'branch="task-publication/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
     "gh pr create",
-    "--base main",
+    '--base "$target_branch"',
     "chore: ${COMMIT_MESSAGE#chore: }",
-    "gh pr merge",
-    "gh pr update-branch",
+    "select-target",
+    "validate-merge-dev",
     "validate-merge",
     "mergeStateStatus",
   ]);
   assert.doesNotMatch(workflow, /push origin "HEAD:\$branch"/);
+  assert.doesNotMatch(workflow.split("  publish:")[1] ?? "", /gh pr (merge|update-branch)/);
   const publication = await text("scripts/validate-task-publication.ts");
   assert.match(
     publication,

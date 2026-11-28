@@ -1,7 +1,8 @@
 import { constants as fsConstants } from "node:fs";
 import { lstat, open, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { isJsonRecord } from "./github-api.ts";
+import { readBranchPolicy, resolveOrdinaryDevelopmentBranch } from "./branch-publication-policy.ts";
+import { GithubReader, isJsonRecord } from "./github-api.ts";
 import {
   parseRepositoryPolicy,
   readRepositoryPolicyText,
@@ -92,6 +93,27 @@ async function validatePayload(root: string, current = root): Promise<number> {
 }
 
 async function main(): Promise<void> {
+  if (process.argv[2] === "select-target") {
+    const repository = process.argv[3] ?? "";
+    const token = process.env.GH_TOKEN ?? "";
+    if (!/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) || !token || process.argv.length !== 4) {
+      throw new CliError("Invalid publication target selection.", 64);
+    }
+    const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
+    const target = await resolveOrdinaryDevelopmentBranch(
+      (path) => reader.get(path),
+      repository,
+      readBranchPolicy()
+    );
+    if (target.branch === "dev") {
+      const metadata = await reader.get("repos/" + repository);
+      if (!isJsonRecord(metadata) || metadata.private !== false) {
+        throw new CliError("Private development publication is not yet admitted.", 77);
+      }
+    }
+    console.log(JSON.stringify(target));
+    return;
+  }
   const runnerTemp = process.env.RUNNER_TEMP ?? "";
   const sourceRepository = process.env.SOURCE_REPOSITORY ?? "";
   if (!runnerTemp || !sourceRepository) {

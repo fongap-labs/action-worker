@@ -1,3 +1,4 @@
+import { assertOrdinaryDevelopmentTarget, readBranchPolicy } from "./branch-publication-policy.ts";
 import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
 import { GithubReader, getJsonString } from "./github-api.ts";
 import { assertTrustedMainWrite, type MainWriteProvenance } from "./main-write-guard.ts";
@@ -23,7 +24,8 @@ export async function validateTaskSource(
   repository: string,
   bootstrapRef: string,
   evidenceOptions: { statusAttempts?: number; runAttempts?: number; retryDelayMs?: number } = {},
-  targetBranch = "main"
+  targetBranch = "main",
+  isOrdinaryDevelopment = false
 ): Promise<TaskSourceCheck> {
   const ref = bootstrapRef.toLowerCase();
   if (!repositoryPattern.test(repository) || !shaPattern.test(ref)) {
@@ -36,6 +38,14 @@ export async function validateTaskSource(
   const defaultBranch = getJsonString(await reader.get(`repos/${repository}`), "default_branch");
   if (defaultBranch !== targetBranch) {
     throw new CliError("::error::Task source default branch does not match the locked target.", 65);
+  }
+  if (isOrdinaryDevelopment) {
+    await assertOrdinaryDevelopmentTarget(
+      (path) => reader.get(path),
+      repository,
+      targetBranch,
+      readBranchPolicy()
+    );
   }
   const headSha = getJsonString(
     await reader.get(`repos/${repository}/commits/${targetBranch}`),
@@ -75,7 +85,10 @@ async function main(): Promise<void> {
   }
 
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
-  await validateTaskSource(reader, repository, bootstrapRef, {}, targetBranch);
+  const isOrdinaryDevelopment =
+    process.env.AGENT_DOMAIN === "coding" &&
+    (process.env.OPERATION === "task" || process.env.OPERATION === "scheduled");
+  await validateTaskSource(reader, repository, bootstrapRef, {}, targetBranch, isOrdinaryDevelopment);
 
   // The run summary of this public repository is world-readable, so name no task source here.
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [

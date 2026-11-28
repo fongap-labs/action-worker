@@ -385,6 +385,6 @@ test("task publication preserves licenses, records changes, and uses CI-only gov
   assert.ok(publisher.includes("process.env.GITHUB_RUN_ID"));
   assert.doesNotMatch(publisher, /Awaiting maintainer approval of the current head commit/);
   assert.doesNotMatch(publisher, /review_count=/);
-  assert.match(publisher, /failed the validate-merge check/);
+  assert.match(publisher, /failed the \$merge_context check/);
   assert.doesNotMatch(publisher, /--admin|--bypass/);
 });
