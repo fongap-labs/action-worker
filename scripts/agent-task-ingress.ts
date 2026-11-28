@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { readBranchPolicy, resolveOrdinaryDevelopmentBranch } from "./branch-publication-policy.ts";
-import { isJsonRecord } from "./github-api.ts";
+import { GithubHttpError, isJsonRecord } from "./github-api.ts";
 import { hasRepositoryCapability, readRepositoryPolicyText } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
@@ -145,6 +145,7 @@ async function githubGet(token: string, path: string): Promise<ApiResponse> {
     redirect: "error",
     signal: AbortSignal.timeout(20_000),
   });
+  if (response.status === 404) throw new GithubHttpError(404);
   if (!response.ok)
     throw new CliError(`GitHub source validation returned HTTP ${response.status}.`, 75);
   return (await response.json()) as ApiResponse;

@@ -88,7 +88,14 @@ async function main(): Promise<void> {
   const isOrdinaryDevelopment =
     process.env.AGENT_DOMAIN === "coding" &&
     (process.env.OPERATION === "task" || process.env.OPERATION === "scheduled");
-  await validateTaskSource(reader, repository, bootstrapRef, {}, targetBranch, isOrdinaryDevelopment);
+  await validateTaskSource(
+    reader,
+    repository,
+    bootstrapRef,
+    {},
+    targetBranch,
+    isOrdinaryDevelopment
+  );
 
   // The run summary of this public repository is world-readable, so name no task source here.
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [

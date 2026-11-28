@@ -1304,6 +1304,7 @@ jobs:
           DEST_DIR: ${{ steps.publication.outputs.dest_dir }}
           DELETE_STALE: ${{ steps.publication.outputs.delete_stale }}
           COMMIT_MESSAGE: ${{ steps.publication.outputs.commit_message }}
+          COMMIT_BODY: ${{ steps.publication.outputs.commit_body }}
           PAYLOAD_DIR: ${{ steps.publication.outputs.payload_dir }}
           SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
           PROJECT: ${{ github.event.client_payload.project }}
@@ -1419,7 +1420,8 @@ jobs:
               rm -f "$changelog_next"
               git -C "$WORK_DIR/target" add -- CHANGELOG.md
           fi
-          git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE" -m "同步已验证的任务输出，保留目标仓库许可声明及变更记录。"
+          test -n "$COMMIT_BODY"
+          git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE" -m "$COMMIT_BODY"
           test "$(node scripts/validate-task-publication.ts select-target "$TARGET_REPOSITORY")" = "$selected"
           git -C "$WORK_DIR/target" push origin "HEAD:refs/heads/$branch"
           test "$(node scripts/validate-task-publication.ts select-target "$TARGET_REPOSITORY")" = "$selected"

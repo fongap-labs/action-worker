@@ -194,6 +194,7 @@ async function main(): Promise<void> {
     `dest_dir=${manifest.dest_dir}`,
     `delete_stale=${manifest.delete_stale}`,
     `commit_message=${manifest.commit_message}`,
+    "commit_body=同步已验证的任务输出，保留目标仓库许可声明及变更记录。",
     `payload_dir=${payloadDir}`,
   ]);
   if (process.env.TASK_SOURCE_PRIVATE !== "false") {
