@@ -555,7 +555,6 @@ jobs:
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_GITHUB_API_METRICS: "1"
-          AW_API_QUOTA_RESERVE: "300"
         run: node scripts/check-github-api-budget.ts
 
       - name: Reconcile task sources
@@ -648,7 +647,6 @@ jobs:
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_GITHUB_API_METRICS: "1"
-          AW_API_QUOTA_RESERVE: "300"
         run: node scripts/check-github-api-budget.ts
 
       - name: Dispatch due scheduled tasks
@@ -741,7 +739,6 @@ jobs:
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_GITHUB_API_METRICS: "1"
-          AW_API_QUOTA_RESERVE: "300"
         run: node scripts/check-github-api-budget.ts
 
       - name: Dispatch due scheduled deploys

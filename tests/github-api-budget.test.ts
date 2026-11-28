@@ -12,15 +12,18 @@ const quota = (remaining: number, limit = 5000, reset = 1800000000): unknown => 
 });
 
 test("optional scans defer when core API remaining reaches the reserved budget", () => {
-  const decision = evaluateGithubCoreBudget(quota(300));
+  const decision = evaluateGithubCoreBudget(quota(1000));
   assert.equal(decision.run, false);
-  assert.equal(decision.remaining, 300);
+  assert.equal(decision.remaining, 1000);
   assert.equal(decision.limit, 5000);
-  assert.equal(decision.reserve, 300);
+  assert.equal(decision.reserve, 1000);
   assert.equal(decision.reset_at, new Date(1800000000 * 1000).toISOString());
   assert.equal(evaluateGithubCoreBudget(quota(0)).run, false);
-  assert.equal(evaluateGithubCoreBudget(quota(299)).run, false);
-  assert.equal(evaluateGithubCoreBudget(quota(301)).run, true);
+  assert.equal(evaluateGithubCoreBudget(quota(999)).run, false);
+  assert.equal(evaluateGithubCoreBudget(quota(1001)).run, true);
+  assert.equal(evaluateGithubCoreBudget(quota(200, 1000)).run, false);
+  assert.equal(evaluateGithubCoreBudget(quota(201, 1000)).run, true);
+  assert.equal(evaluateGithubCoreBudget(quota(300, 5000), 299).run, true);
 });
 
 test("quota preflight fails closed for missing, invalid or misleading quota data", () => {
@@ -64,7 +67,7 @@ test("only optional intake jobs defer; important CI and governance continue", as
     const steps = workflow.jobs[job]?.steps ?? [];
     const preflight = steps.find((step) => step.id === "api_budget");
     assert.equal(preflight?.run, "node scripts/check-github-api-budget.ts");
-    assert.equal(preflight?.env?.AW_API_QUOTA_RESERVE, "300");
+    assert.equal(preflight?.env?.AW_API_QUOTA_RESERVE, undefined);
     assert.equal(preflight?.env?.AW_CONTROL_TOKEN, "${{ steps.control_read_app.outputs.token }}");
     const optionalScan = steps.filter((step) =>
       step.if?.includes("steps.api_budget.outputs.run == 'true'")
